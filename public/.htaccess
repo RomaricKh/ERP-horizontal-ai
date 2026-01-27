@@ -1,0 +1,19 @@
+RewriteEngine On
+
+# Do NOT touch API calls
+RewriteCond %{REQUEST_URI} ^/public/api/ [NC]
+RewriteRule ^ - [L]
+
+# If file or directory exists, serve it
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Otherwise route to frontend SPA
+RewriteRule ^ index.html [L]
+
+Options -Indexes
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

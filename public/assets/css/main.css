@@ -1,0 +1,143 @@
+html, body, #authViews, #appShell {
+	height: 100%;
+	margin: 0;
+	overflow: hidden; /* no page scroll */
+}
+
+.navbar .navbar-brand-icon img.rounded-circle {
+    width: 100%;       /* fit the parent div */
+    height: auto;      /* maintain aspect ratio */
+    max-width: 40px;   /* optional: limit maximum size */
+    max-height: 40px;  /* optional: limit maximum size */
+    display: block;    /* remove inline spacing */
+}
+
+.navbar .navbar-brand-text{
+	display: inline;
+}
+
+.lastWindowWarning {
+    position: fixed;
+    top: 80px;              /* below topbar */
+    right: 20px;
+    width: auto;
+    z-index: 1040;  /* BELOW modal (1050), ABOVE page */ 
+    display: inline;          /* hidden by default */    
+    pointer-events: auto;  /* clickable */
+}
+
+.lastWindowWarning.hidden {
+    display: block;
+}
+
+#authViews {
+	padding-top: 8% !important;
+}
+
+#wrapper {
+	display: flex;
+    flex-direction: column;
+ 	height: 100vh; /* full viewport height */
+}
+
+/* Horizontal menu overrides */
+#appMenu .navbar-nav .nav-item {
+    margin-right: 0.5rem;
+}
+
+#appMenu .nav-link {
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+}
+
+#appMenu .nav-link:hover,
+#appMenu .nav-item.active > .nav-link {
+    color: #fff;
+    background-color: rgba(255,255,255,0.15);
+    border-radius: 0.375rem;
+}
+/* Horizontal menu overrides */
+
+#accordionSidebar {
+	position: relative;
+	z-index: 500;
+  	flex-shrink: 0;
+  	height: 100%;
+  	overflow-y: auto;   /* scroll only vertically if sidebar is tall */
+  	overflow-x: hidden; /* kill horizontal scroll */
+}
+
+#accordionSidebar .nav-link span {
+  	white-space: nowrap;
+  	overflow: hidden;
+  	text-overflow: ellipsis;
+}
+
+#content-wrapper {
+  	display: flex;
+  	flex-direction: column;
+  	flex: 1 1 auto !important;
+  	min-height: 0 !important; /* allow children to scroll */
+  	overflow: hidden !important; /* prevent wrapper scroll */
+  	height: 100vh;          /* lock to viewport */
+}
+
+/* Topbar stays fixed */
+#topbar {
+	position: relative;
+	z-index: 500;
+  	flex-shrink: 0;
+}
+
+/* THIS is the only scrollable area */
+#scrollableArea {
+	flex: 1 1 auto !important; /* fill remaining height */
+	min-height: 0 !important;  /* critical for flexbox scroll */
+	overflow-y: auto !important;
+	scroll-behavior: smooth;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow-x: visible;
+}
+#scrollableArea::-webkit-scrollbar {
+  	width: 8px;
+}
+
+#scrollableArea::-webkit-scrollbar-thumb {
+ 	background: #cbd5e1;
+ 	border-radius: 4px;
+}
+
+#content {
+	position: relative;
+	z-index: 1;
+	padding-top: 20px;
+	padding-bottom: 20px;
+	padding-left: 120px;
+	padding-right: 120px;
+}
+
+#content .modal {
+    position: absolute;
+    inset: 0;
+    z-index: 200; /* below topbar (500), above page content */
+    background: rgba(0, 0, 0, 0.4); /* backdrop */
+}
+
+#global-modal-layer {
+	position: fixed;
+	inset: 0;
+	z-index: 1050; /* higher than topbar and sidebar */
+	pointer-events: none;
+}
+
+#global-modal-layer .modal {
+	pointer-events: auto;
+}
+
+.sticky-footer {
+  	flex-shrink: 0;         /* footer never collapses */
+}
+

@@ -1,0 +1,13 @@
+RewriteEngine On
+
+# Prevent infinite loop
+RewriteCond %{REQUEST_URI} !^/public/
+
+# Redirect everything to /public
+RewriteRule ^(.*)$ public/$1 [L]
+
+Options -Indexes
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

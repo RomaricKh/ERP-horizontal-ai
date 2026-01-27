@@ -1,0 +1,1 @@
+[Fri Jan 09 19:24:00.006792 2026] [php:error] [pid 27180:tid 1324] [client 127.0.0.1:49671] script 'C:/wamp64/www/ERP/public/api/Auth/reauth.php' not found or unable to stat, referer: http://erp.local/
