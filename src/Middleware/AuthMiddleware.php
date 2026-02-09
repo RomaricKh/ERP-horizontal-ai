@@ -1,6 +1,7 @@
 <?php
 namespace App\Middleware;
 
+use App\Config\Database;
 use App\Services\AuthService;
 use App\Services\UserService;
 use App\Services\BusinessService;
@@ -13,8 +14,8 @@ class AuthMiddleware {
     private BusinessService $businessS;
 
     public function __construct(string $jwtSecret) {
-        $this->auth = new AuthService($jwtSecret);
-        $this->userS = new UserService();
+        $this->auth = new AuthService($jwtSecret, Database::getConnection());
+        $this->userS = new UserService(Database::getConnection());
         $this->businessS = new BusinessService();
     }
 
@@ -65,7 +66,7 @@ class AuthMiddleware {
 		}
 		
 		// 3. Resolve permissions from roles
-		$permissions = $this->userS->getUserPermissionsForRole($role_id);
+		$permissions = $this->userS->getPermissionsForRole($role_id);
 
 
 		// 4. Establish backend identity (SOURCE OF TRUTH)

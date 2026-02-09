@@ -1,6 +1,7 @@
 <?php
 namespace App\Controllers;
 
+use App\Config\Database;
 use App\Controllers\BaseController;
 use App\Services\UserService;
 
@@ -8,7 +9,7 @@ class UsersController extends BaseController {
     private UserService $service;
 
     public function __construct() {
-        $this->service = new UserService();
+        $this->service = new UserService(Database::getConnection());
     }
 
     // GET /users
@@ -16,51 +17,76 @@ class UsersController extends BaseController {
         try {
 			$ctx = $this->auth();
             $users = $this->service->listForCurrentBusiness($ctx->business_id);
-            $this->ok(['users' => $users]);
+            $this->json(true, ['users' => $users]);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to fetch users'.$e);
+            $this->serverError('Failed to fetch users '.$e);
         }
     }
 
     // GET /users/{id}
     public function viewById(int $id): void {
         try {
-            $user = $this->service->getForCurrentBusiness($id);
-            $this->ok(['user' => $user]);
+			$ctx = $this->auth();
+            $user = $this->service->getByUserId($id, $ctx->business_id);
+            $this->json(true, ['user' => $user]);
         } catch (\Throwable $e) {
-            $this->notFound('User not found');
+            $this->notFound('User not found '.$e);
         }
     }
+	
+	// GET /users/lookup?{params}
+	public function lookup() {
+		try {
+			$ctx = $this->auth();
+			$result = $this->service->lookup($_GET);
+
+            $this->json(true, $result);
+		} catch (Throwable $e) {
+			return $this->serverError('Lookup failed '.$e);
+		}
+	}
 
     // POST /users
     public function store(): void {
         try {
-            $data = $this->input(['username', 'email', 'name', 'role_id']);
-            $userId = $this->service->createForCurrentBusiness($data);
-            $this->created(['user_id' => $userId]);
+			$ctx = $this->auth();
+			
+            $data = $this->input(['username', 'email', 'first_name', 'last_name', 'password', 'role_id', 'is_active']);
+            $userId = $this->service->createForCurrentBusiness($ctx->business_id, $ctx->user_id, $data);
+			
+            $this->json(true, ['user_id' => $userId]);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to create user');
+            $this->serverError('Failed to create user ');
         }
     }
 
     // PUT /users/{id}
     public function update(int $id): void {
         try {
-            $data = $this->input(['name', 'email', 'role_id']);
-            $this->service->updateForCurrentBusiness($id, $data);
-            $this->ok();
+			$ctx = $this->auth();
+			$selfModified = ($id === $ctx->user_id);
+			
+            $identity = $this->input(['username', 'email', 'first_name', 'last_name']);
+            $access = $this->input(['role_id', 'is_active']);
+            $this->service->updateForCurrentBusiness($id, $ctx->business_id, $ctx->user_id, $identity, $access);
+			
+            $this->json(true, ['selfModified' => $selfModified]);
         } catch (\Throwable $e) {
             $this->serverError('Failed to update user');
         }
     }
 
-    // PATCH /users/{id}/toggle
-    public function toggleStatus(int $id): void {
+    // DELETE /users/{id}
+    public function delete(int $id): void {
         try {
-            $this->service->toggleStatusForCurrentBusiness($id);
-            $this->ok();
+			$ctx = $this->auth();
+			$selfDeleted = ($id === $ctx->user_id);
+			
+            $this->service->deleteFromCurrentBusiness($id, $ctx->business_id, $ctx->user_id);
+			
+            $this->json(true, ['selfDeleted' => $selfDeleted]);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to toggle user status');
+            $this->serverError('Failed to delete user');
         }
     }
 }

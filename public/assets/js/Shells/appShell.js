@@ -226,12 +226,16 @@ async function handleBusinessChange(shouldBroadcast = true) {
 			shellChannel.postMessage('BUSINESS_CHANGED');
 		}
 		
-		deactivateAppShell();
-		await resolveRoute();
+		await invalidateAndReconnect();
 
 	} finally {
 		businessChangeInProgress = false;
 	}
+}
+	
+export async function invalidateAndReconnect(){		
+		deactivateAppShell();
+		await resolveRoute();
 }
 
 function renderUserInfo(user) {

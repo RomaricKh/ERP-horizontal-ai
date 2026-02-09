@@ -1,7 +1,5 @@
 // JavaScript Document
 
-// JavaScript Document
-
 const openModals = new WeakMap();
 const modalContainers = new Set(); 
 
@@ -71,4 +69,29 @@ export function closeAllModals() {
 		const entry = openModals.get(container);
 		entry?.modal.hide();
 	}
+}
+
+	
+export function confirm({ title, message }) {
+  	return new Promise(async (resolve) => {
+		await openModal({
+		  scope: MODAL_SCOPE.GLOBAL,
+		  template: 'html/components/ConfirmationModal.html',
+		  controller: '../components/confirmation.modal.js',
+		  data: { title, message, resolve },
+		  options: { backdrop: 'static', keyboard: true, focus: true }
+		});
+	});
+}
+
+export function alert({ title, alertText }) {
+  return new Promise(async (resolve) => {
+    await openModal({
+      scope: MODAL_SCOPE.GLOBAL,
+      template: 'html/components/AlertsModal.html',
+      controller: '../components/alerts.modal.js',
+      data: { title, alertText, resolve },
+      options: { backdrop: 'static', keyboard: true, focus: true }
+    });
+  });
 }

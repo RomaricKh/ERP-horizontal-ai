@@ -1,6 +1,7 @@
 <?php
 namespace App\Controllers;
 
+use App\Config\Database;
 use App\Controllers\BaseController;
 use App\Services\AuthService;
 use App\Support\AuthContext;
@@ -10,7 +11,7 @@ class AuthController extends BaseController {
     private AuthService $service;
 
     public function __construct(string $jwtSecret) {
-        $this->service = new AuthService($jwtSecret);
+        $this->service = new AuthService($jwtSecret, Database::getConnection());
     }
 
     /* =========================

@@ -3,14 +3,15 @@ namespace App\Services;
 
 use App\Support\AuthContext;
 use App\Repository\AuditRepository;
+use PDO;
 
-class AuditService
-{
+class AuditService {
     private AuditRepository $repo;
+	private PDO $db;
 
-    public function __construct()
-    {
-        $this->repo = new AuditRepository();
+    public function __construct(PDO $db) {
+		$this->db = $db;
+        $this->repo = new AuditRepository($this->db);
     }
 
     public function log(string $eventType, string $table, int|string $recordId,

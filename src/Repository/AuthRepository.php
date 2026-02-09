@@ -2,14 +2,13 @@
 	// src/Repository/AuthRepository.php
 namespace App\Repository;
 
-use App\Config\Database;
 use PDO;
 
 class AuthRepository {
     private $db;
 
-    public function __construct() {
-        $this->db = Database::getConnection();
+    public function __construct(PDO $db) {
+        $this->db = $db;
     }
 	
     public function checkPassword($user, $password) {

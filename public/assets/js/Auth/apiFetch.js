@@ -13,9 +13,13 @@ export async function apiFetch(url, options = {}) {
 	const savedBusinessId = localStorage.getItem('business_id');
 
     const headers = {
-        ...(options.headers || {}),
-        ...(token ? { Authorization: `Bearer ${token}`,
-				'X-Business-Id': savedBusinessId } : {})
+		'Accept': 'application/json',
+		...(options.body ? { 'Content-Type': 'application/json' } : {}),
+		...(options.headers || {}),
+		...(token ? {
+			Authorization: `Bearer ${token}`,
+			'X-Business-Id': savedBusinessId
+		} : {})
     };
 
     try {

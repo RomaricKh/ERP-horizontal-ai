@@ -2,14 +2,13 @@
 	// src/Repository/UserRepository.php
 namespace App\Repository;
 
-use App\Config\Database;
 use PDO;
 
 class UserRepository {
-    private $db;
+    private PDO $db;
 
-    public function __construct() {
-        $this->db = Database::getConnection();
+    public function __construct(PDO $db) {
+        $this->db = $db;
     }
 	
     public function findAllByBusiness(int $businessId): array {
@@ -17,11 +16,11 @@ class UserRepository {
             SELECT
                 u.id AS user_id,
                 u.username,
-                u.name,
+                CONCAT(u.first_name, ' ', u.last_name) AS name,
                 u.email,
-                u.is_active,
                 r.name AS role_name,
-                b.name AS business_name
+                b.name AS business_name,
+                ur.is_active
             FROM user_roles ur
             JOIN users u ON u.id = ur.user_id
             JOIN roles r ON r.id = ur.role_id
@@ -33,104 +32,102 @@ class UserRepository {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function findByIdAndBusiness(int $userId, int $businessId): ?array {
+    public function findByIdAndBusiness(int $user_id, int $businessId): ?array {
         $stmt = $this->db->prepare("
-            SELECT u.*
+            SELECT u.id AS user_id,
+				u.username,
+                u.first_name, 
+				u.last_name,
+				u.email,
+				ur.role_id,
+				ur.is_active
             FROM users u
             JOIN user_roles ur ON ur.user_id = u.id
             WHERE u.id = :id AND ur.business_id = :business
         ");
 
         $stmt->execute([
-            'id'       => $userId,
+            'id'       => $user_id,
             'business' => $businessId
         ]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
+	
+	private function findIdentity(string $field, $value) {
+		$allowed = ['id', 'username', 'email'];
+		if (!in_array($field, $allowed, true)) {
+			throw new \InvalidArgumentException('Invalid identity field');
+		}
 
-    public function findByUsername($username) {
-        $stmt = $this->db->prepare("
-						WITH user_data AS (
-							SELECT *
-							FROM users
-							WHERE username = :username
-							  AND is_active = 1
-							  AND (lock_until IS NULL OR lock_until < NOW())
-						),
-						user_roles_cte AS (
-							SELECT 
-								ur.user_id, ur.role_id, r.name AS role_name, 
-								ur.business_id, b.name AS business_name, ur.tenant_id 
-							FROM user_roles ur
-							INNER JOIN roles r ON r.id = ur.role_id
-							LEFT JOIN businesses b ON b.id = ur.business_id
-							WHERE ur.user_id = (SELECT id FROM user_data)
-						),
-						role_permissions_cte AS (
-							SELECT rp.role_id, p.code AS permission_code
-							FROM role_permissions rp
-							INNER JOIN permissions p ON p.id = rp.permission_id
-							WHERE rp.role_id IN (SELECT role_id FROM user_roles_cte)
-						),
-						roles_with_permissions AS (
-							SELECT
-								ur.role_id,
-								ur.role_name, ur.business_id, ur.business_name, ur.tenant_id,
-								JSON_ARRAYAGG(rp.permission_code) AS permissions
-							FROM user_roles_cte ur
-							LEFT JOIN role_permissions_cte rp ON rp.role_id = ur.role_id
-							GROUP BY ur.role_id, ur.role_name, ur.business_id
-						)
-						SELECT
-							ud.id AS user_id,
-							ud.username,
-							ud.password_hash,
-							ud.name,
-							ud.email,
-							ud.is_active,
-							ud.failed_attempts,
-							ud.lock_until,
-							ud.created_at,
-							ud.updated_at,
-							JSON_ARRAYAGG(
-								JSON_OBJECT(
-									'id', r.role_id,
-									'name', r.role_name,
-									'business_id', r.business_id,
-									'business_name', r.business_name,
-									'tenant_id', r.tenant_id,
-									'permissions', r.permissions
-								)
-							) AS roles
-						FROM user_data ud
-						LEFT JOIN roles_with_permissions r ON 1=1
-						GROUP BY ud.id;
+		$stmt = $this->db->prepare("
+			SELECT
+				id AS user_id,
+				username,
+				password_hash,
+                first_name, 
+				last_name,
+				email,
+				failed_attempts,
+				lock_until,
+				created_at,
+				updated_at
+			FROM users
+			WHERE {$field} = :value
+			  AND (lock_until IS NULL OR lock_until < NOW())
+			LIMIT 1
+		");
 
-        ");
-        $stmt->execute([
-            'username' => $username
-		]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    }
+		$stmt->execute(['value' => $value]);
+		return $stmt->fetch(PDO::FETCH_ASSOC);
+	}
+	
+	public function findIdentityByUsername($username) {
+		return $this->findIdentity('username', $username);
+	}
 
-    public function findById($user_id) {
+	public function findIdentityById($id) {
+		return $this->findIdentity('id', $id);
+	}
+
+	public function findIdentityByEmail($email) {
+		return $this->findIdentity('email', $email);
+	}
+	
+	public function findIdentityByIdForAdmin(int $id): ?array {
+		$stmt = $this->db->prepare("
+			SELECT
+				id AS user_id,
+				username,
+				password_hash,
+				first_name,
+				last_name,
+				email
+			FROM users
+			WHERE id = :id
+			LIMIT 1
+		");
+		$stmt->execute(['id' => $id]);
+		return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+	}
+
+    public function fetchAuthContext($user_id) {
         $stmt = $this->db->prepare("
 						WITH user_data AS (
 							SELECT *
 							FROM users
 							WHERE id = :user_id
-							  AND is_active = 1
 							  AND (lock_until IS NULL OR lock_until < NOW())
 						),
 						user_roles_cte AS (
 							SELECT
 								ur.user_id, ur.role_id, r.name AS role_name, 
-								ur.business_id, b.name AS business_name, ur.tenant_id
+								ur.business_id, b.name AS business_name, ur.is_active
 							FROM user_roles ur
 							INNER JOIN roles r ON r.id = ur.role_id
 							LEFT JOIN businesses b ON b.id = ur.business_id
 							WHERE ur.user_id = (SELECT id FROM user_data)
+							  AND ur.is_active = 1
 						),
 						role_permissions_cte AS (
 							SELECT rp.role_id, p.code AS permission_code
@@ -141,19 +138,18 @@ class UserRepository {
 						roles_with_permissions AS (
 							SELECT
 								ur.role_id,
-								ur.role_name, ur.business_id, ur.business_name, ur.tenant_id,
+								ur.role_name, ur.business_id, ur.business_name, ur.is_active,
 								JSON_ARRAYAGG(rp.permission_code) AS permissions
 							FROM user_roles_cte ur
 							LEFT JOIN role_permissions_cte rp ON rp.role_id = ur.role_id
-							GROUP BY ur.role_id, ur.role_name, ur.business_id
+							GROUP BY ur.role_id, ur.business_id
 						)
 						SELECT
 							ud.id AS user_id,
 							ud.username,
 							ud.password_hash,
-							ud.name,
+                			CONCAT(ud.first_name, ' ', ud.last_name) AS name,
 							ud.email,
-							ud.is_active,
 							ud.failed_attempts,
 							ud.lock_until,
 							ud.created_at,
@@ -164,13 +160,13 @@ class UserRepository {
 									'name', r.role_name,
 									'business_id', r.business_id,
 									'business_name', r.business_name,
-									'tenant_id', r.tenant_id,
+									'is_active', r.is_active,
 									'permissions', r.permissions
 								)
 							) AS roles
 						FROM user_data ud
 						LEFT JOIN roles_with_permissions r ON 1=1
-						GROUP BY ud.id;
+						GROUP BY ud.id
         ");
         $stmt->execute([
             'user_id' => $user_id
@@ -217,13 +213,94 @@ class UserRepository {
             'user_id' => $user_id,
             'business_id' => $business_id
         ]);
-error_log("SQL getUserRoleIdForBusiness user_id=$user_id business_id=$business_id");
 
 		$roleId = $stmt->fetchColumn();
 		return $roleId !== false ? (int)$roleId : null;
 	}
 	
-	public function getUserPermissionsForRole($role_id) {
+	public function getUserBusinessAccessInfo($user_id, $business_id) {
+		$stmt = $this->db->prepare("
+						SELECT r.id, ur.is_active
+						FROM user_roles ur
+						JOIN roles r ON r.id = ur.role_id
+						WHERE ur.user_id = :user_id
+						  AND ur.business_id = :business_id
+        				LIMIT 1
+		");
+		$stmt->execute([
+            'user_id' => $user_id,
+            'business_id' => $business_id
+        ]);
+
+		return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+	}
+	
+    public function createIdentity(array $data): int {
+        $stmt = $this->db->prepare("
+            INSERT INTO users (username, email, first_name, last_name, password_hash, created_at)
+            VALUES (:username, :email, :first_name, :last_name, :password_hash, NOW())
+        ");
+
+        $stmt->execute($data);
+        return (int)$this->db->lastInsertId();
+    }
+
+	public function updateIdentity(int $user_id, array $data): void {
+		$fields = [];
+		$params = ['id' => $user_id];
+
+		foreach ($data as $key => $value) {
+			$fields[] = "$key = :$key";
+			$params[$key] = $value;
+		}
+
+		$sql = "UPDATE users SET " . implode(', ', $fields) . " WHERE id = :id";
+		$stmt = $this->db->prepare($sql);
+		$stmt->execute($params);
+	}
+
+    public function assignRole(int $user_id, int $businessId, int $roleId, $is_active): void {
+        $stmt = $this->db->prepare("
+            INSERT INTO user_roles (user_id, business_id, role_id, is_active)
+            VALUES (:user, :business, :role, :is_active)
+        ");
+
+        $stmt->execute([
+            'user'     => $user_id,
+            'business' => $businessId,
+            'role'     => $roleId,
+			'is_active' => $is_active
+        ]);
+    }
+
+    public function updateRole(int $user_id, int $businessId, int $roleId, $is_active): void {
+        $stmt = $this->db->prepare("
+            UPDATE user_roles
+            SET role_id = :role, is_active = :is_active
+            WHERE user_id = :user AND business_id = :business
+        ");
+
+        $stmt->execute([
+            'role'     => $roleId,
+            'user'     => $user_id,
+            'business' => $businessId,
+			'is_active' => $is_active
+        ]);
+    }
+
+	public function deleteFromCurrentBusiness(int $user_id, int $business_id): void {
+        $stmt = $this->db->prepare("
+            DELETE FROM user_roles
+            WHERE user_id = :user AND business_id = :business
+        ");
+
+        $stmt->execute([
+            'user'     => $user_id,
+            'business' => $business_id
+        ]);
+	}
+	
+	public function getPermissionsForRole(int $role_id) {
 		$stmt = $this->db->prepare("
 						SELECT DISTINCT p.code
 						FROM role_permissions rp
@@ -235,65 +312,4 @@ error_log("SQL getUserRoleIdForBusiness user_id=$user_id business_id=$business_i
         ]);
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
 	}
-	
-    public function create(array $data): int {
-        $stmt = $this->db->prepare("
-            INSERT INTO users (username, email, name, is_active, created_at)
-            VALUES (:username, :email, :name, 1, NOW())
-        ");
-
-        $stmt->execute($data);
-        return (int)$this->db->lastInsertId();
-    }
-
-    public function update(int $userId, array $data): void {
-        $stmt = $this->db->prepare("
-            UPDATE users
-            SET name = :name, email = :email
-            WHERE id = :id
-        ");
-
-        $stmt->execute([
-            'id'    => $userId,
-            'name'  => $data['name'],
-            'email' => $data['email']
-        ]);
-    }
-
-    public function toggleStatus(int $userId): void {
-        $this->db->exec("
-            UPDATE users
-            SET is_active = NOT is_active
-            WHERE id = {$userId}
-        ");
-    }
-
-    public function assignRole(int $userId, int $businessId, int $roleId): void {
-        $stmt = $this->db->prepare("
-            INSERT INTO user_roles (user_id, business_id, role_id)
-            VALUES (:user, :business, :role)
-        ");
-
-        $stmt->execute([
-            'user'     => $userId,
-            'business' => $businessId,
-            'role'     => $roleId
-        ]);
-    }
-
-    public function updateRole(int $userId, int $businessId, int $roleId): void {
-        $stmt = $this->db->prepare("
-            UPDATE user_roles
-            SET role_id = :role
-            WHERE user_id = :user AND business_id = :business
-        ");
-
-        $stmt->execute([
-            'role'     => $roleId,
-            'user'     => $userId,
-            'business' => $businessId
-        ]);
-    }
-
-
 }

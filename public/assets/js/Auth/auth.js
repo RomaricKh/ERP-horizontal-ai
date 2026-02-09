@@ -106,6 +106,23 @@ export async function login(username, password, remember) {
 		}
 
 		setToken(data.data.token);
+
+		let roles = data.data.user.roles;
+
+		// MySQL JSON comes as string
+		if (typeof roles === 'string') {
+			roles = JSON.parse(roles);
+		}
+
+		const firstActiveRole = roles.find(r => r.is_active === 1);
+
+		if (!firstActiveRole) {
+			alert('No active business access assigned to your account.');
+			logout();
+			return;
+		}
+
+		localStorage.setItem('business_id', firstActiveRole.business_id);
 		forceLogin(true);
 	} catch (err) {
 		console.error(err);
@@ -120,7 +137,7 @@ export async function logout() {
 	const savedBusinessId = localStorage.getItem('business_id');
 
     try {
-        await fetch('api/auth/logout', {
+        const res = await fetch('api/auth/logout', {
             method: 'POST',
             credentials: 'include',
 			headers: { 
@@ -174,6 +191,7 @@ export async function forceLogout(shouldBroadcast = true) {
 	}
 
 	clearToken();
+	localStorage.removeItem('business_id');
 	stopSessionWatcher();
 	destroyRouter();
 

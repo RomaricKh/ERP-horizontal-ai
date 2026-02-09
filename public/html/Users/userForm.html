@@ -1,112 +1,177 @@
-<!-- Account details card-->
+<!-- Account details modal -->
 <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
-	<div class="modal-content text-gray-800">
-		<div class="modal-header">
-			<h5 class="modal-title">Account Details</h5>
-			<button class="btn-close" type="button" data-bs-dismiss="modal" aria-bs-label="Close"></button>
-		</div>
-		<div class="modal-body">
-			<form>
-				<!-- Form Row-->
-				<div class="row gx-3 mb-3">
-					<!-- Form Group (first name)-->
-					<div class="col-md-6">
-						<label class="mb-1" for="inputFirstName">First name</label>
-						<input class="form-control" id="inputFirstName" type="text" placeholder="Enter first name" value="" />
-					</div>
-					<!-- Form Group (last name)-->
-					<div class="col-md-6">
-						<label class="mb-1" for="inputLastName">Last name</label>
-						<input class="form-control" id="inputLastName" type="text" placeholder="Enter last name" value="" />
-					</div>
-				</div>
-				<!-- Form Group (email address)-->
-				<div class="mb-3">
-					<label class="mb-1" for="inputEmailAddress">Email address</label>
-					<input class="form-control" id="inputEmailAddress" type="email" placeholder="Enter your email address" value="" />
-				</div>
-				<!-- Form Row-->
-				<div class="row gx-3 mb-3">
-					<div class="col-md-2"></div>
-					<!-- Form Group (Username)-->
-					<div class="col-md-8">
-						<label class="mb-1" for="inputUsername">Username</label>
-						<input class="form-control" id="inputUsername" type="text" placeholder="Enter Username" value="" />
-					</div>
-					<div class="col-md-2"></div>
-				</div>
-				<!-- Form Row-->
-				<div class="row gx-3 mb-3">
-					<!-- Form Group (Password)-->
-					<div class="col-md-6">
-						<label class="mb-1" for="inputPassword">Password</label>
-						<input class="form-control" id="inputPassword" type="text" placeholder="Enter password" value="" />
-					</div>
-					<!-- Form Group (Confirm Password)-->
-					<div class="col-md-6">
-						<label class="mb-1" for="inputConfirmPass">Confirm Password</label>
-						<input class="form-control" id="inputConfirmPass" type="text" placeholder="Confirm Password" value="" />
-					</div>
-				</div>
-				<!-- Role ↔ Business Assignment -->
-				<div class="row mb-4 gx-3 align-items-center">
-					<!-- Selectors -->
-					<div class="col-md-4">
-						<div class="mb-3">
-							<label class="form-label">Role</label>
-							<select class="form-select" id="roleSelect">
-								<option value="" disabled selected>Select a role</option>
-								<!-- populated dynamically -->
-							</select>
-						</div>
+  <div class="modal-content text-gray-800">
 
-						<div class="mb-3">
-							<label class="form-label">Business</label>
-							<select class="form-select" id="businessSelect">
-								<option value="" disabled selected>Select a business</option>
-								<!-- populated dynamically -->
-							</select>
-						</div>
-					</div>
+    <!-- HEADER -->
+    <div class="modal-header">
+      <h5 class="modal-title" id="modalTitle">Account Details</h5>
+      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
 
-					<!-- Action -->
-					<div class="col-md-2 text-center">
-						<button class="btn btn-icon-split btn-primary" type="button" data-action="user.add.assignment">
-							<span class="icon">
-								<i class="fas fa-plus me-1"></i>
-							</span>
-							<span class="text">Add</span>
-						</button>
-					</div>
+    <!-- BODY -->
+    <div class="modal-body">
+      <form>
 
-					<!-- Assignments List -->
-					<div class="col-md-6">
-						<label class="form-label">Assigned roles</label>
-						<ul class="list-group" id="assignmentList">
-					  		<!-- items injected here -->
-							<li class="list-group-item d-flex justify-content-between align-items-center"
-								data-role-id="1"
-								data-business-id="3">
+        <div class="row">
 
-								<div>
-									<strong>Business:</strong> Liban Corps<br>
-									<strong>Role:</strong> Business Owner
-								</div>
+          <!-- ========================= -->
+          <!-- LEFT COLUMN: IDENTITY -->
+          <!-- ========================= -->
+          <div class="col-md-7">
 
-								<button class="btn btn-sm btn-outline-danger"
-									data-action="user.remove.assignment">
-									<i class="fas fa-trash"></i>
-								</button>
+            <h6 class="text-muted mb-3">Identity &amp; Security</h6>
 
-							</li>
-						</ul>
-					</div>
-				</div>
-			</form>
-		</div>
-        <div class="modal-footer">
-				<button class="btn btn-secondary" type="button" data-bs-dismiss="modal" title="Close">Close</button>
-				<button class="btn btn-primary" type="button" data-action="users.save" title="save user">Save user</button>
-		</div>
-	</div>
+            <!-- Modify Identity -->
+            <div class="mb-3">
+              <button
+                class="btn btn-outline-primary"
+                type="button"
+                data-action="users.modify.identity"
+                id="modifyIdentity"
+                title="Modify Identity">
+                Modify Identity
+              </button>
+            </div>
+
+            <!-- Lookup Fields -->
+            <div class="row gx-3 mb-3" id="lookupFields">
+              <div class="col-md-6">
+                <label class="mb-1" for="inputEmailAddress">Email address</label>
+                <input
+                  class="form-control"
+                  id="inputEmailAddress"
+                  type="email"
+                  placeholder="Enter email address">
+              </div>
+
+              <div class="col-md-6">
+                <label class="mb-1" for="inputUsername">Username</label>
+                <input
+                  class="form-control"
+                  id="inputUsername"
+                  type="text"
+                  placeholder="Enter username">
+              </div>
+
+              <div class="col-12">
+                <div class="form-text" id="lookupFeedback"></div>
+              </div>
+            </div>
+
+            <div class="dropdown-divider"></div>
+
+            <!-- Name -->
+            <div class="row gx-3 mb-3">
+              <div class="col-md-6">
+                <label class="mb-1" for="inputFirstName">First name</label>
+                <input
+                  class="form-control"
+                  id="inputFirstName"
+                  type="text"
+                  placeholder="Enter first name">
+              </div>
+
+              <div class="col-md-6">
+                <label class="mb-1" for="inputLastName">Last name</label>
+                <input
+                  class="form-control"
+                  id="inputLastName"
+                  type="text"
+                  placeholder="Enter last name">
+              </div>
+            </div>
+
+            <div class="dropdown-divider"></div>
+
+            <!-- Password Reset -->
+            <div class="mb-3">
+              <button
+                class="btn btn-outline-warning"
+                type="button"
+                data-action="users.password.reset"
+                id="passwordReset"
+                title="Password Reset">
+                Reset Password
+              </button>
+            </div>
+
+            <!-- Password Fields -->
+            <div class="row gx-3 mb-3">
+              <div class="col-md-6">
+                <label class="mb-1" for="inputPassword">Password</label>
+                <input
+                  class="form-control"
+                  id="inputPassword"
+                  type="password"
+                  placeholder="Enter password">
+              </div>
+
+              <div class="col-md-6">
+                <label class="mb-1" for="inputConfirmPass">Confirm Password</label>
+                <input
+                  class="form-control"
+                  id="inputConfirmPass"
+                  type="password"
+                  placeholder="Confirm password">
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ========================= -->
+          <!-- RIGHT COLUMN: ACCESS -->
+          <!-- ========================= -->
+          <div class="col-md-5 border-start">
+
+            <h6 class="text-muted mb-3">Business Access</h6>
+
+            <!-- Role -->
+            <div class="mb-4">
+              <label class="form-label" for="roleSelect">Role</label>
+              <select class="form-select" id="roleSelect">
+                <option value="" selected>Select a role</option>
+                <option value="1">Business_Owner</option>
+                <option value="2">ACCOUNTANT</option>
+                <!-- populated dynamically -->
+              </select>
+            </div>
+
+            <!-- Active -->
+            <div class="form-check form-check-solid">
+              <input
+                class="form-check-input"
+                id="isActiveCheck"
+                type="checkbox">
+              <label class="form-check-label" for="isActiveCheck">
+                Active on this business
+              </label>
+            </div>
+
+          </div>
+
+        </div>
+      </form>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="modal-footer">
+      <button
+        class="btn btn-secondary"
+        type="button"
+        data-bs-dismiss="modal"
+        title="Close">
+        Close
+      </button>
+
+      <button
+        class="btn btn-primary"
+        type="button"
+        data-action="users.save"
+        id="saveBtn"
+        title="Save user">
+        Save user
+      </button>
+    </div>
+
+  </div>
 </div>

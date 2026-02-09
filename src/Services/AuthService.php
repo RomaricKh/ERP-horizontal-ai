@@ -6,6 +6,7 @@ use App\Repository\AuthRepository;
 use App\Repository\UserRepository;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use PDO;
 
 class AuthService {
     private string $jwtSecret;
@@ -14,12 +15,14 @@ class AuthService {
     private AuthRepository $authRepo;
     private int $maxAttempts = 5;
     private int $lockMinutes = 15;
+	private PDO $db;
 
-    public function __construct(string $jwtSecret) {
+    public function __construct(string $jwtSecret, PDO $db) {
+		$this->db = $db;
         $this->jwtSecret = $jwtSecret;
-		$this->auditLog = new AuditService();
-        $this->userRepo = new UserRepository();
-        $this->authRepo = new AuthRepository();
+		$this->auditLog = new AuditService($this->db);
+        $this->userRepo = new UserRepository($this->db);
+        $this->authRepo = new AuthRepository($this->db);
 		$this->deviceId = $this->resolveDeviceId();
     }
 	
@@ -54,9 +57,9 @@ class AuthService {
     }
 
     public function login(string $username, string $password, bool $remember): array {
-        $user = $this->userRepo->findByUsername($username);
+        $userIdentity = $this->userRepo->findIdentityByUsername($username);
 
-        if (!$user) {
+        if (!$userIdentity) {
 			$this->auditLog->log(
 				'SECURITY',
 				'users',
@@ -72,21 +75,21 @@ class AuthService {
         }
 
         // Check password
-        if (!$this->authRepo->checkPassword($user, $password)) {
-            $this->userRepo->incrementFailedAttempts($user['user_id']);
+        if (!$this->authRepo->checkPassword($userIdentity, $password)) {
+            $this->userRepo->incrementFailedAttempts($userIdentity['user_id']);
 
             if (($user['failed_attempts'] ?? 0) + 1 >= $this->maxAttempts) {
-                $this->userRepo->lockAccount($user['user_id'], $this->lockMinutes);
+                $this->userRepo->lockAccount($userIdentity['user_id'], $this->lockMinutes);
 				$this->auditLog->log(
 					'SECURITY',
 					'users',
-					$user['user_id'],
+					$userIdentity['user_id'],
 					'ACCOUNT_LOCKED',
 					null,
 					[
-						'failed_attempts' => ($user['failed_attempts'] ?? 0) + 1
+						'failed_attempts' => ($userIdentity['failed_attempts'] ?? 0) + 1
 					],
-					$user['user_id'],   // explicit
+					$userIdentity['user_id'],   // explicit
 					null,
 					null
 				);
@@ -95,14 +98,14 @@ class AuthService {
 			$this->auditLog->log(
 				'SECURITY',
 				'users',
-				$user['user_id'] ?? 0,
+				$userIdentity['user_id'] ?? 0,
 				'LOGIN_FAILED',
 				null,
 				[
 					'username' => $username,
 					'reason'   => 'INVALID_PASSWORD'
 				],
-				$user['user_id'] ?? 0,   // explicit
+				$userIdentity['user_id'] ?? 0,   // explicit
 				null,
 				null
 			);
@@ -110,7 +113,9 @@ class AuthService {
         }
 
         // Reset failed attempts on successful login
-        $this->userRepo->resetFailedAttempts($user['user_id']);
+        $this->userRepo->resetFailedAttempts($userIdentity['user_id']);
+		
+		$user = $this->userRepo->fetchAuthContext($userIdentity['user_id']);
 
 		$accessToken = $this->generateAccessToken($user);
 
@@ -202,7 +207,7 @@ class AuthService {
 			$newHash
 		);
 
-		$user = $this->userRepo->findById($stored['user_id']);
+		$user = $this->userRepo->fetchAuthContext($stored['user_id']);
 
 		$accessToken = $this->generateAccessToken($user);
 		
@@ -295,7 +300,7 @@ class AuthService {
 	}
 
 	public function reauth($ctx, string $password): array {
-        $user = $this->userRepo->findById($ctx->user_id);
+        $user = $this->userRepo->fetchAuthContext($ctx->user_id);
 
         if (!$user) {
             return ['success' => false, 'message' => 'Invalid username or account locked'];

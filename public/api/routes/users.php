@@ -14,6 +14,11 @@ $router->get('/users/{id}',
     ['users.view']
 );
 
+$router->get('/users/lookup',
+    fn() => (new UsersController())->lookup(),
+    ['users.view']
+);
+
 $router->post('/users',
     fn() => (new UsersController())->store(),
     ['users.create']
@@ -22,6 +27,11 @@ $router->post('/users',
 $router->put('/users/{id}',
     fn($id) => (new UsersController())->update((int)$id),
     ['users.edit']
+);
+
+$router->delete('/users/{id}',
+    fn($id) => (new UsersController())->delete((int)$id),
+    ['users.delete']
 );
 
 $router->patch('/users/{id}/status',

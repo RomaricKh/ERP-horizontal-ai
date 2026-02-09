@@ -1,16 +1,14 @@
 <?php
 namespace App\Repository;
 
-use App\Config\Database;
 use PDO;
 
 class AuditRepository
 {
     private PDO $db;
 
-    public function __construct()
-    {
-        $this->db = Database::getConnection();
+    public function __construct(PDO $db) {
+        $this->db = $db;
     }
 
     public function insert(array $data): void
