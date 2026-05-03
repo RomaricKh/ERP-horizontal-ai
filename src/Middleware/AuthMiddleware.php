@@ -16,7 +16,7 @@ class AuthMiddleware {
     public function __construct(string $jwtSecret) {
         $this->auth = new AuthService($jwtSecret, Database::getConnection());
         $this->userS = new UserService(Database::getConnection());
-        $this->businessS = new BusinessService();
+        $this->businessS = new BusinessService(Database::getConnection());
     }
 
     public function handle(string|array|null $requiredPermissions = null): void {

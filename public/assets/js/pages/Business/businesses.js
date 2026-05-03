@@ -1,13 +1,30 @@
 // JavaScript Document
 
-import { getDefaultAuthRoute } from '../../router/router.config.js';
-import { getToken, hasPermission } from '../../Auth/auth.js';
+import { hasPermission } from '../../Auth/auth.js';
 import { registerPageActions } from '../Core/pageActions.js';
-import { MODAL_SCOPE, openModal, closeModalsInContainer } from '../../components/modals.js';
+import { MODAL_SCOPE, openModal, closeModalsInContainer, confirm, alert } from '../../components/modals.js';
+import { createDataTable } from '../../templates/datatables.design.js';
+import { apiFetch } from '../../Auth/apiFetch.js';
 
+let business_container;
 let unregister;
+let businessUpdatedHandler;
+let businessSelfModifiedHandler;
+let businessDataTable = null;
 
 export async function mount() {
+	await fetchBusinesses();	
+
+	businessUpdatedHandler = async () => {
+		await fetchBusinesses();
+	};
+	businessSelfModifiedHandler = async () => {
+		await invalidateAndReconnect();
+	};
+
+	document.addEventListener('businesses.updated', businessUpdatedHandler);
+	document.addEventListener('businesses.selfModified', businessSelfModifiedHandler);
+	
     unregister = registerPageActions({
         'businesses.create': async () => await openModal({
 			scope: MODAL_SCOPE.PAGE,
@@ -32,27 +49,40 @@ export async function mount() {
             const business_id = el.closest('tr')?.dataset.business_id;
             const name = el.closest('tr')?.dataset.name;
 			if (name) {
-				await openModal({
-					scope: MODAL_SCOPE.GLOBAL,
-					template: 'html/components/ConfirmationModal.html',
-					controller: '../pages/Business/deleteBusiness.modal.js',
-					data: { name: name, business_id: business_id },
-					options: { backdrop: 'static', keyboard: true, focus: true }
+
+				const confirmed = await confirm({
+					title: 'Delete business',
+					message: `Delete the business ${name} and all it's data?`
 				});
+				if (confirmed) {
+					
+				}
 			}
         }
     });
 }
 
 export function unmount() {
-    if (unregister) {
-        unregister();
-        unregister = null;
-    }
-	closeModalsInContainer(document.getElementById('content'));
+	if (businessUpdatedHandler) {
+		document.removeEventListener('businesses.updated', businessUpdatedHandler);
+		businessUpdatedHandler = null;
+	}
+	if (businessSelfModifiedHandler) {
+		document.removeEventListener('businesses.selfModified', businessSelfModifiedHandler);
+		businessSelfModifiedHandler = null;
+	}
+    
+	unregister?.();
+	unregister = null;
+
+	businessDataTable?.destroy();
+	businessDataTable = null;
+
+	closeModalsInContainer(business_container);
 }
 
 export async function render(container) {
+	business_container = container;
 	const html = await fetch(`html/Business/businesses.html`).then(r => r.text());
     container.innerHTML = html;
 	container.querySelectorAll('[data-action]')
@@ -62,88 +92,64 @@ export async function render(container) {
 			  el.remove();
 		  }
 	  });
-	await fetchBusinesses();	
-	
-	const datatablesDesignScript = document.createElement('script');
-	datatablesDesignScript.src = `assets/js/templates/datatables.design.js`;
-	container.appendChild(datatablesDesignScript);
 }
 
 async function fetchBusinesses() {
-	const tbody = document.querySelector('tbody');
-	tbody.innerHTML = '';
-	const token = getToken();
-	const savedBusinessId = localStorage.getItem('business_id');
-	
-	try {
-		const res = await fetch('api/businesses', {
-			method: 'GET',
-			headers: {
-				'Authorization': `Bearer ${token}`,
-				'X-Business-Id': savedBusinessId,
-				'Accept': 'application/json'
-			}
-		});
+	const res = await apiFetch('/api/businesses');
 
-        if (!res.ok) {
-            throw new Error(`HTTP error ${res.status}`);
-        }
+	const data = await res.json();
+	if (!data.success) return;
 
-		const data = await res.json();
-		
-		if (!data.success){
-            console.error(data.message || 'Failed to fetch businesses');
-            return;			
-		} else{
-			const canEdit = hasPermission('businesses.edit');
-			const canDelete = hasPermission('businesses.delete');	
-			const businesses = data.data.businesses;
-			for (const business of businesses){
-				const tr = document.createElement('tr');
-				tr.dataset.business_id = business.id;
-				tr.dataset.name = business.name;
-				tr.innerHTML = `
-					<td>${business.id}</td>
-					<td>${business.name}</td>
-					<td>${business.legal_name}</td>
-					<td>${business.registration_no}</td>
-					<td>${business.address}</td>
-					<td>${business.phone}</td>
-					<td>${business.email}</td>
-					<td>${business.currency}</td>
-				`;
-
-				const actionsTd = document.createElement('td');
-				actionsTd.style = "text-align: center";
-
-				if (canEdit) {
-					const btnEdit = document.createElement('button');
-					btnEdit.type = 'button';
-					btnEdit.title = 'businesses edit';
-					btnEdit.setAttribute('data-action', 'businesses.edit');
-					btnEdit.className = 'btn btn-info btn-circle btn-sm mr-1';
-					btnEdit.innerHTML = `<i class="fas fa-fw fa-edit"></i>`;
-					actionsTd.appendChild(btnEdit);
-				}
-
-				if (canDelete) {
-					const btnDelete = document.createElement('button');
-					btnDelete.type = 'button';
-					btnDelete.title = 'businesses delete';
-					btnDelete.setAttribute('data-action', 'businesses.delete');
-					btnDelete.className = 'btn btn-danger btn-circle btn-sm mr-1';
-					btnDelete.innerHTML = `<i class="fas fa-fw fa-trash"></i>`;
-					actionsTd.appendChild(btnDelete);
-				}
-
-				tr.appendChild(actionsTd);
-				
-				tbody.appendChild(tr);
-			}			
-		}		
-	} catch (err){
-        console.error('fetchBusinesses failed:', err);		
-	}
+	renderBusinessTable(data.data.businesses);
 }
 
+function renderBusinessTable(businesses){
+	const table = document.getElementById('dataTable');
+
+	if (!businessDataTable) {
+		businessDataTable = createDataTable('#dataTable', {
+			columnDefs: [
+				{ targets: 0, visible: false, searchable: false },
+				{ targets: '_all', className: 'text-nowrap' },
+				{ targets: 8, className: 'text-center', orderable: false, searchable: false }
+			]
+		});
+	}
+
+	businessDataTable.clear();
+	
+	const canEdit = hasPermission('businesses.edit');
+	const canDelete = hasPermission('businesses.delete');	
+	let actions = '';
+	if (canEdit) {
+		actions += `
+			<button data-action="businesses.edit" title="businesses edit"
+				class="btn btn-info btn-circle btn-sm me-1">
+				<i class="fas fa-edit"></i>
+			</button>`;
+	}
+	if (canDelete) {
+		actions += `
+			<button data-action="businesses.delete" title="businesses delete"
+				class="btn btn-danger btn-circle btn-sm me-1">
+				<i class="fas fa-trash"></i>
+			</button>`;
+	}
+	businesses.forEach(business => {
+		businessDataTable.row.add([
+			business.id,
+			business.name,
+			business.legal_name,
+			business.registration_no,
+			business.address,
+			business.phone,
+			business.email,
+			business.currency,
+			actions
+		]);
+	});
+
+	businessDataTable.draw(false);
+	businessDataTable.columns.adjust();
+}
 
