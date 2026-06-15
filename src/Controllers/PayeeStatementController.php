@@ -106,7 +106,7 @@ class PayeeStatementController extends BaseController {
         // Expenses (debit = we owe the payee)
         $stmt = $db->prepare("
             SELECT e.expense_date AS date, 'expense' AS type,
-                   e.reference_number, e.description,
+                   e.reference_number, e.notes AS description,
                    e.amount_fc AS debit_amount, 0 AS credit_amount,
                    'RECORDED' AS status
             FROM expenses e

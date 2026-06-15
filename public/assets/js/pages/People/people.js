@@ -168,28 +168,8 @@ function renderTable(people) {
             ]
         });
 
-        // Wire type filter
-        const typeFilter = document.getElementById('typeFilter');
-        const clearBtn = document.getElementById('clearTypeFilter');
-        if (typeFilter) {
-            typeFilter.addEventListener('change', () => {
-                const selected = [...typeFilter.selectedOptions].map(o => o.value);
-                if (selected.length === 0) {
-                    peopleDataTable.column(4).search('').draw();
-                } else {
-                    const regex = selected.join('|');
-                    peopleDataTable.column(4).search(regex, true, false).draw();
-                }
-            });
-        }
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => {
-                if (typeFilter) {
-                    [...typeFilter.options].forEach(o => o.selected = false);
-                }
-                peopleDataTable.column(4).search('').draw();
-            });
-        }
+        // Build type filter dropdown next to the DataTables search box
+        buildTypeFilterDropdown();
     }
 
     peopleDataTable.clear();
@@ -257,4 +237,104 @@ function renderTable(people) {
 
     peopleDataTable.draw(false);
     peopleDataTable.columns.adjust();
+}
+
+async function buildTypeFilterDropdown() {
+    // Fetch payee types from the API
+    let types = [];
+    try {
+        const res = await apiFetch('/api/people/payee-types');
+        const json = await res.json();
+        if (json.success) {
+            types = json.data?.payee_types || [];
+        }
+    } catch (err) {
+        console.error('Failed to load payee types for filter:', err);
+    }
+
+    if (types.length === 0) return;
+
+    // Find the DataTables filter row (search box container)
+    const dtFilter = people_container.querySelector('.dataTables_filter');
+    if (!dtFilter) return;
+
+    // Build the custom multi-select dropdown
+    const wrapper = document.createElement('div');
+    wrapper.className = 'type-filter-wrapper d-inline-block ms-3 position-relative';
+    wrapper.style.verticalAlign = 'middle';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'btn btn-outline-secondary btn-sm dropdown-toggle';
+    toggleBtn.innerHTML = '<i class="fas fa-filter me-1"></i>Filter by Type';
+    toggleBtn.dataset.bsToggle = 'dropdown';
+    toggleBtn.dataset.bsAutoClose = 'outside';
+
+    const menu = document.createElement('div');
+    menu.className = 'dropdown-menu p-2 shadow';
+    menu.style.minWidth = '200px';
+
+    // Build checkbox list
+    types.forEach(type => {
+        const item = document.createElement('div');
+        item.className = 'form-check py-1';
+        item.innerHTML = `
+            <input class="form-check-input type-filter-cb" type="checkbox" value="${escHtml(type.name)}" id="typeFilter_${type.id}">
+            <label class="form-check-label" for="typeFilter_${type.id}">${escHtml(type.name)}</label>
+        `;
+        menu.appendChild(item);
+    });
+
+    // Divider + clear button
+    const divider = document.createElement('div');
+    divider.className = 'dropdown-divider';
+    menu.appendChild(divider);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'btn btn-sm btn-link text-decoration-none w-100 text-start';
+    clearBtn.innerHTML = '<i class="fas fa-times me-1"></i>Clear all';
+    clearBtn.addEventListener('click', () => {
+        menu.querySelectorAll('.type-filter-cb').forEach(cb => { cb.checked = false; });
+        applyTypeFilter();
+    });
+    menu.appendChild(clearBtn);
+
+    wrapper.appendChild(toggleBtn);
+    wrapper.appendChild(menu);
+
+    // Insert next to the search input
+    dtFilter.style.display = 'flex';
+    dtFilter.style.alignItems = 'center';
+    dtFilter.style.gap = '0.5rem';
+    dtFilter.appendChild(wrapper);
+
+    // Wire checkbox change events
+    menu.addEventListener('change', (e) => {
+        if (e.target.classList.contains('type-filter-cb')) {
+            applyTypeFilter();
+        }
+    });
+
+    // Initialize Bootstrap dropdown
+    new bootstrap.Dropdown(toggleBtn);
+}
+
+function applyTypeFilter() {
+    const checkboxes = people_container.querySelectorAll('.type-filter-cb:checked');
+    const selected = [...checkboxes].map(cb => cb.value);
+
+    if (selected.length === 0) {
+        peopleDataTable.column(4).search('').draw();
+        // Reset button label
+        const btn = people_container.querySelector('.type-filter-wrapper .dropdown-toggle');
+        if (btn) btn.innerHTML = '<i class="fas fa-filter me-1"></i>Filter by Type';
+    } else {
+        // Build regex: match any of the selected types (case-insensitive word match)
+        const regex = selected.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+        peopleDataTable.column(4).search(regex, true, false).draw();
+        // Update button label to show count
+        const btn = people_container.querySelector('.type-filter-wrapper .dropdown-toggle');
+        if (btn) btn.innerHTML = `<i class="fas fa-filter me-1"></i>Types (${selected.length})`;
+    }
 }
