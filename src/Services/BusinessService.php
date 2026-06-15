@@ -34,6 +34,11 @@ class BusinessService {
 
         return $this->businessRepo->getAllForCurrentUser($user_id);
     }
+
+	public function getAllForTenant(int $tenant_id): array {
+
+        return $this->businessRepo->getAllForTenant($tenant_id);
+    }
 	
 	public function getById($business_id) {
 		$business = $this->businessRepo->getBusinessByID($business_id);
