@@ -122,7 +122,7 @@ class PayeeStatementController extends BaseController {
                    CONCAT('Salary ', s.period_start, ' - ', s.period_end) AS reference_number,
                    'Salary payment' AS description,
                    s.net_amount_fc AS debit_amount, 0 AS credit_amount,
-                   s.status
+                   'RECORDED' AS status
             FROM salaries s
             WHERE s.payee_id = :payee_id AND s.business_id = :business_id
               AND s.period_start >= :start_date AND s.period_end <= :end_date

@@ -254,21 +254,21 @@ async function buildTypeFilterDropdown() {
 
     if (types.length === 0) return;
 
-    // Find the DataTables filter row (search box container)
-    const dtFilter = people_container.querySelector('.dataTables_filter');
-    if (!dtFilter) return;
+    // Find the DataTables search container (DT2 uses .dt-search, legacy uses .dataTables_filter)
+    const dtSearch = people_container.querySelector('.dt-search') || people_container.querySelector('.dataTables_filter');
+    if (!dtSearch) return;
 
     // Build the custom multi-select dropdown
     const wrapper = document.createElement('div');
-    wrapper.className = 'type-filter-wrapper d-inline-block ms-3 position-relative';
+    wrapper.className = 'dropdown d-inline-block';
     wrapper.style.verticalAlign = 'middle';
 
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
-    toggleBtn.className = 'btn btn-outline-secondary btn-sm dropdown-toggle';
+    toggleBtn.className = 'btn btn-outline-secondary btn-sm';
+    toggleBtn.setAttribute('data-bs-toggle', 'dropdown');
+    toggleBtn.setAttribute('data-bs-auto-close', 'outside');
     toggleBtn.innerHTML = '<i class="fas fa-filter me-1"></i>Filter by Type';
-    toggleBtn.dataset.bsToggle = 'dropdown';
-    toggleBtn.dataset.bsAutoClose = 'outside';
 
     const menu = document.createElement('div');
     menu.className = 'dropdown-menu p-2 shadow';
@@ -304,10 +304,11 @@ async function buildTypeFilterDropdown() {
     wrapper.appendChild(menu);
 
     // Insert next to the search input
-    dtFilter.style.display = 'flex';
-    dtFilter.style.alignItems = 'center';
-    dtFilter.style.gap = '0.5rem';
-    dtFilter.appendChild(wrapper);
+    const searchParent = dtSearch.parentElement;
+    searchParent.style.display = 'flex';
+    searchParent.style.alignItems = 'center';
+    searchParent.style.gap = '0.75rem';
+    searchParent.insertBefore(wrapper, dtSearch);
 
     // Wire checkbox change events
     menu.addEventListener('change', (e) => {
@@ -315,9 +316,6 @@ async function buildTypeFilterDropdown() {
             applyTypeFilter();
         }
     });
-
-    // Initialize Bootstrap dropdown
-    new bootstrap.Dropdown(toggleBtn);
 }
 
 function applyTypeFilter() {
