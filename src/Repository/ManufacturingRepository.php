@@ -84,7 +84,7 @@ class ManufacturingRepository {
                    r.yield_quantity, r.notes, r.is_active, r.created_by,
                    r.created_at, r.updated_at,
                    i.name AS manufactured_item_name,
-                   i.unit, i.sale_price, i.has_expiry, i.min_stock,
+                   i.unit, i.sale_price, i.has_expiry, i.min_stock, i.shelf_life_days,
                    CASE WHEN i.markup_enabled = 1 THEN i.markup_percent ELSE NULL END AS markup_percent
             FROM recipes r
             JOIN items i ON i.id = r.manufactured_item_id
@@ -209,15 +209,31 @@ class ManufacturingRepository {
     /**
      * Return all recipe items for a given recipe, including component item details.
      */
-    public function getRecipeItems(int $recipeId): array {
-        $stmt = $this->db->prepare("
+    public function getRecipeItems(int $recipeId, ?int $businessId = null): array {
+        $sql = "
             SELECT ri.id, ri.recipe_id, ri.component_item_id, ri.quantity,
-                   i.name AS component_item_name, i.unit, i.cost_price
+                   i.name AS component_item_name, i.unit, i.cost_price";
+
+        if ($businessId !== null) {
+            $sql .= ", COALESCE(s.quantity, 0) AS available_stock";
+        }
+
+        $sql .= "
             FROM recipe_items ri
-            JOIN items i ON i.id = ri.component_item_id
-            WHERE ri.recipe_id = :recipe_id
-        ");
-        $stmt->execute(['recipe_id' => $recipeId]);
+            JOIN items i ON i.id = ri.component_item_id";
+
+        if ($businessId !== null) {
+            $sql .= " LEFT JOIN stock s ON s.item_id = ri.component_item_id AND s.business_id = :business_id";
+        }
+
+        $sql .= " WHERE ri.recipe_id = :recipe_id";
+
+        $stmt = $this->db->prepare($sql);
+        $params = ['recipe_id' => $recipeId];
+        if ($businessId !== null) {
+            $params['business_id'] = $businessId;
+        }
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 

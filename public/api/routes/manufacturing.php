@@ -79,3 +79,9 @@ $router->post('/manufacturing/orders',
     fn() => (new ManufacturingController())->storeOrder(),
     ['manufacturing.create']
 );
+
+// POST /manufacturing/preview-expiry
+$router->post('/manufacturing/preview-expiry',
+    fn() => (new ManufacturingController())->previewExpiry(),
+    ['manufacturing.view']
+);

@@ -27,6 +27,15 @@ export async function mount({ modalRoot: root, data }) {
         } else {
             batchSection.classList.add('d-none');
         }
+
+        // Disable ADJ for batch-tracked items
+        const adjOption = typeSelect.querySelector('option[value="ADJ"]');
+        if (adjOption) {
+            adjOption.disabled = hasExpiry;
+            if (hasExpiry && typeSelect.value === 'ADJ') {
+                typeSelect.value = '';
+            }
+        }
     };
 
     typeSelect?.addEventListener('change', () => {

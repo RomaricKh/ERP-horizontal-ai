@@ -223,7 +223,7 @@ class ItemService {
             }
         }
 
-        $fields = ['name','sku','unit','cost_price','sale_price','min_stock','markup_percent','markup_enabled','notes','item_type_id','has_expiry'];
+        $fields = ['name','sku','unit','cost_price','sale_price','min_stock','markup_percent','markup_enabled','notes','item_type_id','has_expiry','shelf_life_days'];
         $changes = [];
         foreach ($fields as $f) {
             if (array_key_exists($f, $input) && $input[$f] !== $before[$f]) {

@@ -195,4 +195,32 @@ class ManufacturingController extends BaseController
             $this->serverError('Failed to set auto-markup');
         }
     }
+
+    /**
+     * POST /manufacturing/preview-expiry
+     * Preview the effective expiry date for a production order based on:
+     * - The manufactured item's shelf_life_days
+     * - The earliest expiry among component batches that FEFO would consume
+     *
+     * Returns: { effective_expiry, shelf_life_expiry, component_constraint_expiry, constraining_component }
+     */
+    public function previewExpiry(): void
+    {
+        try {
+            $ctx = $this->auth();
+            $data = $this->input(['recipe_id', 'production_quantity']);
+            $recipeId = (int) ($data['recipe_id'] ?? 0);
+            $productionQty = (float) ($data['production_quantity'] ?? 0);
+
+            if (!$recipeId || $productionQty <= 0) {
+                $this->json(false, null, 'recipe_id and production_quantity are required', 422);
+                return;
+            }
+
+            $result = $this->service->previewExpiryForProduction($recipeId, $productionQty, $ctx->business_id);
+            $this->json(true, $result);
+        } catch (\Throwable $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        }
+    }
 }

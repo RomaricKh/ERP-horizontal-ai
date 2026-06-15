@@ -104,6 +104,11 @@ class ManufacturingService {
                 $this->itemRepo->update($itemId, $ctx->tenant_id, ['min_stock' => (float) $data['min_stock']]);
             }
 
+            // Set shelf_life_days if provided
+            if (isset($data['shelf_life_days']) && $data['shelf_life_days'] !== null) {
+                $this->itemRepo->update($itemId, $ctx->tenant_id, ['shelf_life_days' => (int) $data['shelf_life_days']]);
+            }
+
             $this->db->commit();
             return ['recipe_id' => $recipeId, 'item_id' => $itemId];
         } catch (\Throwable $e) {
@@ -185,6 +190,9 @@ class ManufacturingService {
             }
             if (array_key_exists('min_stock', $data)) {
                 $itemUpdates['min_stock'] = $data['min_stock'];
+            }
+            if (array_key_exists('shelf_life_days', $data)) {
+                $itemUpdates['shelf_life_days'] = $data['shelf_life_days'];
             }
             if (!empty($itemUpdates)) {
                 $this->itemRepo->update(
@@ -288,7 +296,7 @@ class ManufacturingService {
             throw new \RuntimeException('Recipe not found');
         }
 
-        $recipe['items'] = $this->repo->getRecipeItems($id);
+        $recipe['items'] = $this->repo->getRecipeItems($id, $ctx->business_id);
         return $recipe;
     }
 
@@ -301,6 +309,104 @@ class ManufacturingService {
     }
 
     /**
+     * Preview the effective expiry date for a production order.
+     * Considers:
+     * 1. The manufactured item's shelf_life_days (today + shelf_life)
+     * 2. The earliest expiry among component batches that FEFO would consume
+     * Returns the earlier of the two.
+     */
+    public function previewExpiryForProduction(int $recipeId, float $productionQty, int $businessId): array
+    {
+        $ctx = AuthContext::get();
+        $recipe = $this->repo->getRecipeById($recipeId, $ctx->tenant_id, $businessId);
+        if (!$recipe) {
+            throw new \RuntimeException('Recipe not found');
+        }
+
+        $today = new \DateTime();
+        $shelfLifeDays = (int) ($recipe['shelf_life_days'] ?? 0);
+        $shelfLifeExpiry = null;
+
+        if ($shelfLifeDays > 0) {
+            $shelfLifeExpiry = (clone $today)->modify("+{$shelfLifeDays} days")->format('Y-m-d');
+        }
+
+        // Get recipe components and simulate FEFO consumption to find earliest batch expiry
+        $recipeItems = $this->repo->getRecipeItems($recipeId);
+        $yieldQty = (float) ($recipe['yield_quantity'] ?: 1);
+        $earliestComponentExpiry = null;
+        $constrainingComponent = null;
+
+        foreach ($recipeItems as $ri) {
+            $requiredQty = ((float) $ri['quantity'] / $yieldQty) * $productionQty;
+            $componentItemId = (int) $ri['component_item_id'];
+
+            // Check if this component tracks expiry
+            $itemStmt = $this->db->prepare("SELECT has_expiry, name FROM items WHERE id = ? LIMIT 1");
+            $itemStmt->execute([$componentItemId]);
+            $componentItem = $itemStmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$componentItem || (int) $componentItem['has_expiry'] !== 1) {
+                continue; // This component doesn't track expiry, skip
+            }
+
+            // Find which batches FEFO would consume for this component
+            $batchStmt = $this->db->prepare("
+                SELECT id, quantity, expiry_date FROM item_batches
+                WHERE item_id = :item_id AND business_id = :business_id AND status = 'active' AND quantity > 0
+                ORDER BY expiry_date ASC
+            ");
+            $batchStmt->execute(['item_id' => $componentItemId, 'business_id' => $businessId]);
+            $batches = $batchStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $remaining = $requiredQty;
+            foreach ($batches as $batch) {
+                if ($remaining <= 0) break;
+                $batchQty = (float) $batch['quantity'];
+                $deduct = min($remaining, $batchQty);
+
+                // This batch will be consumed — check its expiry
+                if ($batch['expiry_date']) {
+                    if ($earliestComponentExpiry === null || $batch['expiry_date'] < $earliestComponentExpiry) {
+                        $earliestComponentExpiry = $batch['expiry_date'];
+                        $constrainingComponent = $componentItem['name'];
+                    }
+                }
+                $remaining -= $deduct;
+            }
+        }
+
+        // Determine effective expiry = MIN(shelf_life_expiry, earliest_component_expiry)
+        $effectiveExpiry = null;
+        $constrainedBy = 'shelf_life'; // default
+
+        if ($shelfLifeExpiry && $earliestComponentExpiry) {
+            if ($earliestComponentExpiry < $shelfLifeExpiry) {
+                $effectiveExpiry = $earliestComponentExpiry;
+                $constrainedBy = 'component';
+            } else {
+                $effectiveExpiry = $shelfLifeExpiry;
+                $constrainedBy = 'shelf_life';
+            }
+        } elseif ($shelfLifeExpiry) {
+            $effectiveExpiry = $shelfLifeExpiry;
+            $constrainedBy = 'shelf_life';
+        } elseif ($earliestComponentExpiry) {
+            $effectiveExpiry = $earliestComponentExpiry;
+            $constrainedBy = 'component';
+        }
+
+        return [
+            'effective_expiry'             => $effectiveExpiry,
+            'shelf_life_expiry'            => $shelfLifeExpiry,
+            'component_constraint_expiry'  => $earliestComponentExpiry,
+            'constraining_component'       => $constrainingComponent,
+            'constrained_by'               => $constrainedBy,
+            'shelf_life_days'              => $shelfLifeDays,
+        ];
+    }
+
+    /**
      * Get a recipe by its manufactured item ID.
      */
     public function getRecipeByItemId(int $itemId): ?array {
@@ -308,7 +414,7 @@ class ManufacturingService {
 
         $recipe = $this->repo->getRecipeByItemId($itemId, $ctx->tenant_id, $ctx->business_id);
         if ($recipe) {
-            $recipe['items'] = $this->repo->getRecipeItems($recipe['id']);
+            $recipe['items'] = $this->repo->getRecipeItems($recipe['id'], $ctx->business_id);
         }
         return $recipe;
     }

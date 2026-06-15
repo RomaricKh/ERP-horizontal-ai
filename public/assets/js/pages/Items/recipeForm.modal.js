@@ -18,6 +18,8 @@ const F = {
     autoMarkup:  () => document.getElementById('inputAutoMarkup'),
     minStock:    () => document.getElementById('inputRecipeMinStock'),
     hasExpiry:   () => document.getElementById('inputRecipeHasExpiry'),
+    shelfLife:   () => document.getElementById('inputRecipeShelfLife'),
+    shelfLifeGroup: () => document.getElementById('recipeShelfLifeGroup'),
     notes:       () => document.getElementById('inputRecipeNotes'),
     tbody:       () => document.getElementById('recipeComponentsBody'),
     batchCost:   () => document.getElementById('recipeBatchCost'),
@@ -62,6 +64,18 @@ export async function mount({ modalRoot: root, data }) {
             F.autoMarkup().value = markup.toFixed(2);
         }
     });
+
+    // Show/hide shelf life field when expiry tracking is toggled
+    F.hasExpiry().addEventListener('change', () => {
+        const group = F.shelfLifeGroup();
+        if (group) {
+            group.classList.toggle('d-none', !F.hasExpiry().checked);
+        }
+    });
+    // Initial state
+    if (F.hasExpiry().checked) {
+        F.shelfLifeGroup()?.classList.remove('d-none');
+    }
 
     unregister = registerPageActions({
         'recipe.add-component': () => {
@@ -111,6 +125,10 @@ async function fetchAndFill(recipeId) {
         F.autoMarkup().value = recipe.markup_percent ?? '';
         F.minStock().value  = recipe.min_stock ?? '';
         F.hasExpiry().checked = parseInt(recipe.has_expiry) === 1;
+        if (parseInt(recipe.has_expiry) === 1) {
+            F.shelfLifeGroup()?.classList.remove('d-none');
+            F.shelfLife().value = recipe.shelf_life_days ?? '';
+        }
         F.notes().value     = recipe.notes ?? '';
 
         // Populate component rows
@@ -355,6 +373,7 @@ async function saveRecipe() {
         auto_markup_percent: F.autoMarkup().value !== '' ? parseFloat(F.autoMarkup().value) : null,
         min_stock:      F.minStock().value !== '' ? parseFloat(F.minStock().value) : null,
         has_expiry:     F.hasExpiry().checked ? 1 : 0,
+        shelf_life_days: F.hasExpiry().checked && F.shelfLife().value !== '' ? parseInt(F.shelfLife().value, 10) : null,
         notes:          F.notes().value.trim() || null,
         components:     items
     };

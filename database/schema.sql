@@ -298,6 +298,7 @@ CREATE TABLE IF NOT EXISTS `items` (
   `markup_percent` decimal(5,2) DEFAULT NULL,
   `markup_enabled` tinyint(1) NOT NULL DEFAULT '0',
   `has_expiry` tinyint(1) NOT NULL DEFAULT '0',
+  `shelf_life_days` int DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT '1',
   `notes` text,
   `created_at` datetime NOT NULL,

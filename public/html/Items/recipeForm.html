@@ -55,6 +55,11 @@
                 <label class="form-check-label small fw-semibold" for="inputRecipeHasExpiry">Track Expiry</label>
               </div>
             </div>
+            <div class="col-md-3 d-none" id="recipeShelfLifeGroup">
+              <label class="form-label small text-muted" for="inputRecipeShelfLife">Shelf Life (days)</label>
+              <input class="form-control" id="inputRecipeShelfLife" type="number" step="1" min="1" placeholder="e.g. 90">
+              <small class="text-muted">Auto-fills expiry on production</small>
+            </div>
             <div class="col-md-9">
               <label class="form-label small text-muted" for="inputRecipeNotes" data-i18n="common.notes">Notes</label>
               <textarea class="form-control" id="inputRecipeNotes" rows="1" data-i18n-placeholder="production.recipe_notes_placeholder" placeholder="Optional recipe notes"></textarea>

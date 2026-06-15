@@ -104,6 +104,27 @@ async function onRecipeChange() {
         // Show expiry section if the manufactured item has expiry tracking
         if (parseInt(selectedRecipeDetails.has_expiry) === 1) {
             showExpirySection();
+            // Auto-fill dates using shelf life
+            const mfgDateInput = document.getElementById('inputProductionMfgDate');
+            const expiryDateInput = document.getElementById('inputProductionExpiry');
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+
+            if (mfgDateInput && !mfgDateInput.value) {
+                mfgDateInput.value = todayStr;
+            }
+
+            const shelfLifeDays = parseInt(selectedRecipeDetails.shelf_life_days);
+            if (shelfLifeDays > 0 && expiryDateInput && !expiryDateInput.value) {
+                const expiryDate = new Date(today);
+                expiryDate.setDate(expiryDate.getDate() + shelfLifeDays);
+                expiryDateInput.value = expiryDate.toISOString().split('T')[0];
+            }
+
+            // If quantity is already set, do a full preview including component constraints
+            if (parseFloat(F.productionQty().value) > 0) {
+                previewExpiry();
+            }
         } else {
             hideExpirySection();
         }
@@ -131,6 +152,60 @@ function hideExpirySection() {
 function onQuantityChange() {
     if (selectedRecipeDetails) {
         renderMaterialRequirements();
+        // Recalculate expiry preview when quantity changes
+        if (parseInt(selectedRecipeDetails.has_expiry) === 1) {
+            previewExpiry();
+        }
+    }
+}
+
+async function previewExpiry() {
+    const recipeId = F.recipeSelect().value;
+    const qty = parseFloat(F.productionQty().value);
+    if (!recipeId || !qty || qty <= 0) return;
+
+    try {
+        const res = await apiFetch('/api/manufacturing/preview-expiry', {
+            method: 'POST',
+            body: JSON.stringify({ recipe_id: parseInt(recipeId, 10), production_quantity: qty })
+        });
+        const json = await res.json();
+        if (!json.success || !json.data?.effective_expiry) return;
+
+        const data = json.data;
+        const expiryInput = document.getElementById('inputProductionExpiry');
+        const mfgInput = document.getElementById('inputProductionMfgDate');
+
+        // Auto-fill mfg date with today if empty
+        if (mfgInput && !mfgInput.value) {
+            mfgInput.value = new Date().toISOString().split('T')[0];
+        }
+
+        // Auto-fill expiry with the effective date
+        if (expiryInput) {
+            expiryInput.value = data.effective_expiry;
+        }
+
+        // Show a hint about why this expiry was chosen
+        let hintEl = document.getElementById('expiryHint');
+        if (!hintEl) {
+            hintEl = document.createElement('small');
+            hintEl.id = 'expiryHint';
+            hintEl.className = 'form-text';
+            expiryInput?.parentElement?.appendChild(hintEl);
+        }
+
+        if (data.constrained_by === 'component') {
+            hintEl.className = 'form-text text-warning';
+            hintEl.textContent = `⚠ Limited by ${data.constraining_component} (expires ${data.component_constraint_expiry})`;
+        } else if (data.shelf_life_days > 0) {
+            hintEl.className = 'form-text text-muted';
+            hintEl.textContent = `Based on ${data.shelf_life_days}-day shelf life`;
+        } else {
+            hintEl.textContent = '';
+        }
+    } catch (err) {
+        console.error('previewExpiry failed:', err);
     }
 }
 
@@ -152,25 +227,38 @@ function renderMaterialRequirements() {
     }
 
     let totalCost = 0;
+    let hasShortage = false;
+    let shortageItems = [];
 
     recipeItems.forEach(item => {
         const requiredQty = (parseFloat(item.quantity) / yieldQty) * productionQty;
         const unitCost = parseFloat(item.cost_price) || 0;
         const lineCost = unitCost * requiredQty;
+        const availableStock = parseFloat(item.available_stock) || 0;
+        const deficit = requiredQty - availableStock;
+        const isShort = deficit > 0;
         totalCost += lineCost;
 
+        if (isShort) {
+            hasShortage = true;
+            shortageItems.push({ name: item.component_item_name, deficit, available: availableStock, required: requiredQty });
+        }
+
         const row = document.createElement('tr');
+        if (isShort) row.classList.add('table-danger');
+
         row.innerHTML = `
             <td>${escapeHtml(item.component_item_name || '')}</td>
-            <td>${getFormatter().formatNumber(requiredQty, 4)}</td>
+            <td class="text-end">${getFormatter().formatNumber(requiredQty, 4)}</td>
             <td>${escapeHtml(item.unit || '—')}</td>
-            <td>${item.available_stock !== undefined ? getFormatter().formatNumber(item.available_stock, 4) : '—'}</td>
+            <td class="text-end">
+                ${isShort
+                    ? `<span class="text-danger fw-bold">${getFormatter().formatNumber(availableStock, 4)}</span>
+                       <small class="text-danger d-block">Short: ${getFormatter().formatNumber(deficit, 4)}</small>`
+                    : `<span class="text-success">${getFormatter().formatNumber(availableStock, 4)}</span>`
+                }
+            </td>
         `;
-
-        // Highlight insufficient stock
-        if (item.available_stock !== undefined && parseFloat(item.available_stock) < requiredQty) {
-            row.classList.add('table-danger');
-        }
 
         tbody.appendChild(row);
     });
@@ -179,6 +267,45 @@ function renderMaterialRequirements() {
     const unitCost = productionQty > 0 ? totalCost / productionQty : 0;
     F.totalCost().textContent = getFormatter().formatNumber(totalCost, 2);
     F.unitCost().textContent = getFormatter().formatNumber(unitCost, 2);
+
+    // Show/hide shortage warning
+    let warningEl = modalRoot.querySelector('#stockShortageWarning');
+    if (hasShortage) {
+        if (!warningEl) {
+            warningEl = document.createElement('div');
+            warningEl.id = 'stockShortageWarning';
+            warningEl.className = 'alert alert-danger d-flex align-items-start gap-2 mt-3';
+            const tableContainer = modalRoot.querySelector('#materialRequirementsTable')?.parentElement;
+            tableContainer?.after(warningEl);
+        }
+        const maxProducible = calculateMaxProducible(recipeItems, yieldQty);
+        warningEl.innerHTML = `
+            <i class="fas fa-exclamation-triangle mt-1"></i>
+            <div>
+                <strong>Insufficient stock</strong> for ${shortageItems.length} component${shortageItems.length > 1 ? 's' : ''}.
+                ${maxProducible > 0
+                    ? `<br><small>Maximum producible with current stock: <strong>${getFormatter().formatNumber(maxProducible, 2)} units</strong></small>`
+                    : `<br><small>Cannot produce any units — components are out of stock.</small>`
+                }
+            </div>
+        `;
+        warningEl.style.display = '';
+    } else if (warningEl) {
+        warningEl.style.display = 'none';
+    }
+}
+
+function calculateMaxProducible(recipeItems, yieldQty) {
+    let maxUnits = Infinity;
+    recipeItems.forEach(item => {
+        const requiredPerUnit = parseFloat(item.quantity) / yieldQty;
+        const available = parseFloat(item.available_stock) || 0;
+        if (requiredPerUnit > 0) {
+            const possibleFromThis = available / requiredPerUnit;
+            maxUnits = Math.min(maxUnits, possibleFromThis);
+        }
+    });
+    return maxUnits === Infinity ? 0 : Math.floor(maxUnits);
 }
 
 // ─── Form validation ────────────────────────────────────────────────────────

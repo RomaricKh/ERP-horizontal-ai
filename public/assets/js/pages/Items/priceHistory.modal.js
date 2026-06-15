@@ -38,9 +38,9 @@ function renderTable(records) {
     if (!priceHistoryTable) {
         priceHistoryTable = createDataTable('#priceHistoryTable', {
             columnDefs: [
+                { targets: [2, 3, 4, 5], className: 'text-end' },
                 { targets: '_all', className: 'text-nowrap' },
             ],
-            scrollY: '45vh',
             order: [[0, 'desc']]
         });
     }

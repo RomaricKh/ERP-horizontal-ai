@@ -148,30 +148,84 @@ class ItemsController extends BaseController {
         try {
             $ctx = $this->auth();
             $data = $this->input(['type', 'quantity']);
+            $type = strtoupper($data['type']);
+            $quantity = (float) $data['quantity'];
+
             $this->service->adjustStock(
                 $id,
-                strtoupper($data['type']),
-                (float) $data['quantity'],
+                $type,
+                $quantity,
                 $data['reference'] ?? null,
                 $data['notes']     ?? null
             );
 
-            // Create batch record if expiry data is provided (IN transactions on expiry-tracked items)
-            if (strtoupper($data['type']) === 'IN' && !empty($data['expiry_date'])) {
-                $db = \App\Config\Database::getConnection();
-                $batchNumber = $data['batch_number'] ?? ('BATCH-' . date('Ymd-His'));
-                $stmt = $db->prepare("
-                    INSERT INTO item_batches (item_id, business_id, batch_number, quantity, manufacturing_date, expiry_date, status, created_at)
-                    VALUES (:item_id, :business_id, :batch_number, :quantity, :mfg_date, :expiry_date, 'active', NOW())
-                ");
-                $stmt->execute([
-                    'item_id'      => $id,
-                    'business_id'  => $ctx->business_id,
-                    'batch_number' => $batchNumber,
-                    'quantity'     => (float) $data['quantity'],
-                    'mfg_date'     => $data['manufacturing_date'] ?? null,
-                    'expiry_date'  => $data['expiry_date'],
-                ]);
+            $db = \App\Config\Database::getConnection();
+
+            // Check if item tracks expiry
+            $itemStmt = $db->prepare("SELECT has_expiry FROM items WHERE id = ? LIMIT 1");
+            $itemStmt->execute([$id]);
+            $hasExpiry = (int) $itemStmt->fetchColumn();
+
+            // ADJ is not allowed on batch-tracked items
+            if ($hasExpiry === 1 && $type === 'ADJ') {
+                $this->json(false, null, 'Cannot use absolute adjustment on batch-tracked items. Use IN or OUT instead.', 422);
+                return;
+            }
+
+            if ($hasExpiry === 1) {
+                if ($type === 'IN' && !empty($data['expiry_date'])) {
+                    // Create a new batch
+                    $batchNumber = $data['batch_number'] ?? ('BATCH-' . date('Ymd-His'));
+                    $stmt = $db->prepare("
+                        INSERT INTO item_batches (item_id, business_id, batch_number, quantity, manufacturing_date, expiry_date, status, created_at)
+                        VALUES (:item_id, :business_id, :batch_number, :quantity, :mfg_date, :expiry_date, 'active', NOW())
+                    ");
+                    $stmt->execute([
+                        'item_id'      => $id,
+                        'business_id'  => $ctx->business_id,
+                        'batch_number' => $batchNumber,
+                        'quantity'     => $quantity,
+                        'mfg_date'     => $data['manufacturing_date'] ?? null,
+                        'expiry_date'  => $data['expiry_date'],
+                    ]);
+                } elseif ($type === 'OUT') {
+                    // FEFO deduction — consume from earliest expiring batches first
+                    $remaining = $quantity;
+                    $batchesStmt = $db->prepare("
+                        SELECT id, quantity FROM item_batches
+                        WHERE item_id = :item_id AND business_id = :business_id AND status = 'active' AND quantity > 0
+                        ORDER BY expiry_date ASC
+                    ");
+                    $batchesStmt->execute(['item_id' => $id, 'business_id' => $ctx->business_id]);
+                    $batches = $batchesStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+                    foreach ($batches as $batch) {
+                        if ($remaining <= 0) break;
+                        $batchQty = (float) $batch['quantity'];
+                        $deduct = min($remaining, $batchQty);
+
+                        // Update batch quantity
+                        $newBatchQty = $batchQty - $deduct;
+                        $updateStmt = $db->prepare("UPDATE item_batches SET quantity = :qty, updated_at = NOW() WHERE id = :id");
+                        $updateStmt->execute(['qty' => $newBatchQty, 'id' => $batch['id']]);
+
+                        // Record batch transaction
+                        $btStmt = $db->prepare("
+                            INSERT INTO batch_transactions (batch_id, transaction_type, quantity, reference, notes, created_at, created_by)
+                            VALUES (:batch_id, 'OUT', :quantity, :reference, :notes, NOW(), :user_id)
+                        ");
+                        $btStmt->execute([
+                            'batch_id'  => $batch['id'],
+                            'quantity'  => $deduct,
+                            'reference' => $data['reference'] ?? null,
+                            'notes'     => $data['notes'] ?? null,
+                            'user_id'   => $ctx->user_id,
+                        ]);
+
+                        $remaining -= $deduct;
+                    }
+                }
+                // ADJ: does not touch batches — only adjusts the stock total
             }
 
             $this->json(true, ['item_id' => $id]);
