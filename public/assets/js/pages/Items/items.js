@@ -353,7 +353,7 @@ function renderTable(items) {
 
         const customerBadge = item.customer_id && item.customer_name
             ? `<span class="badge bg-info text-white">${item.customer_name}</span>`
-            : '';
+            : `<span class="badge bg-secondary text-white">Global</span>`;
 
         itemsDataTable.row.add([
             item.id,
