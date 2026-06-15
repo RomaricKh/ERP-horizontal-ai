@@ -30,7 +30,8 @@ class PeopleRepository {
                 py.balance,
                 py.notes       AS payee_notes,
                 GROUP_CONCAT(pt.name ORDER BY pt.name SEPARATOR ', ') AS payee_types,
-                CONCAT('[', GROUP_CONCAT(ptp.payee_type_id ORDER BY ptp.payee_type_id), ']') AS payee_type_ids
+                CONCAT('[', GROUP_CONCAT(ptp.payee_type_id ORDER BY ptp.payee_type_id), ']') AS payee_type_ids,
+                (SELECT COUNT(*) FROM items i WHERE i.customer_id = p.id AND i.business_id = :business_id2) AS has_customer_items
             FROM people p
             INNER JOIN payees py
                 ON py.people_id = p.id AND py.business_id = :business_id
@@ -45,8 +46,9 @@ class PeopleRepository {
             ORDER BY p.name
         ");
         $stmt->execute([
-            'tenant_id'   => $tenantId,
-            'business_id' => $businessId,
+            'tenant_id'    => $tenantId,
+            'business_id'  => $businessId,
+            'business_id2' => $businessId,
         ]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

@@ -26,6 +26,25 @@ $router->get('/people/{id}/insights/general',
     ['people.view']
 );
 
+$router->get('/people/{id}/insights/partner',
+    fn($id) => (new \App\Controllers\InsightsController())->partner((int)$id),
+    ['people.view']
+);
+
+/* ========= PAYEE STATEMENT ========= */
+
+$router->get('/people/{id}/statement',
+    fn($id) => (new \App\Controllers\PayeeStatementController())->show((int)$id),
+    ['people.view']
+);
+
+/* ========= CUSTOMER ITEMS ========= */
+
+$router->get('/people/{id}/customer-items',
+    fn($id) => (new \App\Controllers\InsightsController())->customerItems((int)$id),
+    ['people.view']
+);
+
 $router->get('/people/{id}',
     fn($id) => (new PeopleController())->viewById((int)$id),
     ['people.view']

@@ -1,0 +1,47 @@
+<!-- Customer Items modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title" id="customerItemsTitle">
+        <i class="fas fa-boxes me-2"></i><span>Customer Items & Stock</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <div id="customerItemsLoading" class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <div id="customerItemsContent" class="d-none">
+        <div class="table-responsive">
+          <table class="table table-bordered table-hover table-sm"
+                 id="customerItemsTable" width="100%" cellspacing="0">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="text-end">Stock Qty</th>
+                <th class="text-end">Batch Count</th>
+                <th>Nearest Expiry</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="customerItemsEmpty" class="text-center text-muted py-4 d-none">
+        <i class="fas fa-info-circle fa-2x mb-2"></i>
+        <p>No items assigned to this customer.</p>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span>Close</span>
+      </button>
+    </div>
+
+  </div>
+</div>

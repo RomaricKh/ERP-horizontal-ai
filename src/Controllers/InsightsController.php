@@ -212,4 +212,137 @@ class InsightsController extends BaseController {
             $this->serverError('Failed to fetch general insights');
         }
     }
+
+    // GET /people/{payeeId}/customer-items
+    public function customerItems(int $payeeId): void {
+        try {
+            $ctx = $this->auth();
+            $db = Database::getConnection();
+            $businessId = $ctx->business_id;
+
+            // Verify payee belongs to current business
+            $stmt = $db->prepare("SELECT id FROM payees WHERE id = :id AND business_id = :bid LIMIT 1");
+            $stmt->execute(['id' => $payeeId, 'bid' => $businessId]);
+            if (!$stmt->fetch()) {
+                $this->json(false, null, 'Payee not found', 404);
+                return;
+            }
+
+            // Get items assigned to this customer with stock levels and batch info
+            $stmt = $db->prepare("
+                SELECT i.id, i.name,
+                       COALESCE(s.quantity, 0) AS stock_quantity,
+                       (SELECT COUNT(*) FROM item_batches ib WHERE ib.item_id = i.id AND ib.business_id = :bid2 AND ib.status = 'ACTIVE') AS batch_count,
+                       (SELECT MIN(ib2.expiry_date) FROM item_batches ib2 WHERE ib2.item_id = i.id AND ib2.business_id = :bid3 AND ib2.status = 'ACTIVE' AND ib2.expiry_date IS NOT NULL) AS nearest_expiry
+                FROM items i
+                LEFT JOIN stock_levels s ON s.item_id = i.id AND s.business_id = :bid4
+                WHERE i.customer_id = :payee_id AND i.business_id = :bid1
+                ORDER BY i.name
+            ");
+            $stmt->execute([
+                'payee_id' => $payeeId,
+                'bid1' => $businessId,
+                'bid2' => $businessId,
+                'bid3' => $businessId,
+                'bid4' => $businessId,
+            ]);
+            $items = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $this->json(true, ['items' => $items]);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to fetch customer items');
+        }
+    }
+
+    // GET /people/{payeeId}/insights/partner
+    public function partner(int $payeeId): void {
+        try {
+            $ctx = $this->auth();
+            $db = Database::getConnection();
+            $businessId = $ctx->business_id;
+
+            // Verify payee belongs to current business
+            $stmt = $db->prepare("SELECT id FROM payees WHERE id = :id AND business_id = :bid LIMIT 1");
+            $stmt->execute(['id' => $payeeId, 'bid' => $businessId]);
+            if (!$stmt->fetch()) {
+                $this->json(false, null, 'Payee not found', 404);
+                return;
+            }
+
+            // Partner shares
+            $shareStmt = $db->prepare("
+                SELECT COALESCE(ownership_percentage, 0) AS ownership_pct,
+                       COALESCE(invested_capital, 0) AS invested_capital
+                FROM partner_shares
+                WHERE partner_id = :payee_id AND business_id = :business_id
+                LIMIT 1
+            ");
+            $shareStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+            $shares = $shareStmt->fetch(\PDO::FETCH_ASSOC) ?: ['ownership_pct' => 0, 'invested_capital' => 0];
+
+            // Equity movements
+            $equityStmt = $db->prepare("
+                SELECT
+                    COALESCE(SUM(CASE WHEN type = 'CONTRIBUTION' THEN amount ELSE 0 END), 0) AS contributions,
+                    COALESCE(SUM(CASE WHEN type = 'WITHDRAWAL' THEN amount ELSE 0 END), 0) AS withdrawals
+                FROM partner_equity
+                WHERE partner_id = :payee_id AND business_id = :business_id
+            ");
+            $equityStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+            $equityRow = $equityStmt->fetch(\PDO::FETCH_ASSOC);
+            $contributions = (float)($equityRow['contributions'] ?? 0);
+            $withdrawals = (float)($equityRow['withdrawals'] ?? 0);
+
+            // Profit distributions
+            $distStmt = $db->prepare("
+                SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
+                FROM profit_distributions
+                WHERE partner_id = :payee_id AND business_id = :business_id
+            ");
+            $distStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+            $distRow = $distStmt->fetch(\PDO::FETCH_ASSOC);
+
+            // Payments
+            $payStmt = $db->prepare("
+                SELECT COUNT(*) AS count, COALESCE(SUM(amount_fc), 0) AS total
+                FROM payment_slips WHERE payee_id = :payee_id AND business_id = :business_id
+            ");
+            $payStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+            $payRow = $payStmt->fetch(\PDO::FETCH_ASSOC);
+
+            // Collections
+            $colStmt = $db->prepare("
+                SELECT COUNT(*) AS count, COALESCE(SUM(amount_fc), 0) AS total
+                FROM collection_slips WHERE payee_id = :payee_id AND business_id = :business_id
+            ");
+            $colStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+            $colRow = $colStmt->fetch(\PDO::FETCH_ASSOC);
+
+            $this->json(true, [
+                'shares' => [
+                    'ownership_pct'   => (float) $shares['ownership_pct'],
+                    'invested_capital' => (float) $shares['invested_capital'],
+                ],
+                'equity' => [
+                    'contributions' => $contributions,
+                    'withdrawals'   => $withdrawals,
+                    'net'           => $contributions - $withdrawals,
+                ],
+                'distributions' => [
+                    'count' => (int) ($distRow['count'] ?? 0),
+                    'total' => (float) ($distRow['total'] ?? 0),
+                ],
+                'payments' => [
+                    'count' => (int) $payRow['count'],
+                    'total' => (float) $payRow['total'],
+                ],
+                'collections' => [
+                    'count' => (int) $colRow['count'],
+                    'total' => (float) $colRow['total'],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to fetch partner insights');
+        }
+    }
 }

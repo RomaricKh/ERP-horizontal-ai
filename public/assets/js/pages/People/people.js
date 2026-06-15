@@ -93,13 +93,28 @@ export async function mount() {
             const payeeId = el.dataset.payeeId;
             const insightType = el.dataset.insightType;
             const name = el.dataset.name;
+            const payeeTypes = el.dataset.types || '';
             if (!payeeId || !insightType) return;
 
             await openModal({
                 scope: MODAL_SCOPE.PAGE,
                 template: 'html/People/insightsModal.html',
                 controller: '../pages/People/insights.modal.js',
-                data: { payee_id: payeeId, insight_type: insightType, person_name: name },
+                data: { payee_id: payeeId, insight_type: insightType, person_name: name, payee_types: payeeTypes },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
+        },
+
+        'people.customer-items': async ({ el }) => {
+            const payeeId = el.dataset.payeeId;
+            const name = el.dataset.name;
+            if (!payeeId) return;
+
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/People/customerItems.html',
+                controller: '../pages/People/customerItems.modal.js',
+                data: { payee_id: payeeId, person_name: name },
                 options: { backdrop: false, keyboard: true, focus: true }
             });
         }
@@ -152,6 +167,23 @@ function renderTable(people) {
                 { targets: 6, className: 'text-center', orderable: false, searchable: false }
             ]
         });
+
+        // Wire type filter buttons
+        const filterGroup = document.getElementById('typeFilterGroup');
+        if (filterGroup) {
+            filterGroup.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-filter]');
+                if (!btn) return;
+                filterGroup.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const filter = btn.dataset.filter;
+                if (filter === 'all') {
+                    peopleDataTable.column(4).search('').draw();
+                } else {
+                    peopleDataTable.column(4).search(filter, true, false).draw();
+                }
+            });
+        }
     }
 
     peopleDataTable.clear();
@@ -176,15 +208,24 @@ function renderTable(people) {
         if (p.payee_id) {
             const types = (p.payee_types || '').toLowerCase();
             if (types.includes('supplier')) {
-                actions += `<button data-action="people.insights" data-insight-type="supplier" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" class="btn btn-outline-success btn-circle btn-sm me-1" title="Purchase Insights">
+                actions += `<button data-action="people.insights" data-insight-type="supplier" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" data-types="${escHtml(p.payee_types || '')}" class="btn btn-outline-success btn-circle btn-sm me-1" title="Purchase Insights">
                                 <i class="fas fa-shopping-cart"></i></button>`;
             }
             if (types.includes('customer')) {
-                actions += `<button data-action="people.insights" data-insight-type="customer" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" class="btn btn-outline-info btn-circle btn-sm me-1" title="Sales Insights">
+                actions += `<button data-action="people.insights" data-insight-type="customer" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" data-types="${escHtml(p.payee_types || '')}" class="btn btn-outline-info btn-circle btn-sm me-1" title="Sales Insights">
                                 <i class="fas fa-chart-line"></i></button>`;
+                // Customer items stock button (for customers with specific items)
+                if (p.has_customer_items) {
+                    actions += `<button data-action="people.customer-items" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" class="btn btn-outline-warning btn-circle btn-sm me-1" title="Customer Items & Stock">
+                                    <i class="fas fa-boxes"></i></button>`;
+                }
             }
-            if (!types.includes('supplier') && !types.includes('customer')) {
-                actions += `<button data-action="people.insights" data-insight-type="general" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" class="btn btn-outline-secondary btn-circle btn-sm me-1" title="Usage Insights">
+            if (types.includes('partner')) {
+                actions += `<button data-action="people.insights" data-insight-type="partner" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" data-types="${escHtml(p.payee_types || '')}" class="btn btn-outline-primary btn-circle btn-sm me-1" title="Partner Insights">
+                                <i class="fas fa-handshake"></i></button>`;
+            }
+            if (!types.includes('supplier') && !types.includes('customer') && !types.includes('partner')) {
+                actions += `<button data-action="people.insights" data-insight-type="general" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" data-types="${escHtml(p.payee_types || '')}" class="btn btn-outline-secondary btn-circle btn-sm me-1" title="Usage Insights">
                                 <i class="fas fa-chart-pie"></i></button>`;
             }
         }

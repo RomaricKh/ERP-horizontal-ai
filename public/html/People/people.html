@@ -19,6 +19,16 @@
 		</div>
 	</div>
 	<div class="card-body">
+		<!-- Type Filter -->
+		<div class="mb-3">
+			<div class="btn-group btn-group-sm" role="group" id="typeFilterGroup">
+				<button type="button" class="btn btn-outline-primary active" data-filter="all">All</button>
+				<button type="button" class="btn btn-outline-primary" data-filter="customer">Customers</button>
+				<button type="button" class="btn btn-outline-primary" data-filter="supplier">Suppliers</button>
+				<button type="button" class="btn btn-outline-primary" data-filter="employee">Employees</button>
+				<button type="button" class="btn btn-outline-primary" data-filter="partner">Partners</button>
+			</div>
+		</div>
 		<div class="table-responsive">
 			<table class="table table-bordered table-striped table-hover row-border"
 				   id="peopleTable" width="100%" cellspacing="0">
