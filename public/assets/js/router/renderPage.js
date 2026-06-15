@@ -1,5 +1,7 @@
 // JavaScript Document
 
+import { applyTranslations } from '../i18n/translationClient.js';
+
 let currentPageModule = null;
 
 export async function renderPage(route, shellType) {
@@ -24,6 +26,9 @@ export async function renderPage(route, shellType) {
 
 	target.innerHTML = '';
 	await module.render(target);
+
+    // Apply translations to the rendered page content
+    applyTranslations(target);
 
     // 🔥 MOUNT NEW PAGE
     if (module.mount) {

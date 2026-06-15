@@ -1,0 +1,129 @@
+<!-- Item form modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title" id="itemModalTitle">
+        <i class="fas fa-box me-2"></i><span data-i18n="items.form_title">Item Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="itemForm" novalidate>
+        <div class="row">
+
+          <!-- LEFT: Item Information -->
+          <div class="col-md-7">
+            <div class="border rounded p-3 mb-4 bg-light">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-info-circle me-1"></i> <span data-i18n="items.info_heading">Item Information</span>
+              </h6>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputItemName"><span data-i18n="common.name">Name</span> <span class="text-danger">*</span></label>
+                <input class="form-control" id="inputItemName" type="text" data-i18n-placeholder="items.name_placeholder" placeholder="Item name" required>
+              </div>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputItemSku" data-i18n="common.sku">SKU</label>
+                  <input class="form-control" id="inputItemSku" type="text" data-i18n-placeholder="items.sku_placeholder" placeholder="Stock keeping unit">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputItemUnit" data-i18n="items.unit">Unit</label>
+                  <input class="form-control" id="inputItemUnit" type="text" data-i18n-placeholder="items.unit_placeholder" placeholder="e.g. pcs, kg, L">
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="itemTypeSelect"><span data-i18n="common.type">Type</span> <span class="text-danger">*</span></label>
+                <select class="form-select" id="itemTypeSelect" required>
+                  <option value="" data-i18n="items.select_type">Select a type</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="itemCustomerSelect" data-i18n="items.customer">Customer</label>
+                <input class="form-control form-control-sm mb-1" id="itemCustomerSearch" type="text"
+                       data-i18n-placeholder="items.search_customer" placeholder="Search customers...">
+                <select class="form-select" id="itemCustomerSelect">
+                  <option value="" data-i18n="items.global_item">— Global (all customers) —</option>
+                </select>
+                <small class="text-muted" data-i18n="items.customer_help">Leave empty for a global item</small>
+              </div>
+
+              <div class="mb-0">
+                <label class="form-label small text-muted" for="inputItemNotes" data-i18n="common.notes">Notes</label>
+                <textarea class="form-control" id="inputItemNotes" rows="2" data-i18n-placeholder="common.optional_notes" placeholder="Optional notes"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: Pricing & Inventory -->
+          <div class="col-md-5">
+            <div class="border rounded p-3 mb-4">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-tag me-1"></i> <span data-i18n="items.pricing_heading">Pricing</span>
+              </h6>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputCostPrice" data-i18n="items.cost_price">Cost Price</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fas fa-tag"></i></span>
+                  <input class="form-control" id="inputCostPrice" type="number"
+                         step="0.01" min="0" placeholder="0.00">
+                </div>
+              </div>
+
+              <div class="mb-0">
+                <label class="form-label small text-muted" for="inputSalePrice" data-i18n="items.sale_price">Sale Price</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fas fa-dollar-sign"></i></span>
+                  <input class="form-control" id="inputSalePrice" type="number"
+                         step="0.01" min="0" placeholder="0.00">
+                </div>
+              </div>
+            </div>
+
+            <div class="border rounded p-3 mb-4">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-warehouse me-1"></i> <span data-i18n="items.inventory_heading">Inventory</span>
+              </h6>
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="inputHasExpiry" name="has_expiry">
+                <label class="form-check-label fw-semibold" for="inputHasExpiry"
+                       data-i18n="items.track_expiry">Track Expiry Dates</label>
+              </div>
+              <small class="text-muted" data-i18n="items.track_expiry_help">Enable batch-level expiry tracking</small>
+            </div>
+          </div>
+
+        </div>
+      </form>
+    </div>
+
+    <!-- Supplier Prices Section -->
+    <div id="supplierPricesSection" class="d-none px-3 pb-3">
+      <div id="supplierPricesContainer"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline-info d-none" type="button" data-action="items.price-history" id="btnPriceHistory" title="Price History">
+        <i class="fas fa-history me-1"></i>History
+      </button>
+      <button class="btn btn-outline-success d-none" type="button" data-action="items.supplier-prices" id="btnSupplierPrices" title="Supplier Prices">
+        <i class="fas fa-truck me-1"></i>Suppliers
+      </button>
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.close">Close</span>
+      </button>
+      <button class="btn btn-primary" type="button" data-action="items.save" id="itemSaveBtn">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+      </button>
+    </div>
+
+  </div>
+</div>

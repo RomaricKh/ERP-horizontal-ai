@@ -1,0 +1,111 @@
+<!-- Page Heading -->
+<div class="d-flex align-items-center mb-2">
+	<a href="#/people" class="btn btn-link text-gray-600 p-0 me-2" title="Back to People">
+		<i class="fas fa-arrow-left"></i>
+	</a>
+	<h1 class="h3 mb-0 text-gray-800" data-i18n="statement.title">Statement of Account</h1>
+	<span id="statementPayeeName" class="ms-2 text-muted"></span>
+</div>
+
+<!-- Date Range & Export -->
+<div class="card shadow mb-4">
+	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="statement.filters">Filters</h6>
+		<button class="btn btn-outline-success btn-sm btn-icon-split" id="statementExportBtn"
+				data-bs-toggle="tooltip" data-bs-placement="top" title="Export statement">
+			<span class="text" data-i18n="statement.export_btn">Export</span>
+			<span class="icon"><i class="fas fa-fw fa-file-download"></i></span>
+		</button>
+	</div>
+	<div class="card-body">
+		<div class="row g-3 align-items-end">
+			<div class="col-auto">
+				<label for="statementStartDate" class="form-label" data-i18n="statement.start_date">Start Date</label>
+				<input type="date" class="form-control" id="statementStartDate">
+			</div>
+			<div class="col-auto">
+				<label for="statementEndDate" class="form-label" data-i18n="statement.end_date">End Date</label>
+				<input type="date" class="form-control" id="statementEndDate">
+			</div>
+			<div class="col-auto">
+				<button class="btn btn-primary btn-sm" id="statementLoadBtn" data-i18n="statement.load_btn">Load</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Balance Summary Cards -->
+<div class="row mb-3">
+	<div class="col-md-4">
+		<div class="card border-left-info shadow h-100 py-2">
+			<div class="card-body">
+				<div class="row no-gutters align-items-center">
+					<div class="col mr-2">
+						<div class="text-xs font-weight-bold text-info text-uppercase mb-1" data-i18n="statement.opening_balance">Opening Balance</div>
+						<div class="h5 mb-0 font-weight-bold text-gray-800" id="statementOpeningBalance">—</div>
+					</div>
+					<div class="col-auto">
+						<i class="fas fa-balance-scale fa-2x text-gray-300"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-4">
+		<div class="card border-left-warning shadow h-100 py-2">
+			<div class="card-body">
+				<div class="row no-gutters align-items-center">
+					<div class="col mr-2">
+						<div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Debits</div>
+						<div class="h5 mb-0 font-weight-bold text-gray-800" id="statementTotalDebits">—</div>
+					</div>
+					<div class="col-auto">
+						<i class="fas fa-arrow-up fa-2x text-gray-300"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-4">
+		<div class="card border-left-success shadow h-100 py-2">
+			<div class="card-body">
+				<div class="row no-gutters align-items-center">
+					<div class="col mr-2">
+						<div class="text-xs font-weight-bold text-success text-uppercase mb-1" data-i18n="statement.closing_balance">Closing Balance</div>
+						<div class="h5 mb-0 font-weight-bold text-gray-800" id="statementClosingBalance">—</div>
+					</div>
+					<div class="col-auto">
+						<i class="fas fa-calculator fa-2x text-gray-300"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Transaction Ledger Table -->
+<div class="card shadow mb-4">
+	<div class="card-header py-3">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="statement.transactions">Ledger</h6>
+	</div>
+	<div class="card-body">
+		<div class="table-responsive">
+			<table class="table table-bordered table-striped table-hover row-border"
+				   id="statementTable" width="100%" cellspacing="0">
+				<thead>
+					<tr>
+						<th data-i18n="common.date">Date</th>
+						<th data-i18n="statement.type">Type</th>
+						<th data-i18n="statement.reference">Reference</th>
+						<th data-i18n="statement.description">Description</th>
+						<th data-i18n="statement.debit">Debit</th>
+						<th data-i18n="statement.credit">Credit</th>
+						<th data-i18n="statement.running_balance">Running Balance</th>
+						<th>Status</th>
+					</tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</div>
+</div>

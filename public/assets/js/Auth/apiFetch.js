@@ -11,6 +11,7 @@ export async function apiFetch(url, options = {}) {
 	}
     const token = getToken();
 	const savedBusinessId = localStorage.getItem('business_id');
+	const activeTenantId = localStorage.getItem('activeTenantId');
 
     const headers = {
 		'Accept': 'application/json',
@@ -18,7 +19,8 @@ export async function apiFetch(url, options = {}) {
 		...(options.headers || {}),
 		...(token ? {
 			Authorization: `Bearer ${token}`,
-			'X-Business-Id': savedBusinessId
+			...(savedBusinessId && savedBusinessId !== 'null' ? { 'X-Business-Id': savedBusinessId } : {}),
+			...(activeTenantId ? { 'X-Tenant-Id': activeTenantId } : {})
 		} : {})
     };
 

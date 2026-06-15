@@ -1,0 +1,42 @@
+<!-- Expense Categories management modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-danger text-white">
+      <h5 class="modal-title">
+        <i class="fas fa-folder me-2"></i><span data-i18n="expenses.manage_categories">Manage Expense Categories</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+
+      <!-- Add new category -->
+      <div class="border rounded p-3 mb-4 bg-light">
+        <h6 class="text-danger fw-bold mb-3">
+          <i class="fas fa-plus-circle me-1"></i> Add New Category
+        </h6>
+        <div class="input-group">
+          <input class="form-control" id="newExpenseCategoryName" type="text"
+                 data-i18n-placeholder="expenses.category_name_placeholder" placeholder="New category name (e.g. Rent, Utilities, Office Supplies…)">
+          <button class="btn btn-danger" type="button" data-action="expense-categories.add">
+            <i class="fas fa-plus me-1"></i><span data-i18n="common.add">Add</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Existing categories list -->
+      <div id="expenseCategoriesList">
+        <div class="text-center text-muted py-3" data-i18n="common.loading">Loading…</div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.close">Close</span>
+      </button>
+    </div>
+
+  </div>
+</div>

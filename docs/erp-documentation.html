@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP-Horizontal-AI — System Documentation</title>
+<style>
+  :root {
+    --primary: #4e73df;
+    --success: #1cc88a;
+    --warning: #f6c23e;
+    --danger:  #e74a3b;
+    --info:    #36b9cc;
+    --dark:    #1a1a2e;
+    --gray:    #6c757d;
+    --light:   #f8f9fc;
+    --border:  #e3e6f0;
+    --sidebar-w: 280px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--light); color: #333; display: flex; min-height: 100vh; }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: var(--sidebar-w); background: var(--dark); color: #ccc;
+    position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto;
+    padding: 0 0 2rem; z-index: 100; transition: transform .3s;
+  }
+  #sidebar .brand { padding: 1.5rem 1.2rem; background: rgba(255,255,255,.05); border-bottom: 1px solid rgba(255,255,255,.1); }
+  #sidebar .brand h1 { font-size: 1rem; color: #fff; font-weight: 700; }
+  #sidebar .brand p  { font-size: .72rem; color: #aaa; margin-top: .2rem; }
+  #sidebar nav ul { list-style: none; padding: .5rem 0; }
+  #sidebar nav ul li a {
+    display: block; padding: .55rem 1.2rem; font-size: .82rem; color: #bbb;
+    text-decoration: none; border-left: 3px solid transparent; transition: all .2s;
+  }
+  #sidebar nav ul li a:hover, #sidebar nav ul li a.active {
+    color: #fff; background: rgba(255,255,255,.07); border-left-color: var(--primary);
+  }
+  #sidebar nav .section-label {
+    font-size: .65rem; text-transform: uppercase; letter-spacing: .1em;
+    color: #666; padding: 1rem 1.2rem .3rem; font-weight: 700;
+  }
+
+  /* ── MAIN ── */
+  #main { margin-left: var(--sidebar-w); flex: 1; padding: 2rem 2.5rem; max-width: 1200px; }
+
+  /* ── SECTIONS ── */
+  .section { margin-bottom: 3.5rem; scroll-margin-top: 1rem; }
+  h2.section-title {
+    font-size: 1.6rem; font-weight: 700; color: var(--dark);
+    border-bottom: 3px solid var(--primary); padding-bottom: .5rem; margin-bottom: 1.5rem;
+  }
+  h3.sub-title { font-size: 1.15rem; font-weight: 600; color: var(--primary); margin: 1.5rem 0 .7rem; }
+  h4.sub-sub { font-size: .95rem; font-weight: 600; color: #555; margin: 1rem 0 .4rem; }
+  p { line-height: 1.7; margin-bottom: .8rem; color: #444; }
+
+  /* ── CARDS ── */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin: 1rem 0; }
+  .card {
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    padding: 1.2rem; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+  .card .card-icon { font-size: 1.8rem; margin-bottom: .5rem; }
+  .card .card-title { font-weight: 700; font-size: .9rem; color: var(--dark); }
+  .card .card-desc  { font-size: .8rem; color: var(--gray); margin-top: .3rem; line-height: 1.5; }
+  .card.accent-blue  { border-top: 4px solid var(--primary); }
+  .card.accent-green { border-top: 4px solid var(--success); }
+  .card.accent-yellow{ border-top: 4px solid var(--warning); }
+  .card.accent-red   { border-top: 4px solid var(--danger); }
+  .card.accent-teal  { border-top: 4px solid var(--info); }
+
+  /* ── TABLES ── */
+  .tbl-wrap { overflow-x: auto; margin: 1rem 0; border-radius: 8px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: .83rem; background: #fff; }
+  thead th { background: var(--dark); color: #fff; padding: .7rem 1rem; text-align: left; font-weight: 600; }
+  tbody tr:nth-child(even) { background: #f8f9fc; }
+  tbody td { padding: .6rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block; padding: .2rem .55rem; border-radius: 20px;
+    font-size: .72rem; font-weight: 600; white-space: nowrap;
+  }
+  .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+  .badge-green  { background: #d1fae5; color: #065f46; }
+  .badge-yellow { background: #fef3c7; color: #92400e; }
+  .badge-red    { background: #fee2e2; color: #991b1b; }
+  .badge-gray   { background: #f3f4f6; color: #374151; }
+  .badge-teal   { background: #ccfbf1; color: #0f766e; }
+
+  /* ── ALERTS ── */
+  .alert { border-radius: 8px; padding: 1rem 1.2rem; margin: 1rem 0; font-size: .87rem; line-height: 1.6; }
+  .alert-warning { background: #fffbeb; border-left: 4px solid var(--warning); color: #78350f; }
+  .alert-danger  { background: #fef2f2; border-left: 4px solid var(--danger);  color: #7f1d1d; }
+  .alert-info    { background: #eff6ff; border-left: 4px solid var(--primary); color: #1e3a8a; }
+  .alert-success { background: #f0fdf4; border-left: 4px solid var(--success); color: #14532d; }
+  .alert strong  { display: block; margin-bottom: .3rem; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+  .flow-box {
+    background: var(--primary); color: #fff; padding: .5rem 1rem;
+    border-radius: 6px; font-size: .82rem; font-weight: 600;
+  }
+  .flow-box.green  { background: var(--success); }
+  .flow-box.yellow { background: var(--warning); color: #333; }
+  .flow-box.red    { background: var(--danger); }
+  .flow-box.gray   { background: #6c757d; }
+  .flow-arrow { font-size: 1.2rem; color: #999; }
+
+  /* ── SCHEMA BLOCK ── */
+  .schema-block {
+    background: #1e1e2e; color: #cdd6f4; border-radius: 8px;
+    padding: 1.2rem 1.5rem; font-family: 'Consolas', monospace; font-size: .8rem;
+    line-height: 1.8; margin: 1rem 0; overflow-x: auto;
+  }
+  .schema-block .col-name { color: #89dceb; }
+  .schema-block .col-type { color: #a6e3a1; }
+  .schema-block .col-note { color: #f38ba8; }
+  .schema-block .tbl-head { color: #cba6f7; font-weight: 700; font-size: .9rem; }
+
+  /* ── INSIGHT BOXES ── */
+  .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  .insight-box { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; }
+  .insight-box h4 { font-size: .88rem; font-weight: 700; margin-bottom: .5rem; }
+  .insight-box.good h4 { color: var(--success); }
+  .insight-box.bad  h4 { color: var(--danger); }
+  .insight-box.warn h4 { color: #d97706; }
+  .insight-box ul { padding-left: 1.2rem; font-size: .82rem; color: #555; line-height: 1.8; }
+
+  /* ── STAT BOXES ── */
+  .stat-row { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0; }
+  .stat-box {
+    flex: 1; min-width: 140px; background: #fff; border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem; text-align: center;
+  }
+  .stat-box .stat-num { font-size: 1.8rem; font-weight: 800; color: var(--primary); }
+  .stat-box .stat-label { font-size: .75rem; color: var(--gray); margin-top: .2rem; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    #sidebar { transform: translateX(-100%); }
+    #main { margin-left: 0; padding: 1rem; }
+    .insight-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── TOC PROGRESS ── */
+  #progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--primary); z-index: 999; transition: width .1s; }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="brand">
+    <h1>📊 ERP-Horizontal-AI</h1>
+    <p>System Documentation — June 2026</p>
+  </div>
+  <nav>
+    <div class="section-label">Overview</div>
+    <ul>
+      <li><a href="#overview">System Overview</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#database">Database Schema</a></li>
+    </ul>
+    <div class="section-label">Modules</div>
+    <ul>
+      <li><a href="#auth">Auth &amp; Users</a></li>
+      <li><a href="#tenant">Tenant &amp; Businesses</a></li>
+      <li><a href="#people">People (Contacts)</a></li>
+      <li><a href="#items">Items &amp; Inventory</a></li>
+      <li><a href="#sales">Sales Invoices</a></li>
+      <li><a href="#purchase">Purchase Orders</a></li>
+      <li><a href="#finance">Finance</a></li>
+      <li><a href="#settlement">Settlement &amp; Payments</a></li>
+      <li><a href="#reports">Reports</a></li>
+      <li><a href="#creditdebit">Credit &amp; Debit Notes</a></li>
+      <li><a href="#expenses">Expenses</a></li>
+      <li><a href="#salaries">Salaries</a></li>
+      <li><a href="#assets">Assets</a></li>
+      <li><a href="#manufacturing">Manufacturing</a></li>
+      <li><a href="#services">Services</a></li>
+      <li><a href="#partners">Partners &amp; Equity</a></li>
+      <li><a href="#profit">Business Profit</a></li>
+      <li><a href="#recurrence">Recurrences</a></li>
+      <li><a href="#notifications">Notifications</a></li>
+      <li><a href="#audit">Activity Log / Audit</a></li>
+      <li><a href="#roles">Roles &amp; Permissions</a></li>
+      <li><a href="#settings">Settings</a></li>
+      <li><a href="#profile">User Profile</a></li>
+      <li><a href="#dashboard">Dashboard</a></li>
+    </ul>
+    <div class="section-label">Roadmap</div>
+    <ul>
+      <li><a href="#roadmap">Future Improvements</a></li>
+    </ul>
+  </nav>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main id="main">
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: OVERVIEW -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="overview">
+  <h2 class="section-title">🌐 System Overview</h2>
+  <p>
+    <strong>ERP-Horizontal-AI</strong> is a multi-tenant, multi-business Enterprise Resource Planning web application
+    built entirely without a PHP framework. It targets small-to-medium businesses and provides a comprehensive suite
+    of modules covering the full business lifecycle — from purchasing raw materials to invoicing customers, managing
+    employees, tracking assets, and distributing profits to partners.
+  </p>
+  <p>
+    The system features 63 database tables, allocation-based settlement for payments and collections,
+    system-typed classifications with module gating, accrual-basis profit calculation with permanent distribution records,
+    PDF generation for invoices and purchase orders, and email-based password reset via SMTP.
+  </p>
+
+  <div class="stat-row">
+    <div class="stat-box"><div class="stat-num">63</div><div class="stat-label">Database Tables</div></div>
+    <div class="stat-box"><div class="stat-num">35</div><div class="stat-label">Controllers</div></div>
+    <div class="stat-box"><div class="stat-num">44</div><div class="stat-label">Repositories</div></div>
+    <div class="stat-box"><div class="stat-num">46</div><div class="stat-label">Services</div></div>
+    <div class="stat-box"><div class="stat-num">20</div><div class="stat-label">Frontend Modules</div></div>
+    <div class="stat-box"><div class="stat-num">34</div><div class="stat-label">Completed Improvements</div></div>
+  </div>
+
+  <h3 class="sub-title">Tech Stack</h3>
+  <div class="card-grid">
+    <div class="card accent-blue">
+      <div class="card-icon">🐘</div>
+      <div class="card-title">PHP 8+ (No Framework)</div>
+      <div class="card-desc">Custom lightweight MVC. PSR-4 autoloading via Composer. Controller → Service → Repository pattern.</div>
+    </div>
+    <div class="card accent-green">
+      <div class="card-icon">🗄️</div>
+      <div class="card-title">MySQL 9.1 via PDO</div>
+      <div class="card-desc">utf8mb4 charset. All queries use prepared statements. No ORM — raw SQL in repositories.</div>
+    </div>
+    <div class="card accent-yellow">
+      <div class="card-icon">🔐</div>
+      <div class="card-title">JWT Auth</div>
+      <div class="card-desc">firebase/php-jwt. Bearer token + session fallback. Refresh tokens stored in DB with device tracking.</div>
+    </div>
+    <div class="card accent-teal">
+      <div class="card-icon">⚡</div>
+      <div class="card-title">Vanilla JS SPA</div>
+      <div class="card-desc">No build step, no framework. Custom client-side router. SB Admin 2 / Bootstrap 5 UI. DataTables for grids.</div>
+    </div>
+    <div class="card accent-red">
+      <div class="card-icon">🌍</div>
+      <div class="card-title">i18n Support</div>
+      <div class="card-desc">Custom translation client. Translations stored in translations table. 3 languages seeded (EN, AR, FR).</div>
+    </div>
+    <div class="card accent-blue">
+      <div class="card-icon">🧪</div>
+      <div class="card-title">Testing</div>
+      <div class="card-desc">PHPUnit 9.6 (Unit/Integration/Property). Vitest 3.2 + fast-check 4.1 for JS property-based tests.</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">Multi-Tenancy Model</h3>
+  <div class="flow">
+    <div class="flow-box">Tenant</div>
+    <div class="flow-arrow">→ owns →</div>
+    <div class="flow-box green">Businesses (1..N)</div>
+    <div class="flow-arrow">→ has →</div>
+    <div class="flow-box yellow">Users with Roles</div>
+    <div class="flow-arrow">→ scoped by →</div>
+    <div class="flow-box gray">Permissions</div>
+  </div>
+  <p>Every data query is scoped by <code>tenant_id</code> and/or <code>business_id</code> enforced server-side via <code>AuthContext</code>.
+  Module activation is per-business via tenant-owned business types (copied from system templates). Tenant Owners have a special <code>TENANT_OWNER</code> role granting cross-business management.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: ARCHITECTURE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="architecture">
+  <h2 class="section-title">🏗️ Architecture</h2>
+
+  <h3 class="sub-title">Request Lifecycle</h3>
+  <div class="flow">
+    <div class="flow-box gray">HTTP Request</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">.htaccess rewrite</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">public/api/index.php</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">AuthMiddleware</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">ModuleGateMiddleware</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Controller</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Service</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Repository</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">JSON Response</div>
+  </div>
+
+  <h3 class="sub-title">Frontend SPA Lifecycle</h3>
+  <div class="flow">
+    <div class="flow-box gray">public/index.html</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">app.js bootstrap</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Router (hash-based)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Page JS (mount)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">HTML Template fetch</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Modal Controllers</div>
+  </div>
+
+  <h3 class="sub-title">API Response Shape</h3>
+  <div class="schema-block">
+    <span class="tbl-head">All API responses follow this contract:</span><br><br>
+    {<br>
+    &nbsp;&nbsp;<span class="col-name">"success"</span>: <span class="col-type">bool</span>,<br>
+    &nbsp;&nbsp;<span class="col-name">"data"</span>:    <span class="col-type">array|null</span>,<br>
+    &nbsp;&nbsp;<span class="col-name">"message"</span>: <span class="col-type">string|null</span><br>
+    }
+  </div>
+
+  <h3 class="sub-title">Settlement Architecture</h3>
+  <p>Payments and collections use an allocation-based system. A single payment or collection slip can cover multiple documents. The allocation detail rows track exactly which documents are covered and for how much.</p>
+  <div class="flow">
+    <div class="flow-box gray">Payment/Collection Slip</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Allocation Rows</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Document Settlement</div>
+  </div>
+  <div class="alert alert-info"><strong>Design:</strong> Settlement status is determined by <code>SUM(allocations)</code> vs document total — never by payee balance. FIFO auto-allocation distributes amounts across unpaid documents oldest-first by default. Manual override allows picking specific documents and amounts.</div>
+
+  <h3 class="sub-title">System Types Pattern</h3>
+  <p>All classification tables follow a unified pattern for immutable system-defined types with module visibility gating:</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Column</th><th>Value</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>is_system</code></td><td>1</td><td>Immutable system-defined type (seeded on install, never editable)</td></tr>
+      <tr><td><code>is_system</code></td><td>0</td><td>Tenant-defined type (freely editable by tenant users)</td></tr>
+      <tr><td><code>module_code</code></td><td>e.g. MANUFACTURING</td><td>Type only visible when that module is active for the business</td></tr>
+    </tbody>
+  </table></div>
+  <p>Applied to: <code>item_types</code>, <code>payee_types</code>, <code>expense_categories</code>, <code>asset_categories</code>, <code>service_categories</code>.</p>
+
+  <h3 class="sub-title">Deployment</h3>
+  <div class="flow">
+    <div class="flow-box gray">CREATE DATABASE</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">schema.sql</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">seed_system_data.sql</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Configure .env</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">First-Installation Flow</div>
+  </div>
+  <p>The <code>.env</code> file holds database credentials, JWT secret, and SMTP configuration. The <code>.env.example</code> file is committed with placeholder values. Fresh installs run <code>schema.sql</code> (full schema) followed by <code>seed_system_data.sql</code> (system types, modules, permissions, languages). Existing deployments apply incremental migrations from <code>database/migrations/</code>.</p>
+
+  <h3 class="sub-title">Modal Architecture</h3>
+  <p>Modals use the <code>openModal()</code> system. Each modal has:</p>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li><strong>HTML template</strong> — starts at <code>&lt;div class="modal-dialog"&gt;</code>, no outer wrapper</li>
+    <li><strong>JS controller</strong> — exports <code>mount({ modalRoot, data })</code> and <code>unmount()</code></li>
+    <li><strong>Event bus</strong> — dispatches custom DOM events (e.g. <code>module.updated</code>) to notify parent pages</li>
+    <li><strong>Scope</strong> — <code>MODAL_SCOPE.PAGE</code> or <code>MODAL_SCOPE.GLOBAL</code></li>
+  </ul>
+
+  <h3 class="sub-title">Currency Handling</h3>
+  <p>Every monetary transaction stores two values:</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Field Suffix</th><th>Meaning</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><code>_fc</code></td><td>Foreign Currency (transaction currency)</td><td>100 EUR</td></tr>
+        <tr><td><code>_bc</code></td><td>Base Currency (business's home currency)</td><td>108 USD</td></tr>
+        <tr><td><code>exchange_rate</code></td><td>Rate at time of transaction</td><td>1.08</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: DATABASE SCHEMA -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="database">
+  <h2 class="section-title">🗄️ Database Schema (63 Tables)</h2>
+  <p>Database: <strong>erp</strong> on localhost. MySQL 9.1. All tables use InnoDB with utf8mb4.</p>
+
+  <h3 class="sub-title">Table Inventory</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Table</th><th>Domain</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>tenants</td><td>Multi-tenancy</td><td>Top-level tenant entities</td></tr>
+        <tr><td>businesses</td><td>Multi-tenancy</td><td>Operating units within a tenant (with is_active flag)</td></tr>
+        <tr><td>business_types</td><td>Multi-tenancy</td><td>Tenant-owned templates defining module sets (copied from system types)</td></tr>
+        <tr><td>business_type_modules</td><td>Multi-tenancy</td><td>Which modules each business type activates</td></tr>
+        <tr><td>modules</td><td>Multi-tenancy</td><td>Module registry (name, code, description)</td></tr>
+        <tr><td>users</td><td>Auth</td><td>User accounts with login credentials and is_active flag</td></tr>
+        <tr><td>refresh_tokens</td><td>Auth</td><td>JWT refresh tokens with device tracking</td></tr>
+        <tr><td>password_reset_tokens</td><td>Auth</td><td>Email-based password reset tokens with expiry</td></tr>
+        <tr><td>roles</td><td>RBAC</td><td>Named permission sets (SYSTEM_OWNER, CUSTOM, TEMPLATE, TENANT_OWNER)</td></tr>
+        <tr><td>permissions</td><td>RBAC</td><td>Granular permission codes</td></tr>
+        <tr><td>role_permissions</td><td>RBAC</td><td>Many-to-many: roles ↔ permissions</td></tr>
+        <tr><td>user_roles</td><td>RBAC</td><td>User ↔ role ↔ business assignments</td></tr>
+        <tr><td>people</td><td>Contacts</td><td>Contact master (customers, suppliers, employees, partners)</td></tr>
+        <tr><td>payees</td><td>Contacts</td><td>Business-scoped link between people and a business, holds running balance</td></tr>
+        <tr><td>payee_types</td><td>Contacts</td><td>System-typed classification: Customer, Supplier, Employee, Partner</td></tr>
+        <tr><td>people_types</td><td>Contacts</td><td>Junction table for multi-type classification (a person can be Customer + Supplier simultaneously)</td></tr>
+        <tr><td>items</td><td>Inventory</td><td>Item catalog with cost/sale price, SKU, unit, markup columns</td></tr>
+        <tr><td>item_types</td><td>Inventory</td><td>System-typed item classification with module_code gating</td></tr>
+        <tr><td>stock</td><td>Inventory</td><td>Current stock quantity per item per business</td></tr>
+        <tr><td>stock_transactions</td><td>Inventory</td><td>Audit trail of stock movements (IN/OUT/ADJ) with negative stock prevention</td></tr>
+        <tr><td>item_batches</td><td>Inventory</td><td>Batch/lot tracking with expiry dates</td></tr>
+        <tr><td>batch_transactions</td><td>Inventory</td><td>Batch-level stock movements</td></tr>
+        <tr><td>item_price_history</td><td>Inventory</td><td>Historical cost/sale price changes (with UI modal)</td></tr>
+        <tr><td>supplier_item_prices</td><td>Purchasing</td><td>Per-supplier price history (last/avg/min/max)</td></tr>
+        <tr><td>sales_invoices</td><td>Sales</td><td>Invoice headers (DRAFT/DELIVERED/PAID/CANCELLED) with due_date</td></tr>
+        <tr><td>si_details</td><td>Sales</td><td>Invoice line items with tax, discount per line</td></tr>
+        <tr><td>credit_notes</td><td>Sales</td><td>Credit note headers against delivered/paid invoices</td></tr>
+        <tr><td>credit_note_items</td><td>Sales</td><td>Credit note line items (returned quantities)</td></tr>
+        <tr><td>collection_slips</td><td>Finance</td><td>Customer payment receipts (slip headers)</td></tr>
+        <tr><td>collection_allocations</td><td>Finance</td><td>Allocation detail: how collection amount is distributed across invoices</td></tr>
+        <tr><td>purchase_orders</td><td>Purchasing</td><td>PO headers (DRAFT/APPROVED/RECEIVED/CLOSED/CANCELLED)</td></tr>
+        <tr><td>po_details</td><td>Purchasing</td><td>PO line items with tax, discount per line</td></tr>
+        <tr><td>debit_notes</td><td>Purchasing</td><td>Debit note headers against received POs</td></tr>
+        <tr><td>debit_note_items</td><td>Purchasing</td><td>Debit note line items (returned quantities)</td></tr>
+        <tr><td>payment_slips</td><td>Finance</td><td>Outgoing payments (slip headers)</td></tr>
+        <tr><td>payment_allocations</td><td>Finance</td><td>Allocation detail: how payment amount is distributed across POs/expenses/salaries</td></tr>
+        <tr><td>business_accounts</td><td>Finance</td><td>Cash/bank accounts with account_type, running balance (FC + BC)</td></tr>
+        <tr><td>exchange_rates</td><td>Finance</td><td>Manual exchange rate entries</td></tr>
+        <tr><td>expenses</td><td>Finance</td><td>Business expense records with vendor reference fields</td></tr>
+        <tr><td>expense_categories</td><td>Finance</td><td>System-typed expense classification (fixed/variable)</td></tr>
+        <tr><td>salaries</td><td>HR</td><td>Salary records with gross/tax/net breakdown</td></tr>
+        <tr><td>assets</td><td>Assets</td><td>Fixed/current/intangible assets with depreciation and created_by audit</td></tr>
+        <tr><td>asset_categories</td><td>Assets</td><td>System-typed asset categories (replaces free-text category field)</td></tr>
+        <tr><td>recipes</td><td>Manufacturing</td><td>Bill of materials with DECIMAL yield_quantity</td></tr>
+        <tr><td>recipe_items</td><td>Manufacturing</td><td>Component items per recipe (validated types)</td></tr>
+        <tr><td>production_orders</td><td>Manufacturing</td><td>Production runs (COMPLETED/REVERSED)</td></tr>
+        <tr><td>production_order_items</td><td>Manufacturing</td><td>Components consumed per production order</td></tr>
+        <tr><td>services</td><td>Services</td><td>Service catalog with rate and unit</td></tr>
+        <tr><td>service_categories</td><td>Services</td><td>System-typed service classification</td></tr>
+        <tr><td>partner_shares</td><td>Partners</td><td>Ownership % and invested capital per partner</td></tr>
+        <tr><td>partner_equity</td><td>Partners</td><td>Contribution/withdrawal ledger entries (linked to slips)</td></tr>
+        <tr><td>business_profit</td><td>Partners</td><td>Profit periods with status workflow (DRAFT→FINALIZED→DISTRIBUTED)</td></tr>
+        <tr><td>profit_distributions</td><td>Partners</td><td>Permanent distribution records with ownership snapshots</td></tr>
+        <tr><td>recurrence_schedules</td><td>Automation</td><td>Recurring payment schedules (expenses/salaries)</td></tr>
+        <tr><td>recurrence_instances</td><td>Automation</td><td>Individual due instances with cron auto-generation</td></tr>
+        <tr><td>notifications</td><td>Notifications</td><td>In-app notification messages with recipient_id and notification_type_id</td></tr>
+        <tr><td>notification_types</td><td>Notifications</td><td>Notification type registry (seeded)</td></tr>
+        <tr><td>notification_preferences</td><td>Notifications</td><td>User notification opt-in/out preferences</td></tr>
+        <tr><td>audit_logs</td><td>Audit</td><td>Full audit trail with old/new values as JSON</td></tr>
+        <tr><td>settings_regional</td><td>Settings</td><td>Per-business regional settings (language, timezone, formats)</td></tr>
+        <tr><td>settings_smtp</td><td>Settings</td><td>SMTP email configuration per business</td></tr>
+        <tr><td>languages</td><td>i18n</td><td>Supported languages (EN, AR, FR)</td></tr>
+        <tr><td>translations</td><td>i18n</td><td>Translation key-value pairs per language</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">Core Entity Relationships</h3>
+  <div class="schema-block">
+<span class="tbl-head">tenants</span> (id, name, description, base_currency, created_at)
+  └── <span class="tbl-head">businesses</span> (id, tenant_id, name, legal_name, registration_no, address, phone, email, currency, business_type_id, <span class="col-name">is_active</span>)
+        ├── <span class="tbl-head">user_roles</span> (user_id → users, role_id → roles, business_id, tenant_id, is_active)
+        ├── <span class="tbl-head">business_accounts</span> (id, business_id, name, currency, balance, balance_fc, <span class="col-name">account_type</span>)
+        ├── <span class="tbl-head">payees</span> (id, business_id, people_id → people, balance, notes)
+        │     └── <span class="tbl-head">people_types</span> (people_id, payee_type_id → payee_types)
+        ├── <span class="tbl-head">sales_invoices</span> (id, business_id, customer_id → payees, status, <span class="col-name">due_date</span>, ...)
+        │     ├── <span class="tbl-head">si_details</span> (item_id | service_id, qty, price_fc, price_bc, <span class="col-name">tax_amount</span>, <span class="col-name">discount</span>)
+        │     └── <span class="tbl-head">credit_notes</span> → <span class="tbl-head">credit_note_items</span>
+        ├── <span class="tbl-head">purchase_orders</span> (id, business_id, supplier_id → payees, status, ...)
+        │     ├── <span class="tbl-head">po_details</span> (item_id, qty, price_fc, price_bc, <span class="col-name">tax_amount</span>, <span class="col-name">discount</span>)
+        │     └── <span class="tbl-head">debit_notes</span> → <span class="tbl-head">debit_note_items</span>
+        ├── <span class="tbl-head">payment_slips</span> → <span class="tbl-head">payment_allocations</span> (reference_type, reference_id, amount)
+        ├── <span class="tbl-head">collection_slips</span> → <span class="tbl-head">collection_allocations</span> (reference_type, reference_id, amount)
+        ├── <span class="tbl-head">expenses</span> (business_id, payee_id, category_id, <span class="col-name">reference_number</span>, <span class="col-name">reference_date</span>, <span class="col-name">attachment_path</span>)
+        ├── <span class="tbl-head">salaries</span> (business_id, payee_id, period_start, period_end, gross/tax/net)
+        ├── <span class="tbl-head">assets</span> (business_id, name, <span class="col-name">asset_category_id</span>, asset_type, depreciation_method, <span class="col-name">created_by</span>)
+        ├── <span class="tbl-head">partner_shares</span> (business_id, partner_id → payees, share_percent, invested_capital)
+        ├── <span class="tbl-head">partner_equity</span> (business_id, partner_id, equity_type, amount, <span class="col-name">slip_type</span>, <span class="col-name">slip_id</span>)
+        └── <span class="tbl-head">business_profit</span> (id, business_id, status, period_start, period_end, revenue, cogs, expenses, net_profit)
+              └── <span class="tbl-head">profit_distributions</span> (profit_id, partner_id, share_percent_snapshot, amount, payment_slip_id)
+
+<span class="tbl-head">people</span> (id, tenant_id, name, phone, normalized_phone, email, address, tax_number, iban)
+<span class="tbl-head">items</span> (id, tenant_id, business_id, item_type_id, name, sku, unit, cost_price, sale_price, <span class="col-name">markup_percent</span>, has_expiry, customer_id)
+  └── <span class="tbl-head">stock</span> (business_id, item_id, quantity)
+  └── <span class="tbl-head">stock_transactions</span> (business_id, item_id, type IN/OUT/ADJ, quantity, reference)
+  └── <span class="tbl-head">item_batches</span> (item_id, business_id, batch_number, expiry_date, quantity)
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: AUTH & USERS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="auth">
+  <h2 class="section-title">🔐 Auth &amp; Users</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>users</td><td>id, username, password_hash, first_name, last_name, email, is_active, failed_attempts, lock_until, password_reset</td><td>is_active flag allows disabling users without deletion. password_reset=1 forces change on next login.</td></tr>
+      <tr><td>refresh_tokens</td><td>user_id, device_id (UUID), token_hash, expires_at, last_used_at, revoked_at</td><td>Per-device token rotation</td></tr>
+      <tr><td>password_reset_tokens</td><td>user_id, token_hash, expires_at, used_at</td><td>Email-based password reset with time-limited tokens</td></tr>
+      <tr><td>user_roles</td><td>user_id, role_id, business_id, tenant_id, is_active</td><td>A user can have different roles in different businesses</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Auth Flow</h3>
+  <div class="flow">
+    <div class="flow-box gray">POST /auth/login</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Validate credentials + is_active check</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Issue JWT (15min) + Refresh Token (30d)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">Store refresh_token hash in DB</div>
+  </div>
+  <div class="flow" style="margin-top:.5rem">
+    <div class="flow-box gray">POST /auth/refresh</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Verify refresh token hash</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Rotate: new JWT + new refresh token</div>
+  </div>
+
+  <h3 class="sub-title">Password Reset via Email</h3>
+  <div class="flow">
+    <div class="flow-box gray">POST /auth/forgot-password</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Generate token → password_reset_tokens</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">Send email via SMTP (PHPMailer)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">User clicks link → sets new password</div>
+  </div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue">
+      <div class="card-title">Login</div>
+      <div class="card-desc">Username/password form. Handles failed_attempts lockout display. Checks is_active status.</div>
+    </div>
+    <div class="card accent-yellow">
+      <div class="card-title">Forgot Password</div>
+      <div class="card-desc">Email-based password reset flow. Sends a time-limited reset link via SMTP.</div>
+    </div>
+    <div class="card accent-green">
+      <div class="card-title">User Profile</div>
+      <div class="card-desc">Self-service page for changing password and updating personal details.</div>
+    </div>
+    <div class="card accent-blue">
+      <div class="card-title">Re-Auth Modal</div>
+      <div class="card-desc">Triggered when JWT expires mid-session. Prompts password re-entry without losing current page state.</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Per-device refresh token rotation</li>
+    <li>Account lockout after failed attempts</li>
+    <li>Forced password reset flag</li>
+    <li><code>is_active</code> flag — disabled users cannot log in</li>
+    <li>Email-based password reset via <code>password_reset_tokens</code> table</li>
+    <li>User profile page with self-service password change</li>
+    <li>Re-auth modal preserves session state</li>
+    <li>JWT secret loaded from <code>.env</code> (not hardcoded)</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: TENANT & BUSINESSES -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="tenant">
+  <h2 class="section-title">🏢 Tenant &amp; Businesses</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>tenants</td><td>id, name, description, base_currency</td><td>Top-level owner. base_currency is tenant-wide default.</td></tr>
+      <tr><td>businesses</td><td>id, tenant_id, name, legal_name, registration_no, address, phone, email, currency, business_type_id, is_active</td><td>is_active flag allows suspending a business. Each business has its own currency.</td></tr>
+      <tr><td>business_types</td><td>id, name, is_system, tenant_id</td><td>System types are immutable templates. Tenant owners copy them to create tenant-owned types.</td></tr>
+      <tr><td>business_type_modules</td><td>business_type_id, module_id</td><td>Defines which modules activate for businesses of this type</td></tr>
+      <tr><td>modules</td><td>id, name, code, description</td><td>21 registered modules</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Business Type & Module System</h3>
+  <div class="flow">
+    <div class="flow-box gray">System Types (immutable templates)</div>
+    <div class="flow-arrow">→ copy →</div>
+    <div class="flow-box yellow">Tenant-Owned Types</div>
+    <div class="flow-arrow">→ customize modules →</div>
+    <div class="flow-box green">Assign to Businesses</div>
+  </div>
+  <p>System business types (General, Retail, Wholesale, Manufacturing, Service) are immutable templates. Tenant owners copy a system type to create a tenant-owned type, then customize its module set. Businesses are only assigned to tenant-owned types. Changing a type's modules immediately affects all businesses using that type.</p>
+
+  <h3 class="sub-title">Frontend Pages (Tenant Owner Section)</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Tenants List</div><div class="card-desc">CRUD for tenants. Only accessible to SYSTEM_OWNER role.</div></div>
+    <div class="card accent-blue"><div class="card-title">Businesses</div><div class="card-desc">Full CRUD on businesses within a tenant. Includes active/inactive toggle and business type assignment.</div></div>
+    <div class="card accent-blue"><div class="card-title">Business Types</div><div class="card-desc">Copy system templates to create tenant-owned types. Manage module sets per type.</div></div>
+    <div class="card accent-blue"><div class="card-title">Owners</div><div class="card-desc">Manage tenant owner accounts.</div></div>
+    <div class="card accent-blue"><div class="card-title">Users (Tenant)</div><div class="card-desc">Cross-business user management — create users, assign roles, activate/deactivate users.</div></div>
+    <div class="card accent-blue"><div class="card-title">Reports</div><div class="card-desc">Cross-business financial reports (P&amp;L, balance sheet, cash flow, aging, activity).</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Clean tenant isolation — all queries scoped by tenant_id</li>
+    <li><code>is_active</code> flag on businesses — can suspend a business</li>
+    <li>Tenant-owned business types (system types are templates only)</li>
+    <li>Module activation managed via business types (no per-business override table needed)</li>
+    <li>Tenant owners cannot hold business-level roles in their own tenant (enforced server-side)</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: PEOPLE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="people">
+  <h2 class="section-title">👥 People (Contacts)</h2>
+  <p>The People module manages all external contacts — customers, suppliers, employees, and partners — using a unified contact model with multi-type classification.</p>
+
+  <h3 class="sub-title">Data Model</h3>
+  <div class="schema-block">
+<span class="tbl-head">people</span> (tenant-scoped master contact)
+  id | tenant_id | name | phone | <span class="col-name">normalized_phone</span> | email | address | tax_number | iban
+
+<span class="tbl-head">payees</span> (business-scoped link — holds running balance)
+  id | business_id | people_id → people | <span class="col-name">balance</span> | notes
+
+<span class="tbl-head">payee_types</span>  →  Customer / Supplier / Employee / Partner  (<span class="col-name">is_system</span>, <span class="col-name">module_code</span>)
+<span class="tbl-head">people_types</span>  (people_id, payee_type_id)  — junction for multi-type classification
+  </div>
+
+  <div class="alert alert-info"><strong>Multi-Type Classification:</strong> A person can hold multiple types simultaneously (e.g., Customer + Supplier). The <code>people_types</code> junction table replaces the old payee-scoped approach. Type-filtered selectors on documents show only contacts of the relevant type (e.g., invoice customer selector shows only people with Customer type).</div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">People List</div><div class="card-desc">Filterable by type. Shows balance, contact info, assigned types.</div></div>
+    <div class="card accent-blue"><div class="card-title">Person Form</div><div class="card-desc">Create/edit contact with multi-type assignment. Phone uniqueness enforced via normalized_phone within tenant.</div></div>
+    <div class="card accent-blue"><div class="card-title">Payee Types</div><div class="card-desc">System-typed classification labels. System types are immutable; tenants can add custom types.</div></div>
+    <div class="card accent-blue"><div class="card-title">Statement</div><div class="card-desc">Per-person transaction statement showing all invoices, POs, payments, collections.</div></div>
+    <div class="card accent-blue"><div class="card-title">Insights</div><div class="card-desc">Customer-specific analytics — purchase history, specific items, outstanding balance.</div></div>
+    <div class="card accent-yellow"><div class="card-title">Link Prompt</div><div class="card-desc">Shown when a person exists in tenant but not yet linked to current business.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Unified contact model — one person, multiple business roles</li>
+    <li>Multi-type classification via <code>people_types</code> junction (Customer + Supplier simultaneously)</li>
+    <li>Type-filtered selectors on documents (invoices show customers, POs show suppliers)</li>
+    <li>Phone normalization prevents duplicate contacts</li>
+    <li>Running balance on payees enables quick AR/AP view</li>
+    <li>Customer-specific items (items visible only to specific customers)</li>
+    <li>Comprehensive statement view</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: ITEMS & INVENTORY -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="items">
+  <h2 class="section-title">📦 Items &amp; Inventory</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>items</td><td>id, tenant_id, business_id, item_type_id, name, sku, unit, cost_price, sale_price, markup_percent, min_stock, has_expiry, customer_id, is_active</td><td>markup_percent merged from former item_auto_markup table. business_id=NULL means global.</td></tr>
+      <tr><td>item_types</td><td>id, tenant_id, name, is_system, module_code</td><td>System-typed with module gating. RAW_MATERIAL only visible when Manufacturing active.</td></tr>
+      <tr><td>stock</td><td>id, business_id, item_id, quantity</td><td>Current stock level. Negative stock prevention enforced on OUT transactions.</td></tr>
+      <tr><td>stock_transactions</td><td>id, business_id, item_id, trx_date, type (IN/OUT/ADJ), reference, quantity, notes</td><td>Full audit trail of all stock movements</td></tr>
+      <tr><td>item_batches</td><td>id, item_id, business_id, batch_number, expiry_date, quantity</td><td>Batch/lot tracking for items with has_expiry=1</td></tr>
+      <tr><td>batch_transactions</td><td>batch_id, type, quantity, reference</td><td>Batch-level movement log</td></tr>
+      <tr><td>item_price_history</td><td>item_id, old_cost, new_cost, old_sale, new_sale, changed_at, changed_by</td><td>Price change audit trail with UI modal for viewing</td></tr>
+      <tr><td>supplier_item_prices</td><td>supplier_id, item_id, tenant_id, last_price, avg_price, min_price, max_price, purchase_count, is_preferred</td><td>Supplier pricing intelligence</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">System-Typed Item Classification</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Type</th><th>Module Gate</th><th>Usage</th></tr></thead>
+    <tbody>
+      <tr><td>TRADING</td><td>—</td><td>Standard buy/sell items (always visible)</td></tr>
+      <tr><td>RAW_MATERIAL</td><td>MANUFACTURING</td><td>Input components for recipes</td></tr>
+      <tr><td>CONSUMABLE</td><td>MANUFACTURING</td><td>Consumed in production but not in output</td></tr>
+      <tr><td>MANUFACTURED</td><td>MANUFACTURING</td><td>Output of production orders</td></tr>
+      <tr><td>FINISHED_GOOD</td><td>MANUFACTURING</td><td>Final sellable manufactured product</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Items List</div><div class="card-desc">Full item catalog with stock qty, cost/sale price, type filter. Price history modal accessible per item.</div></div>
+    <div class="card accent-blue"><div class="card-title">Item Form</div><div class="card-desc">Create/edit items. Supports customer-specific items, expiry flag, markup percent.</div></div>
+    <div class="card accent-blue"><div class="card-title">Item Types</div><div class="card-desc">System-typed classification with module gating. System types are immutable.</div></div>
+    <div class="card accent-blue"><div class="card-title">Stock View</div><div class="card-desc">Current stock levels with transaction history per item.</div></div>
+    <div class="card accent-blue"><div class="card-title">Stock Adjust</div><div class="card-desc">Manual stock adjustment with reason/notes. Negative stock prevention enforced.</div></div>
+    <div class="card accent-blue"><div class="card-title">Batches</div><div class="card-desc">Batch/lot management for expiry-tracked items.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>System-typed item classification with module_code gating</li>
+    <li>Negative stock prevention on all OUT transactions</li>
+    <li>Price history UI modal per item</li>
+    <li>Markup percent column (merged from former item_auto_markup table)</li>
+    <li>Dual-level items: global (tenant) + business-specific</li>
+    <li>Customer-specific items (private pricing)</li>
+    <li>Full stock transaction audit trail</li>
+    <li>Batch/expiry tracking</li>
+    <li>Supplier price intelligence (avg/min/max)</li>
+    <li>min_stock threshold for low-stock alerts</li>
+  </ul>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: SALES INVOICES -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="sales">
+  <h2 class="section-title">🧾 Sales Invoices</h2>
+
+  <h3 class="sub-title">Invoice Lifecycle</h3>
+  <div class="flow">
+    <div class="flow-box yellow">DRAFT</div>
+    <div class="flow-arrow">→ Deliver →</div>
+    <div class="flow-box green">DELIVERED</div>
+    <div class="flow-arrow">→ Collect (allocations) →</div>
+    <div class="flow-box green">PAID</div>
+    <div class="flow-arrow">or</div>
+    <div class="flow-box red">CANCELLED</div>
+  </div>
+  <p>An invoice transitions to PAID automatically when <code>SUM(collection_allocations)</code> against it equals or exceeds the invoice total. The PAID status is part of the database ENUM and drives revenue reporting.</p>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>sales_invoices</td><td>id, business_id, customer_id (→payees), invoice_number, invoice_date, due_date, status (DRAFT/DELIVERED/PAID/CANCELLED), currency, exchange_rate, total_amount_fc, total_amount_bc, notes, created_by</td><td>Invoice number format: INV-YYYY-NNN. due_date enables aging reports.</td></tr>
+      <tr><td>si_details</td><td>id, sales_invoice_id, item_id (nullable), service_id (nullable), quantity, unit_price_fc, unit_price_bc, total_price_fc, total_price_bc, tax_amount_fc, tax_amount_bc, discount_amount_fc, discount_amount_bc</td><td>Mixed item + service lines. Tax and discount per line.</td></tr>
+      <tr><td>credit_notes</td><td>id, business_id, invoice_id, credit_note_number, date, status, total_amount_fc, total_amount_bc</td><td>Credit notes against DELIVERED/PAID invoices</td></tr>
+      <tr><td>credit_note_items</td><td>id, credit_note_id, item_id, quantity, unit_price_fc, unit_price_bc</td><td>Returned item quantities</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Invoices List</div><div class="card-desc">All invoices with status badges, customer, total, due date. Filterable by status.</div></div>
+    <div class="card accent-blue"><div class="card-title">Invoice Form</div><div class="card-desc">Create/edit invoice with tax/VAT per line, discount per line, due date, customer selector (type-filtered).</div></div>
+    <div class="card accent-green"><div class="card-title">Invoice PDF</div><div class="card-desc">Generate and download PDF via DOMPDF. Professional layout with business branding.</div></div>
+    <div class="card accent-yellow"><div class="card-title">Credit Note</div><div class="card-desc">Issue credit notes against delivered/paid invoices. Reverses stock and reduces payee balance.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>PAID status in ENUM — revenue reporting works correctly</li>
+    <li>Tax/VAT per line item</li>
+    <li>Discount per line item</li>
+    <li>Due date for payment terms and aging</li>
+    <li>PDF generation via DOMPDF</li>
+    <li>Credit notes for returns (reverses stock, reduces payee balance)</li>
+    <li>Mixed item + service lines on one invoice</li>
+    <li>Auto-generated sequential invoice numbers</li>
+    <li>Dual-currency pricing per line</li>
+    <li>Customer-specific item filtering on invoice form</li>
+    <li>Stock deduction on invoice delivery</li>
+    <li>AR aging report based on due_date</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: PURCHASE ORDERS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="purchase">
+  <h2 class="section-title">🛒 Purchase Orders</h2>
+
+  <h3 class="sub-title">PO Lifecycle</h3>
+  <div class="flow">
+    <div class="flow-box yellow">DRAFT</div>
+    <div class="flow-arrow">→ Approve →</div>
+    <div class="flow-box">APPROVED</div>
+    <div class="flow-arrow">→ Receive →</div>
+    <div class="flow-box green">RECEIVED</div>
+    <div class="flow-arrow">→ Pay (allocations) →</div>
+    <div class="flow-box green">CLOSED</div>
+    <div class="flow-arrow">or</div>
+    <div class="flow-box red">CANCELLED</div>
+  </div>
+  <p>A PO transitions to CLOSED automatically when <code>SUM(payment_allocations)</code> against it equals or exceeds the PO total.</p>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>purchase_orders</td><td>id, business_id, supplier_id (→payees), po_number, po_date, status, currency, exchange_rate, total_amount_fc, total_amount_bc, notes, created_by</td><td>PO number format: PO-YYYY-NNN</td></tr>
+      <tr><td>po_details</td><td>id, purchase_order_id, item_id, quantity, unit_price_fc, unit_price_bc, total_price_fc, total_price_bc, tax_amount_fc, tax_amount_bc, discount_amount_fc, discount_amount_bc</td><td>Tax and discount per line</td></tr>
+      <tr><td>debit_notes</td><td>id, business_id, purchase_order_id, debit_note_number, date, status, total_amount_fc, total_amount_bc</td><td>Debit notes against RECEIVED POs</td></tr>
+      <tr><td>debit_note_items</td><td>id, debit_note_id, item_id, quantity, unit_price_fc, unit_price_bc</td><td>Returned item quantities</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">PO List</div><div class="card-desc">All purchase orders with status badges, supplier, total. Filterable by status.</div></div>
+    <div class="card accent-blue"><div class="card-title">PO Form</div><div class="card-desc">Create/edit PO with tax/VAT per line, discount per line, supplier selector (type-filtered).</div></div>
+    <div class="card accent-green"><div class="card-title">PO PDF</div><div class="card-desc">Generate and download PDF via DOMPDF. Professional layout for sending to suppliers.</div></div>
+    <div class="card accent-yellow"><div class="card-title">Debit Note</div><div class="card-desc">Issue debit notes against received POs. Reverses stock and reduces payee balance.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Full 5-stage lifecycle (DRAFT → APPROVED → RECEIVED → CLOSED → CANCELLED)</li>
+    <li>Tax/VAT per line item</li>
+    <li>Discount per line item</li>
+    <li>PDF generation via DOMPDF</li>
+    <li>Debit notes for returns (reverses stock, reduces payee balance)</li>
+    <li>Auto stock increment on receipt</li>
+    <li>Supplier price tracking (supplier_item_prices updated on receipt)</li>
+    <li>Batch info modal for expiry-tracked items</li>
+    <li>PO number auto-generation</li>
+    <li>Allocation-based settlement (CLOSED when fully paid)</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: FINANCE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="finance">
+  <h2 class="section-title">💰 Finance</h2>
+  <p>The Finance module covers cash/bank accounts, outgoing payments, incoming collections, exchange rate management, and financial reporting.</p>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>business_accounts</td><td>id, business_id, name, account_type, currency, balance, balance_fc</td><td>account_type classifies accounts (CASH, BANK, CREDIT). Running balance maintained atomically.</td></tr>
+      <tr><td>payment_slips</td><td>id, business_id, account_id, payee_id, payment_number, payment_date, currency, exchange_rate, amount_fc, amount_bc, method (CASH/BANK/CHECK/TRANSFER)</td><td>Outgoing money header. Allocations detail which documents are covered.</td></tr>
+      <tr><td>payment_allocations</td><td>id, payment_slip_id, reference_type (PURCHASE_ORDER/EXPENSE/SALARY), reference_id, amount_fc, amount_bc</td><td>How payment amount is distributed across documents</td></tr>
+      <tr><td>collection_slips</td><td>id, business_id, account_id, payee_id, slip_number, slip_date, currency, exchange_rate, amount_fc, amount_bc, method</td><td>Incoming money header. Allocations detail which invoices are covered.</td></tr>
+      <tr><td>collection_allocations</td><td>id, collection_slip_id, reference_type (SALES_INVOICE), reference_id, amount_fc, amount_bc</td><td>How collection amount is distributed across invoices</td></tr>
+      <tr><td>exchange_rates</td><td>id, business_id, from_currency, to_currency, rate, rate_date</td><td>Manual rate entries for auto-fill defaults</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Accounts</div><div class="card-desc">Cash/bank account management with account_type. Shows balance in both FC and BC.</div></div>
+    <div class="card accent-blue"><div class="card-title">Payments</div><div class="card-desc">Outgoing payment slips with allocation detail. FIFO auto-allocation or manual override.</div></div>
+    <div class="card accent-blue"><div class="card-title">Collections</div><div class="card-desc">Incoming collection slips with allocation detail. FIFO auto-allocation or manual override.</div></div>
+    <div class="card accent-blue"><div class="card-title">Exchange Rates</div><div class="card-desc">Manual exchange rate management for auto-fill defaults.</div></div>
+    <div class="card accent-green"><div class="card-title">AR Aging Report</div><div class="card-desc">Outstanding customer invoices grouped by how overdue they are (current, 30, 60, 90+ days).</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Allocation-based settlement (payment_allocations, collection_allocations)</li>
+    <li>FIFO auto-allocation by default, manual override available</li>
+    <li>account_type column for proper account classification</li>
+    <li>Atomic balance updates (no race conditions)</li>
+    <li>Dual-currency account balances</li>
+    <li>Multiple payment methods (CASH/BANK/CHECK/TRANSFER)</li>
+    <li>AR aging report based on invoice due dates</li>
+    <li>P&amp;L, Cash Flow, and Balance Sheet reports</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: SETTLEMENT & PAYMENTS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="settlement">
+  <h2 class="section-title">💳 Settlement &amp; Payments</h2>
+  <p>The settlement system uses an allocation-based approach where payment and collection slips are headers, and allocation rows are the detail showing which documents are covered.</p>
+
+  <h3 class="sub-title">How It Works</h3>
+  <div class="schema-block">
+<span class="tbl-head">Collection Slip</span> (header: amount, date, account, customer)
+  └── <span class="tbl-head">collection_allocations</span> (detail rows)
+        ├── SALES_INVOICE #101 → $500
+        ├── SALES_INVOICE #102 → $300
+        └── SALES_INVOICE #103 → $200  (total = $1000 slip amount)
+
+<span class="tbl-head">Payment Slip</span> (header: amount, date, account, supplier)
+  └── <span class="tbl-head">payment_allocations</span> (detail rows)
+        ├── PURCHASE_ORDER #201 → $800
+        ├── EXPENSE #15 → $150
+        └── SALARY #7 → $50  (total = $1000 slip amount)
+  </div>
+
+  <h3 class="sub-title">FIFO Auto-Allocation</h3>
+  <div class="flow">
+    <div class="flow-box gray">User enters slip amount</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">System finds unpaid documents (oldest first)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Auto-distributes amount across documents</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Creates allocation rows</div>
+  </div>
+
+  <h3 class="sub-title">Settlement Status Rules</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Document</th><th>Condition</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Sales Invoice</td><td>SUM(collection_allocations) ≥ invoice total</td><td>Status → PAID</td></tr>
+      <tr><td>Purchase Order</td><td>SUM(payment_allocations) ≥ PO total</td><td>Status → CLOSED</td></tr>
+      <tr><td>Expense</td><td>SUM(payment_allocations) ≥ expense amount</td><td>Marked as settled</td></tr>
+      <tr><td>Salary</td><td>SUM(payment_allocations) ≥ net amount</td><td>Marked as settled</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="alert alert-success"><strong>Design Principle:</strong> Settlement status is always determined by <code>SUM(allocations)</code> vs document total — never by payee balance. The payee balance field is a convenience display value only and is never used for settlement decisions.</div>
+
+  <h3 class="sub-title">Manual Override</h3>
+  <p>Users can override FIFO auto-allocation by manually selecting specific documents and entering custom amounts per document. This is useful when a customer pays for a specific invoice rather than their oldest debt.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: REPORTS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="reports">
+  <h2 class="section-title">📊 Reports</h2>
+  <p>The system provides comprehensive financial reports, all filterable by date range. Tenant owners can view cross-business aggregate reports.</p>
+
+  <h3 class="sub-title">Available Reports</h3>
+  <div class="card-grid">
+    <div class="card accent-blue">
+      <div class="card-icon">📈</div>
+      <div class="card-title">Profit &amp; Loss (P&amp;L)</div>
+      <div class="card-desc">Accrual-basis revenue (PAID invoices) minus COGS minus expenses. Shows gross profit, operating expenses, and net profit for a period.</div>
+    </div>
+    <div class="card accent-green">
+      <div class="card-icon">💵</div>
+      <div class="card-title">Cash Flow Statement</div>
+      <div class="card-desc">Cash inflows (collections) and outflows (payments) grouped by operating, investing, and financing activities.</div>
+    </div>
+    <div class="card accent-yellow">
+      <div class="card-icon">⚖️</div>
+      <div class="card-title">Balance Sheet</div>
+      <div class="card-desc">Assets, liabilities, and equity at a point in time. Includes account balances, receivables, payables, and partner equity.</div>
+    </div>
+    <div class="card accent-red">
+      <div class="card-icon">⏰</div>
+      <div class="card-title">AR Aging Report</div>
+      <div class="card-desc">Outstanding customer invoices grouped by how overdue they are: current, 1-30 days, 31-60 days, 61-90 days, 90+ days.</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">Report Characteristics</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>All reports filterable by date range</li>
+    <li>P&amp;L uses accrual-basis: revenue = PAID invoice totals (not collection sums)</li>
+    <li>COGS calculated from item cost prices on PAID invoices</li>
+    <li>AR Aging uses invoice due_date for overdue classification</li>
+    <li>Tenant owners see cross-business aggregate reports</li>
+    <li>Business users see their business-scoped reports</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: CREDIT & DEBIT NOTES -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="creditdebit">
+  <h2 class="section-title">📝 Credit &amp; Debit Notes</h2>
+
+  <h3 class="sub-title">Credit Notes (Sales Returns)</h3>
+  <p>Credit notes are issued against DELIVERED or PAID invoices when a customer returns goods.</p>
+  <div class="flow">
+    <div class="flow-box gray">Customer returns goods</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Create credit note against invoice</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Stock reversed (items returned to inventory)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Payee balance reduced</div>
+  </div>
+
+  <h3 class="sub-title">Debit Notes (Purchase Returns)</h3>
+  <p>Debit notes are issued against RECEIVED purchase orders when goods are returned to a supplier.</p>
+  <div class="flow">
+    <div class="flow-box gray">Return goods to supplier</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Create debit note against PO</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Stock reversed (items removed from inventory)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Payee balance reduced</div>
+  </div>
+
+  <h3 class="sub-title">Tables</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>credit_notes</td><td>id, business_id, invoice_id, credit_note_number, date, status, total_amount_fc, total_amount_bc, notes, created_by</td><td>Linked to a specific sales invoice</td></tr>
+      <tr><td>credit_note_items</td><td>id, credit_note_id, item_id, quantity, unit_price_fc, unit_price_bc, total_fc, total_bc</td><td>Line items being returned</td></tr>
+      <tr><td>debit_notes</td><td>id, business_id, purchase_order_id, debit_note_number, date, status, total_amount_fc, total_amount_bc, notes, created_by</td><td>Linked to a specific purchase order</td></tr>
+      <tr><td>debit_note_items</td><td>id, debit_note_id, item_id, quantity, unit_price_fc, unit_price_bc, total_fc, total_bc</td><td>Line items being returned</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: EXPENSES -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="expenses">
+  <h2 class="section-title">💸 Expenses</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>expenses</td><td>id, business_id, payee_id, expense_category_id, expense_date, currency, exchange_rate, amount_fc, amount_bc, reference_number, reference_date, attachment_path, notes</td><td>Vendor document reference fields for tracking supplier invoices. payee_id is optional.</td></tr>
+      <tr><td>expense_categories</td><td>id, tenant_id, name, is_fixed, is_system, module_code</td><td>System-typed categories. is_fixed=1 means fixed overhead (rent, utilities).</td></tr>
+      <tr><td>recurrence_schedules</td><td>entity_type='expense_category', entity_id=category.id</td><td>Recurring expense schedule</td></tr>
+      <tr><td>recurrence_instances</td><td>due_date, scheduled_amount, status (pending/paid/skipped/overdue)</td><td>Individual due instances (auto-generated by cron)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Expenses List</div><div class="card-desc">All expenses with category, payee, date, amount, vendor reference. Filterable.</div></div>
+    <div class="card accent-blue"><div class="card-title">Expense Form</div><div class="card-desc">Create/edit expense with vendor document reference (invoice #, date, attachment path).</div></div>
+    <div class="card accent-blue"><div class="card-title">Expense Categories</div><div class="card-desc">System-typed categories with fixed/variable flag. System types are immutable.</div></div>
+    <div class="card accent-blue"><div class="card-title">Recurring Expenses</div><div class="card-desc">Schedule recurring expenses with frequency and default amount.</div></div>
+    <div class="card accent-yellow"><div class="card-title">Bulk Advance Modal</div><div class="card-desc">Pay multiple recurring instances at once as advance payments.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Vendor document reference fields (reference_number, reference_date, attachment_path)</li>
+    <li>System-typed expense categories with module gating</li>
+    <li>Fixed vs variable expense classification</li>
+    <li>Recurring expense automation (cron-generated instances)</li>
+    <li>Bulk advance payment for recurring items</li>
+    <li>Payee balance tracking on expense creation</li>
+    <li>Settlement via payment_allocations</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: SALARIES -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="salaries">
+  <h2 class="section-title">👔 Salaries</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>salaries</td><td>id, business_id, payee_id (→employee payee), period_start, period_end, currency, exchange_rate, gross_amount_fc, gross_amount_bc, tax_fc, tax_bc, net_amount_fc, net_amount_bc, notes</td><td>Gross → Tax → Net breakdown. Tax is manually entered.</td></tr>
+      <tr><td>recurrence_schedules</td><td>entity_type='salary', entity_id=payee_id</td><td>Recurring salary schedule per employee</td></tr>
+      <tr><td>recurrence_instances</td><td>due_date, scheduled_amount, status, period_start, period_end</td><td>Monthly salary due instances (auto-generated by cron)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Salaries List</div><div class="card-desc">All salary records with employee name, period, gross/net amounts.</div></div>
+    <div class="card accent-blue"><div class="card-title">Salary Form</div><div class="card-desc">Create/edit salary record. Manual gross/tax/net entry.</div></div>
+    <div class="card accent-blue"><div class="card-title">Recurring Salaries</div><div class="card-desc">Schedule recurring salary payments per employee.</div></div>
+    <div class="card accent-yellow"><div class="card-title">Bulk Advance Modal</div><div class="card-desc">Pay multiple salary instances in advance.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Gross/tax/net breakdown stored separately</li>
+    <li>Recurring salary automation (cron-generated instances)</li>
+    <li>Period-based (start/end date) salary records</li>
+    <li>Linked to employee payee for balance tracking</li>
+    <li>Settlement via payment_allocations</li>
+    <li>Bulk advance payment support</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: ASSETS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="assets">
+  <h2 class="section-title">🏭 Assets</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>assets</td><td>id, business_id, name, asset_category_id, asset_type (FIXED/CURRENT/INTANGIBLE), purchase_date, purchase_value, currency, exchange_rate, value_bc, current_value_bc, accumulated_depreciation, depreciation_method (STRAIGHT_LINE/DECLINING_BALANCE), useful_life, created_by, notes</td><td>created_by audit column tracks who created the asset.</td></tr>
+      <tr><td>asset_categories</td><td>id, tenant_id, name, is_system, module_code</td><td>System-typed asset categories (replaces free-text category field). Immutable system types + tenant-defined custom types.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Depreciation Methods</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Method</th><th>Formula</th><th>Use Case</th></tr></thead>
+    <tbody>
+      <tr><td>STRAIGHT_LINE</td><td>Annual depreciation = purchase_value / useful_life</td><td>Uniform depreciation (buildings, furniture)</td></tr>
+      <tr><td>DECLINING_BALANCE</td><td>Annual depreciation = current_value × (1/useful_life) × 2</td><td>Accelerated depreciation (vehicles, equipment)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Assets List</div><div class="card-desc">All assets with type filter, category, current value, accumulated depreciation summary.</div></div>
+    <div class="card accent-blue"><div class="card-title">Asset Form</div><div class="card-desc">Create/edit asset with system-typed category selection, depreciation method, and useful life.</div></div>
+    <div class="card accent-blue"><div class="card-title">Asset Categories</div><div class="card-desc">System-typed categories. System types are immutable; tenants can add custom categories.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>System-typed asset_categories (replaces free-text category)</li>
+    <li>created_by audit column</li>
+    <li>Three asset types (Fixed/Current/Intangible)</li>
+    <li>Two depreciation methods (Straight-Line, Declining Balance)</li>
+    <li>Dual-currency purchase value</li>
+    <li>Summary totals (purchase value, current value, accumulated depreciation)</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: MANUFACTURING -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="manufacturing">
+  <h2 class="section-title">🏗️ Manufacturing</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>recipes</td><td>id, tenant_id, business_id, manufactured_item_id, yield_quantity (DECIMAL), notes, is_active</td><td>Bill of Materials. yield_quantity is DECIMAL(12,4) for fractional yields.</td></tr>
+      <tr><td>recipe_items</td><td>id, recipe_id, component_item_id, quantity</td><td>Components consumed per recipe batch. Validated types (RAW_MATERIAL/CONSUMABLE only).</td></tr>
+      <tr><td>production_orders</td><td>id, tenant_id, business_id, recipe_id, manufactured_item_id, production_quantity, manufacturing_cost, unit_manufacturing_cost, status (COMPLETED/REVERSED), production_date</td><td>A production run. Immediately COMPLETED on creation.</td></tr>
+      <tr><td>production_order_items</td><td>id, production_order_id, component_item_id, quantity_consumed, unit_cost</td><td>Actual components consumed in this run</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">BOM Validation Rules</h3>
+  <div class="alert alert-info"><strong>Type Validation:</strong> Recipe components must be of type RAW_MATERIAL or CONSUMABLE. Recipe outputs (manufactured_item_id) must be of type MANUFACTURED or FINISHED_GOOD. This is enforced at the service layer when creating or updating recipes.</div>
+
+  <h3 class="sub-title">Production Flow</h3>
+  <div class="flow">
+    <div class="flow-box gray">Define Recipe (BOM)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Create Production Order</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box red">Deduct component stock</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Add manufactured item stock</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Update item cost price</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Trigger cost change flag if changed</div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>DECIMAL yield_quantity — supports fractional yields (e.g., 1.5 kg)</li>
+    <li>BOM validation (components must be RAW_MATERIAL/CONSUMABLE, outputs must be MANUFACTURED/FINISHED_GOOD)</li>
+    <li>Full BOM (Bill of Materials) support</li>
+    <li>Automatic cost calculation from components</li>
+    <li>Auto-markup on cost change</li>
+    <li>Cost change flag alerts user to review sale price</li>
+    <li>Production reversal (REVERSED status)</li>
+    <li>Cascading cost recalculation for nested recipes</li>
+    <li>Negative stock prevention on component deduction</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: SERVICES -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="services">
+  <h2 class="section-title">🔧 Services</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>services</td><td>id, tenant_id, business_id, category_id, name, description, unit, rate, is_active, updated_at</td><td>Service catalog. rate is the default price per unit.</td></tr>
+      <tr><td>service_categories</td><td>id, tenant_id, name, is_system, module_code</td><td>System-typed service classification</td></tr>
+      <tr><td>si_details</td><td>service_id (nullable)</td><td>Services appear as line items on sales invoices</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Services List</div><div class="card-desc">Service catalog with category, unit, rate. Active/inactive toggle.</div></div>
+    <div class="card accent-blue"><div class="card-title">Service Form</div><div class="card-desc">Create/edit service with system-typed category assignment.</div></div>
+    <div class="card accent-blue"><div class="card-title">Service Categories</div><div class="card-desc">System-typed classification. System types are immutable; tenants can add custom categories.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Services can be mixed with items on the same invoice</li>
+    <li>System-typed service categories with module gating</li>
+    <li>Module-gated (only active when services module is on)</li>
+    <li>updated_at column for tracking modifications</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: PARTNERS & EQUITY -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="partners">
+  <h2 class="section-title">🤝 Partners &amp; Equity</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>partner_shares</td><td>id, business_id, partner_id (→payees), share_percent, invested_capital</td><td>Ownership structure. Total share_percent must = 100%.</td></tr>
+      <tr><td>partner_equity</td><td>id, business_id, partner_id, equity_type (CONTRIBUTION/WITHDRAWAL/PROFIT_DISTRIBUTION), amount, slip_type, slip_id, reference_id, notes</td><td>Ledger of equity movements. slip_type/slip_id links to the corresponding payment/collection slip.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Equity & Cash Movement Linkage</h3>
+  <div class="flow">
+    <div class="flow-box green">Contribution</div>
+    <div class="flow-arrow">→ creates →</div>
+    <div class="flow-box">Collection Slip (cash in)</div>
+  </div>
+  <div class="flow" style="margin-top:.5rem">
+    <div class="flow-box red">Withdrawal</div>
+    <div class="flow-arrow">→ creates →</div>
+    <div class="flow-box">Payment Slip (cash out)</div>
+  </div>
+  <div class="alert alert-info"><strong>Design Principle:</strong> Every equity contribution creates a collection slip, and every withdrawal creates a payment slip. Cash movement is always recorded — the <code>slip_type</code> and <code>slip_id</code> columns on partner_equity link to the corresponding slip.</div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Partner Shares</div><div class="card-desc">Ownership % and invested capital per partner. Validates total = 100%.</div></div>
+    <div class="card accent-blue"><div class="card-title">Partner Equity</div><div class="card-desc">Contribution and withdrawal ledger per partner with slip linkage.</div></div>
+    <div class="card accent-blue"><div class="card-title">Equity Form</div><div class="card-desc">Record a new contribution or withdrawal. Automatically creates the corresponding slip.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Share percentage validation (must total 100%)</li>
+    <li>Invested capital tracking per partner</li>
+    <li>Equity ledger with contribution/withdrawal/profit types</li>
+    <li>Every equity operation creates a corresponding collection/payment slip</li>
+    <li>slip_type/slip_id linkage for full traceability</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: BUSINESS PROFIT -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="profit">
+  <h2 class="section-title">📈 Business Profit</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>business_profit</td><td>id (PK), business_id, period_start, period_end, status (DRAFT/FINALIZED/DISTRIBUTED), total_revenue, total_cogs, total_expenses, net_profit, safety_net_percent, distributable_amount, notes, created_by</td><td>Redesigned schema with proper status workflow and accrual-basis calculations.</td></tr>
+      <tr><td>profit_distributions</td><td>id, profit_id, partner_id, share_percent_snapshot, amount, payment_slip_id</td><td>Permanent distribution records with ownership snapshots at time of distribution.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Profit Workflow</h3>
+  <div class="flow">
+    <div class="flow-box yellow">DRAFT</div>
+    <div class="flow-arrow">→ Calculate →</div>
+    <div class="flow-box">FINALIZED</div>
+    <div class="flow-arrow">→ Distribute →</div>
+    <div class="flow-box green">DISTRIBUTED</div>
+  </div>
+
+  <h3 class="sub-title">Calculation Method</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Component</th><th>Source</th><th>Method</th></tr></thead>
+    <tbody>
+      <tr><td>Revenue</td><td>sales_invoices WHERE status = 'PAID'</td><td>Accrual-basis: uses PAID invoice totals, not collection sums</td></tr>
+      <tr><td>COGS</td><td>si_details on PAID invoices</td><td>Cost of goods sold from item cost_price × quantity</td></tr>
+      <tr><td>Expenses</td><td>expenses table</td><td>Sum of all expenses in the period</td></tr>
+      <tr><td>Net Profit</td><td>Calculated</td><td>Revenue - COGS - Expenses</td></tr>
+      <tr><td>Safety Net</td><td>Configurable %</td><td>% of net profit retained for operations</td></tr>
+      <tr><td>Distributable</td><td>Calculated</td><td>Net Profit - Safety Net amount</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Distribution</h3>
+  <p>When a profit period is distributed, the system creates permanent <code>profit_distributions</code> records with ownership percentage snapshots at the time of distribution. Each distribution creates a payment slip for the partner (cash movement always recorded). The partner_equity table receives a PROFIT_DISTRIBUTION entry.</p>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: RECURRENCES -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="recurrence">
+  <h2 class="section-title">🔄 Recurrences</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>recurrence_schedules</td><td>id, entity_type (expense_category/salary), entity_id, business_id, frequency (weekly/bi-weekly/monthly/quarterly/yearly), default_amount, default_currency, start_date, end_date, is_active</td><td>Defines the recurring pattern</td></tr>
+      <tr><td>recurrence_instances</td><td>id, recurrence_schedule_id, entity_type, business_id, due_date, scheduled_amount, actual_amount, currency, status (pending/paid/skipped/overdue), paid_date, is_advance_payment, bulk_advance_payment_id, payment_record_id, period_start, period_end, metadata (JSON)</td><td>Individual due instances auto-generated by cron</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Cron Auto-Generation</h3>
+  <div class="flow">
+    <div class="flow-box gray">Cron endpoint called daily</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box yellow">Check active schedules</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box green">Generate due instances</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box red">Mark overdue instances</div>
+  </div>
+  <p>The cron endpoint at <code>public/api/cron/generate-recurrences.php</code> is called daily to auto-generate upcoming instances and mark past-due instances as overdue.</p>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Cron endpoint for auto-generation of due instances</li>
+    <li>Overdue marking for past-due instances</li>
+    <li>Flexible frequency options (weekly, bi-weekly, monthly, quarterly, yearly)</li>
+    <li>Advance payment support</li>
+    <li>Bulk advance payment for multiple instances</li>
+    <li>JSON metadata for extensibility</li>
+    <li>Supports both expense and salary recurrences</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: NOTIFICATIONS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="notifications">
+  <h2 class="section-title">🔔 Notifications</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>notifications</td><td>id, notification_type_id, title, body, sender_id, recipient_id, business_id, entity_type, entity_id, is_read, read_at, deleted_at</td><td>recipient_id directly targets a user. notification_type_id links to typed notifications. Soft-delete support.</td></tr>
+      <tr><td>notification_types</td><td>id, name, code, description</td><td>Seeded notification type registry (e.g., INVOICE_OVERDUE, LOW_STOCK, etc.)</td></tr>
+      <tr><td>notification_preferences</td><td>id, user_id, notification_type_id, is_enabled</td><td>User opt-in/out preferences per notification type</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>recipient_id on notifications table for direct user targeting</li>
+    <li>notification_type_id FK for typed notifications</li>
+    <li>Seeded notification_types registry</li>
+    <li>User notification preferences (opt-in/out per type)</li>
+    <li>Soft-delete with auto-cleanup (permanentDeleteOlderThan)</li>
+    <li>Batch mark-as-read</li>
+    <li>Pagination support</li>
+    <li>Entity linking (entity_type + entity_id) for navigation</li>
+    <li>Polling-based real-time updates</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: AUDIT LOG -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="audit">
+  <h2 class="section-title">📋 Activity Log / Audit</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>audit_logs</td><td>id, tenant_id, business_id, user_id, event_type, table_name, record_id, action, old_values (JSON), new_values (JSON), ip_address, user_agent, created_at</td><td>Full before/after JSON snapshots. User name resolved via CONCAT(first_name, last_name).</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Audit logging is controlled by <code>settings_regional.audit_enabled</code>. When enabled, the <code>AuditService</code> records every create/update/delete operation with full old/new value snapshots as JSON.</p>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Full JSON snapshots of old and new values</li>
+    <li>IP address and user agent tracking</li>
+    <li>Per-business audit enable/disable</li>
+    <li>Paginated audit log viewer with filters</li>
+    <li>User name properly resolved via CONCAT(first_name, ' ', last_name)</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: ROLES & PERMISSIONS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="roles">
+  <h2 class="section-title">🛡️ Roles &amp; Permissions</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>roles</td><td>id, name, description, type (SYSTEM_OWNER/CUSTOM/TEMPLATE/TENANT_OWNER), business_id</td><td>Role name uniqueness scoped to business_id.</td></tr>
+      <tr><td>permissions</td><td>id, name, code</td><td>70+ permissions. code is the unique identifier used in route declarations.</td></tr>
+      <tr><td>role_permissions</td><td>role_id, permission_id</td><td>Many-to-many role ↔ permission assignments.</td></tr>
+      <tr><td>user_roles</td><td>user_id, role_id, business_id, tenant_id, is_active</td><td>A user can have different roles in different businesses.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Permission Enforcement</h3>
+  <p>Permissions are declared inline on route registration: <code>$router->get('/path', $handler, ['permission.code'])</code>. The <code>AuthMiddleware</code> checks the user's role permissions against the required codes before dispatching to the controller.</p>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>Granular 70+ permission system</li>
+    <li>Role name uniqueness scoped to business_id (multiple businesses can have "Manager" role)</li>
+    <li>Role templates for quick user setup</li>
+    <li>Per-business role assignment</li>
+    <li>TENANT_OWNER special role for cross-business access</li>
+    <li>Inline permission declaration on routes</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: SETTINGS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="settings">
+  <h2 class="section-title">⚙️ Settings</h2>
+
+  <h3 class="sub-title">Tables Involved</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>settings_regional</td><td>business_id (PK), language, timezone, date_format, number_format, currency_format, phone_format, audit_enabled</td><td>One row per business. Primary key = business_id.</td></tr>
+      <tr><td>settings_smtp</td><td>business_id, host, port, username, password (encrypted), from_email, from_name, encryption</td><td>SMTP email configuration per business for transactional emails.</td></tr>
+      <tr><td>languages</td><td>code, name, direction</td><td>3 languages: EN, AR, FR</td></tr>
+      <tr><td>translations</td><td>lang, key, value</td><td>Translation key-value pairs per language. Composite PK (lang, key).</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Frontend Pages</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Regional Settings</div><div class="card-desc">Language, timezone, date/number/currency/phone format, audit toggle.</div></div>
+    <div class="card accent-blue"><div class="card-title">SMTP Configuration</div><div class="card-desc">Email server settings for transactional emails (password reset, notifications).</div></div>
+    <div class="card accent-blue"><div class="card-title">Expiry Threshold</div><div class="card-desc">Days-before-expiry threshold for item expiry alerts.</div></div>
+  </div>
+
+  <h3 class="sub-title">Key Features</h3>
+  <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
+    <li>SMTP email configuration for transactional emails</li>
+    <li>.env-based secrets (JWT secret, DB credentials)</li>
+    <li>RTL support via language direction</li>
+    <li>Per-business regional settings</li>
+    <li>Audit enable/disable per business</li>
+    <li>3 languages seeded (EN, AR, FR)</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: USER PROFILE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="profile">
+  <h2 class="section-title">👤 User Profile</h2>
+  <p>The User Profile page provides self-service capabilities for users to manage their own account without requiring administrator intervention.</p>
+
+  <h3 class="sub-title">Features</h3>
+  <div class="card-grid">
+    <div class="card accent-blue">
+      <div class="card-title">Password Change</div>
+      <div class="card-desc">Self-service password change. Requires current password verification before setting a new one.</div>
+    </div>
+    <div class="card accent-blue">
+      <div class="card-title">Personal Details</div>
+      <div class="card-desc">Update first name, last name, and email address.</div>
+    </div>
+    <div class="card accent-green">
+      <div class="card-title">Session Info</div>
+      <div class="card-desc">View current session details including role and business context.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: DASHBOARD -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="dashboard">
+  <h2 class="section-title">📊 Dashboard</h2>
+  <p>The dashboard provides a real-time summary of business performance. It adapts based on user role — Tenant Owners see a cross-business aggregate view, regular users see their business-scoped metrics.</p>
+
+  <h3 class="sub-title">Business Dashboard Metrics</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">Monthly Revenue</div><div class="card-desc">Sum of total_amount_bc from sales_invoices WHERE status='PAID' for current month.</div></div>
+    <div class="card accent-red"><div class="card-title">Monthly Expenses</div><div class="card-desc">Sum of amount_bc from expenses for current month.</div></div>
+    <div class="card accent-green"><div class="card-title">Net Profit</div><div class="card-desc">Revenue - COGS - Expenses for current month (accrual-basis).</div></div>
+    <div class="card accent-yellow"><div class="card-title">Account Balances</div><div class="card-desc">All business accounts with current balance and account type.</div></div>
+    <div class="card accent-teal"><div class="card-title">Recent Transactions</div><div class="card-desc">Last 10 transactions across expenses, payments, collections.</div></div>
+    <div class="card accent-red"><div class="card-title">Low Stock Items</div><div class="card-desc">Items at or below min_stock threshold.</div></div>
+  </div>
+
+  <h3 class="sub-title">Tenant-Wide Dashboard</h3>
+  <p>When a Tenant Owner has no business context, the dashboard aggregates revenue, expenses, receivables, and payables across all businesses in the tenant, with a per-business breakdown table.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: FUTURE ROADMAP -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="roadmap">
+  <h2 class="section-title">🚀 Future Roadmap</h2>
+  <p>The following improvements are planned for future releases. They represent features found in mature ERPs (SAP B1, Odoo, ERPNext) that would elevate this system further. Organized by priority and module.</p>
+
+  <h3 class="sub-title">High Priority — Operations</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Feature</th><th>Module</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Partial PO receipt &amp; back-order tracking</td><td>Purchase Orders</td><td>Receive 80 of 100 units, auto-create back-order for remaining 20. Common in wholesale/manufacturing.</td></tr>
+      <tr><td>Quotation / Proforma invoice workflow</td><td>Sales</td><td>QUOTE → APPROVED → convert to Invoice. Standard sales pipeline for B2B businesses.</td></tr>
+      <tr><td>Delivery notes (packing slips)</td><td>Sales</td><td>Separate delivery document from invoice. Required when goods ship before billing.</td></tr>
+      <tr><td>Multi-warehouse / location stock</td><td>Inventory</td><td>Track stock per warehouse/location. Enables inter-warehouse transfers and location-specific picking.</td></tr>
+      <tr><td>Inventory costing methods (FIFO/LIFO/AVCO)</td><td>Inventory</td><td>Proper cost flow assumptions for COGS calculation. Currently uses last cost price.</td></tr>
+      <tr><td>Reorder point automation</td><td>Inventory</td><td>Auto-generate PO suggestions when stock falls below min_stock. Notification + one-click PO creation.</td></tr>
+      <tr><td>Barcode / QR code generation &amp; scanning</td><td>Inventory</td><td>Print barcode labels for items. Scan to add to invoices/POs. Mobile-friendly stock counting.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">High Priority — Finance</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Feature</th><th>Module</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Bank reconciliation</td><td>Finance</td><td>Import bank statements (CSV/OFX) and match against payment/collection slips. Flag unmatched transactions.</td></tr>
+      <tr><td>Account-to-account transfers</td><td>Finance</td><td>Move money between business accounts (e.g., cash deposit to bank). Currently requires manual adjustment.</td></tr>
+      <tr><td>AP aging report</td><td>Finance</td><td>Mirror of AR aging but for payables — outstanding POs/expenses grouped by how overdue they are.</td></tr>
+      <tr><td>Tax configuration table</td><td>Finance</td><td>Predefined tax rates (VAT 5%, VAT 10%, Zero-rated) selectable per line instead of manual entry.</td></tr>
+      <tr><td>Payment terms templates</td><td>Finance</td><td>Net 30, Net 60, 2/10 Net 30 — auto-calculate due dates and early payment discounts.</td></tr>
+      <tr><td>Exchange rate API integration</td><td>Finance</td><td>Auto-fetch daily rates from ECB/OpenExchangeRates instead of manual entry.</td></tr>
+      <tr><td>Chart of Accounts (COA)</td><td>Finance</td><td>Formal double-entry accounting structure. Maps transactions to GL accounts for proper financial statements.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Medium Priority — User Experience</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Feature</th><th>Module</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Data export (CSV/Excel/PDF) on all list views</td><td>All</td><td>One-click export of any DataTable to CSV or Excel. PDF export for reports already exists.</td></tr>
+      <tr><td>Bulk operations on lists</td><td>All</td><td>Select multiple rows → bulk delete, bulk status change, bulk print. Reduces repetitive clicks.</td></tr>
+      <tr><td>Dashboard widgets customization</td><td>Dashboard</td><td>Drag-and-drop widget layout. Users choose which KPIs to see. Role-based default layouts.</td></tr>
+      <tr><td>Global search</td><td>All</td><td>Search across invoices, POs, people, items from a single search bar. Quick navigation.</td></tr>
+      <tr><td>Keyboard shortcuts</td><td>All</td><td>Ctrl+N for new, Ctrl+S for save, Esc to close modal. Power-user productivity.</td></tr>
+      <tr><td>Dark mode</td><td>UI</td><td>Theme toggle. SB Admin 2 supports dark variants with minimal CSS changes.</td></tr>
+      <tr><td>Responsive mobile layout</td><td>UI</td><td>Optimize key workflows (invoice creation, stock check) for mobile/tablet use.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Medium Priority — Integrations &amp; Automation</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Feature</th><th>Module</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Email notifications (transactional)</td><td>Notifications</td><td>Send email alerts for overdue invoices, low stock, payment received. SMTP infrastructure already exists.</td></tr>
+      <tr><td>Webhooks</td><td>Integration</td><td>Fire HTTP callbacks on key events (invoice created, payment received). Enables third-party integrations.</td></tr>
+      <tr><td>REST API documentation (OpenAPI/Swagger)</td><td>Integration</td><td>Auto-generated API docs for external developers. Enables mobile app development.</td></tr>
+      <tr><td>Contact import (CSV/Excel)</td><td>People</td><td>Bulk import customers/suppliers from spreadsheets. Essential for onboarding existing businesses.</td></tr>
+      <tr><td>Item import (CSV/Excel)</td><td>Items</td><td>Bulk import item catalog with prices, SKUs, types. Essential for onboarding.</td></tr>
+      <tr><td>Scheduled report emails</td><td>Reports</td><td>Auto-email P&amp;L or aging report to business owner weekly/monthly.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub-title">Lower Priority — Advanced Features</h3>
+  <div class="card-grid">
+    <div class="card accent-blue"><div class="card-title">2FA / MFA</div><div class="card-desc">Two-factor authentication via TOTP (Google Authenticator) for enhanced security on sensitive accounts.</div></div>
+    <div class="card accent-blue"><div class="card-title">API Keys &amp; OAuth</div><div class="card-desc">External API access tokens for third-party integrations and mobile apps.</div></div>
+    <div class="card accent-green"><div class="card-title">Asset Depreciation Schedule</div><div class="card-desc">Auto-post monthly depreciation entries. Generate depreciation schedule report per asset.</div></div>
+    <div class="card accent-green"><div class="card-title">Asset Disposal Workflow</div><div class="card-desc">Sell or write-off an asset. Calculate gain/loss on disposal. Remove from active register.</div></div>
+    <div class="card accent-yellow"><div class="card-title">Credit Limit per Customer</div><div class="card-desc">Set maximum outstanding balance per customer. Block new invoices when limit exceeded.</div></div>
+    <div class="card accent-yellow"><div class="card-title">Payslip PDF Generation</div><div class="card-desc">Generate printable payslips for employees showing gross, deductions, and net pay.</div></div>
+    <div class="card accent-teal"><div class="card-title">Item Images</div><div class="card-desc">Upload product images. Display in item catalog, invoices, and POs.</div></div>
+    <div class="card accent-teal"><div class="card-title">Business Logo &amp; Branding</div><div class="card-desc">Upload business logo. Display on PDF invoices/POs and the app header.</div></div>
+    <div class="card accent-red"><div class="card-title">Audit Log Export</div><div class="card-desc">Export audit trail to CSV for compliance reporting and external auditors.</div></div>
+    <div class="card accent-red"><div class="card-title">Calendar View</div><div class="card-desc">Visual calendar showing upcoming recurring payments, invoice due dates, and PO delivery dates.</div></div>
+    <div class="card accent-blue"><div class="card-title">Progressive Web App</div><div class="card-desc">PWA manifest + service worker for offline access and mobile home screen installation.</div></div>
+    <div class="card accent-green"><div class="card-title">Multi-Language Expansion</div><div class="card-desc">Add more languages beyond EN/AR/FR. Community-contributed translation packs.</div></div>
+  </div>
+
+  <h3 class="sub-title">Per-Module Improvement Notes</h3>
+  <div class="insight-grid">
+    <div class="insight-box good">
+      <h4>✅ Sales Invoices</h4>
+      <ul>
+        <li>Add recurring invoice support (auto-generate monthly invoices for retainer clients)</li>
+        <li>Add invoice email sending (attach PDF, send via SMTP)</li>
+        <li>Add payment reminder automation (email when overdue)</li>
+        <li>Add invoice templates (multiple PDF layouts per business)</li>
+      </ul>
+    </div>
+    <div class="insight-box good">
+      <h4>✅ Purchase Orders</h4>
+      <ul>
+        <li>Add purchase requisition workflow (request → approve → PO)</li>
+        <li>Add supplier rating/scoring based on delivery performance</li>
+        <li>Add PO email sending to suppliers</li>
+        <li>Add goods receipt note (GRN) as separate document from PO</li>
+      </ul>
+    </div>
+    <div class="insight-box good">
+      <h4>✅ Inventory</h4>
+      <ul>
+        <li>Add stock valuation report (total inventory value by costing method)</li>
+        <li>Add stock movement report (in/out/adj per period)</li>
+        <li>Add serial number tracking (for high-value items)</li>
+        <li>Add inter-warehouse transfer orders</li>
+      </ul>
+    </div>
+    <div class="insight-box good">
+      <h4>✅ Manufacturing</h4>
+      <ul>
+        <li>Add work order scheduling (planned vs actual production dates)</li>
+        <li>Add quality control checkpoints on production</li>
+        <li>Add scrap/waste tracking per production run</li>
+        <li>Add multi-level BOM (sub-assemblies)</li>
+      </ul>
+    </div>
+    <div class="insight-box good">
+      <h4>✅ Finance</h4>
+      <ul>
+        <li>Add journal entries for manual accounting adjustments</li>
+        <li>Add budget management (set budgets per category, track actuals vs budget)</li>
+        <li>Add financial year closing workflow</li>
+        <li>Add trial balance report</li>
+      </ul>
+    </div>
+    <div class="insight-box good">
+      <h4>✅ Partners &amp; Profit</h4>
+      <ul>
+        <li>Add partner dashboard (individual partner view of their equity + distributions)</li>
+        <li>Add dividend history report per partner</li>
+        <li>Add partner buyout workflow (transfer shares between partners)</li>
+        <li>Add profit projection based on current period trends</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="alert alert-success"><strong>Architecture Note:</strong> The current 3-layer architecture (Controller → Service → Repository) and the allocation-based settlement system provide a solid foundation for all roadmap items. No architectural changes are needed — these are feature additions that follow existing patterns.</div>
+</section>
+
+</main>
+
+<script>
+// Progress bar
+window.addEventListener('scroll', () => {
+  const doc = document.documentElement;
+  const scrolled = doc.scrollTop / (doc.scrollHeight - doc.clientHeight) * 100;
+  document.getElementById('progress').style.width = scrolled + '%';
+});
+
+// Active nav link
+const sections = document.querySelectorAll('.section');
+const navLinks = document.querySelectorAll('#sidebar nav a');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(l => l.classList.remove('active'));
+      const link = document.querySelector(`#sidebar nav a[href="#${e.target.id}"]`);
+      if (link) link.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

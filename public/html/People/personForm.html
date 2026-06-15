@@ -1,0 +1,103 @@
+<!-- Person form modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title" id="personModalTitle">
+        <i class="fas fa-address-book me-2"></i><span data-i18n="people.form_title">Person Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="personForm" novalidate>
+        <div class="row">
+
+          <!-- LEFT: Identity -->
+          <div class="col-md-7">
+            <div class="border rounded p-3 mb-4 bg-light">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-id-card me-1"></i> <span data-i18n="people.identity_heading">Identity</span>
+              </h6>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputPersonName"><span data-i18n="people.full_name">Full Name</span> <span class="text-danger">*</span></label>
+                <input class="form-control" id="inputPersonName" type="text" data-i18n-placeholder="people.full_name_placeholder" placeholder="Enter full name" required>
+              </div>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputPersonPhone" data-i18n="common.phone">Phone</label>
+                  <input class="form-control" id="inputPersonPhone" type="tel" data-i18n-placeholder="people.phone_placeholder" placeholder="e.g. +961 71 000 000">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputPersonEmail" data-i18n="common.email">Email</label>
+                  <input class="form-control" id="inputPersonEmail" type="email" data-i18n-placeholder="people.email_placeholder" placeholder="email@example.com">
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputPersonAddress" data-i18n="people.address">Address</label>
+                <textarea class="form-control" id="inputPersonAddress" rows="2" data-i18n-placeholder="people.address_placeholder" placeholder="Enter address"></textarea>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputPersonTax" data-i18n="people.tax_number">Tax Number</label>
+                  <input class="form-control" id="inputPersonTax" type="text" data-i18n-placeholder="people.tax_placeholder" placeholder="Tax / VAT number">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputPersonIban" data-i18n="people.iban">IBAN</label>
+                  <input class="form-control" id="inputPersonIban" type="text" data-i18n-placeholder="people.iban_placeholder" placeholder="Bank IBAN">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: Business Role -->
+          <div class="col-md-5">
+            <div class="border rounded p-3 mb-4">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-briefcase me-1"></i> <span data-i18n="people.business_role_heading">Business Role</span>
+              </h6>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" data-i18n="people.payee_types">Payee Types</label>
+                <div id="payeeTypesContainer" class="d-flex flex-wrap gap-2">
+                  <span class="text-muted small" data-i18n="people.loading_types">Loading types…</span>
+                </div>
+                <small class="form-text text-muted" data-i18n="people.types_help">Select all roles this person plays in this business.</small>
+              </div>
+
+              <div class="mb-0">
+                <label class="form-label small text-muted" for="inputPayeeNotes" data-i18n="common.notes">Notes</label>
+                <textarea class="form-control" id="inputPayeeNotes" rows="3"
+                          data-i18n-placeholder="people.notes_placeholder" placeholder="Internal notes about this contact"></textarea>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </form>
+
+      <!-- CUSTOMER-SPECIFIC ITEMS SECTION -->
+      <div id="customerItemsSection" class="border-top mt-3 pt-3" style="display:none;">
+        <h6 class="text-muted mb-3">
+          <i class="fas fa-box me-1"></i>
+          <span data-i18n="people.customer_items_heading">Customer-Specific Items</span>
+        </h6>
+        <div id="customerItemsContainer"></div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.close">Close</span>
+      </button>
+      <button class="btn btn-primary" type="button" data-action="people.save" id="personSaveBtn">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+      </button>
+    </div>
+
+  </div>
+</div>

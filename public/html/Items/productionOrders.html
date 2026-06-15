@@ -1,0 +1,36 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="production.title">Production Orders</h1>
+
+<!-- Production Orders DataTable -->
+<div class="card shadow mb-4">
+	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="production.heading">Production History</h6>
+		<div class="d-flex gap-2">
+			<button class="btn btn-primary btn-icon-split btn-sm"
+					data-action="production.create" title="New Production Order">
+				<span class="text" data-i18n="production.produce_btn">Produce</span>
+				<span class="icon"><i class="fas fa-fw fa-industry"></i></span>
+			</button>
+		</div>
+	</div>
+	<div class="card-body">
+		<div class="table-responsive">
+			<table class="table table-bordered table-striped table-hover row-border"
+				   id="productionOrdersTable" width="100%" cellspacing="0">
+				<thead>
+					<tr>
+						<th data-i18n="common.id">ID</th>
+						<th data-i18n="common.date">Date</th>
+						<th data-i18n="production.manufactured_item">Manufactured Item</th>
+						<th data-i18n="common.quantity">Quantity</th>
+						<th data-i18n="production.total_cost">Total Cost</th>
+						<th data-i18n="production.unit_cost">Unit Cost</th>
+						<th data-i18n="common.status">Status</th>
+						<th data-i18n="common.actions">Actions</th>
+					</tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</div>
+</div>

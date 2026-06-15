@@ -1,0 +1,79 @@
+<!-- Service form modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title" id="serviceModalTitle">
+        <i class="fas fa-concierge-bell me-2"></i><span data-i18n="services.form_title">Service Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="serviceForm" novalidate>
+        <div class="row">
+
+          <!-- LEFT: Service Info -->
+          <div class="col-md-7">
+            <div class="border rounded p-3 mb-4 bg-light">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-info-circle me-1"></i> <span data-i18n="services.info_heading">Service Information</span>
+              </h6>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputServiceName"><span data-i18n="common.name">Name</span> <span class="text-danger">*</span></label>
+                <input class="form-control" id="inputServiceName" type="text" data-i18n-placeholder="services.name_placeholder" placeholder="Service name" required>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputServiceDescription" data-i18n="common.description">Description</label>
+                <textarea class="form-control" id="inputServiceDescription" rows="3" data-i18n-placeholder="services.description_placeholder" placeholder="Optional description"></textarea>
+              </div>
+
+              <div class="mb-0">
+                <label class="form-label small text-muted" for="serviceCategorySelect" data-i18n="services.category">Category</label>
+                <select class="form-select" id="serviceCategorySelect">
+                  <option value="" data-i18n="services.no_category">— No Category —</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: Pricing -->
+          <div class="col-md-5">
+            <div class="border rounded p-3 mb-4">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-tag me-1"></i> <span data-i18n="services.pricing_heading">Pricing & Unit</span>
+              </h6>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputServiceUnit"><span data-i18n="services.unit">Unit</span> <span class="text-danger">*</span></label>
+                <input class="form-control" id="inputServiceUnit" type="text" data-i18n-placeholder="services.unit_placeholder" placeholder="e.g. hour, session, project" required>
+              </div>
+
+              <div class="mb-0">
+                <label class="form-label small text-muted" for="inputServiceRate"><span data-i18n="services.rate">Rate</span> <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fas fa-dollar-sign"></i></span>
+                  <input class="form-control" id="inputServiceRate" type="number"
+                         step="0.01" min="0" placeholder="0.00" required>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.close">Close</span>
+      </button>
+      <button class="btn btn-primary" type="button" data-action="services.save" id="serviceSaveBtn">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+      </button>
+    </div>
+
+  </div>
+</div>

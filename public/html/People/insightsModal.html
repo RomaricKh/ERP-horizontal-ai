@@ -1,0 +1,37 @@
+<!-- Insights modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+    <div class="modal-header">
+      <h5 class="modal-title" id="insightsModalTitle">Transaction Insights</h5>
+      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <div id="insightsLoading" class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <div id="insightsContent" class="d-none">
+        <div id="insightsTableContainer" class="table-responsive">
+          <table class="table table-bordered table-hover table-sm"
+                 id="insightsTable" width="100%" cellspacing="0">
+            <thead id="insightsTableHead"></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="insightsGeneralContainer" class="d-none"></div>
+      </div>
+      <div id="insightsEmpty" class="text-center text-muted py-4 d-none">
+        <i class="fas fa-info-circle fa-2x mb-2"></i>
+        <p id="insightsEmptyMessage">No data found.</p>
+      </div>
+      <div id="insightsError" class="text-center text-danger py-4 d-none">
+        <i class="fas fa-exclamation-circle fa-2x mb-2"></i>
+        <p id="insightsErrorMessage">Failed to load insights.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
+    </div>
+  </div>
+</div>

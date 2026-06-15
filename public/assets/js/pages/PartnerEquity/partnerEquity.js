@@ -1,0 +1,176 @@
+// assets/js/pages/PartnerEquity/partnerEquity.js
+
+import { hasPermission } from '../../Auth/auth.js';
+import { registerPageActions } from '../Core/pageActions.js';
+import { MODAL_SCOPE, openModal, closeModalsInContainer } from '../../components/modals.js';
+import { createDataTable } from '../../templates/datatables.design.js';
+import { apiFetch } from '../../Auth/apiFetch.js';
+import { getFormatter } from '../../i18n/translationClient.js';
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s ?? '';
+    return d.innerHTML;
+}
+
+let equity_container;
+let unregister;
+let equityDataTable = null;
+let updatedHandler = null;
+
+export async function render(container) {
+    equity_container = container;
+    const html = await fetch('html/PartnerEquity/partnerEquity.html').then(r => r.text());
+    container.innerHTML = html;
+
+    // Hide buttons if user lacks permission
+    if (!hasPermission('partners.manage')) {
+        container.querySelectorAll('[data-action]').forEach(el => {
+            if (el.dataset.action.startsWith('partnerEquity.')) el.remove();
+        });
+    }
+}
+
+export async function mount() {
+    await loadFilterDropdown();
+    await fetchEquityEntries();
+
+    const filterSelect = document.getElementById('filterPartner');
+    filterSelect?.addEventListener('change', onFilterChange);
+
+    updatedHandler = async () => { await fetchEquityEntries(); };
+    document.addEventListener('partnerEquity.updated', updatedHandler);
+
+    unregister = registerPageActions({
+        'partnerEquity.contribute': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/PartnerEquity/equityForm.html',
+                controller: '../pages/PartnerEquity/equityForm.modal.js',
+                data: { equity_type: 'CONTRIBUTION' },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
+        },
+        'partnerEquity.withdraw': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/PartnerEquity/equityForm.html',
+                controller: '../pages/PartnerEquity/equityForm.modal.js',
+                data: { equity_type: 'WITHDRAWAL' },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
+        }
+    });
+}
+
+export function unmount() {
+    if (updatedHandler) {
+        document.removeEventListener('partnerEquity.updated', updatedHandler);
+        updatedHandler = null;
+    }
+
+    const filterSelect = document.getElementById('filterPartner');
+    filterSelect?.removeEventListener('change', onFilterChange);
+
+    unregister?.();
+    unregister = null;
+    equityDataTable?.destroy();
+    equityDataTable = null;
+    closeModalsInContainer(equity_container);
+}
+
+/* ─── Filter Dropdown ─── */
+
+async function loadFilterDropdown() {
+    try {
+        const res = await apiFetch('/api/partner-shares');
+        const json = await res.json();
+        const shares = json.data?.shares ?? json.data?.partner_shares ?? json.data ?? [];
+
+        const filterSelect = document.getElementById('filterPartner');
+        if (filterSelect) {
+            const allOption = filterSelect.querySelector('option[value=""]');
+            filterSelect.innerHTML = '';
+            if (allOption) filterSelect.appendChild(allOption);
+
+            for (const share of shares) {
+                const option = document.createElement('option');
+                option.value = share.partner_id;
+                option.textContent = share.partner_name;
+                filterSelect.appendChild(option);
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load partners:', err);
+    }
+}
+
+function onFilterChange() {
+    fetchEquityEntries();
+}
+
+/* ─── Fetch & Render ─── */
+
+async function fetchEquityEntries() {
+    const filterSelect = document.getElementById('filterPartner');
+    const partnerId = filterSelect?.value || '';
+
+    let url = '/api/partner-equity';
+    if (partnerId) {
+        url += `?partner_id=${encodeURIComponent(partnerId)}`;
+    }
+
+    try {
+        const res = await apiFetch(url);
+        const data = await res.json();
+        if (!data.success) return;
+        renderTable(data.data?.entries ?? data.data?.equity ?? data.data?.partner_equity ?? []);
+    } catch (err) {
+        console.error('Failed to fetch equity entries:', err);
+    }
+}
+
+function renderTable(entries) {
+    if (!equityDataTable) {
+        equityDataTable = createDataTable('#partnerEquityTable', {
+            columnDefs: [
+                { targets: '_all', className: 'text-nowrap' }
+            ],
+            order: [[5, 'desc']]
+        });
+    }
+
+    equityDataTable.clear();
+    const fmt = getFormatter();
+
+    entries.forEach(entry => {
+        const amount = fmt.formatNumber(entry.amount ?? 0, 2);
+
+        const typeBadge = entry.equity_type === 'CONTRIBUTION'
+            ? '<span class="badge bg-success">Contribution</span>'
+            : '<span class="badge bg-danger">Withdrawal</span>';
+
+        // Slip reference link
+        let slipRef = '—';
+        if (entry.slip_number) {
+            const route = entry.slip_type === 'COLLECTION_SLIP' ? '#/collections' : '#/payments';
+            slipRef = `<a href="${route}">${escHtml(entry.slip_number)}</a>`;
+        }
+
+        const date = fmt.formatDate(entry.created_at ?? '') || (entry.created_at ?? '');
+
+        equityDataTable.row.add([
+            escHtml(entry.partner_name ?? '—'),
+            typeBadge,
+            entry.equity_type === 'CONTRIBUTION'
+                ? `<span class="text-success">+${amount}</span>`
+                : `<span class="text-danger">-${amount}</span>`,
+            slipRef,
+            escHtml(entry.notes ?? ''),
+            date
+        ]);
+    });
+
+    equityDataTable.draw(false);
+    equityDataTable.columns.adjust();
+}

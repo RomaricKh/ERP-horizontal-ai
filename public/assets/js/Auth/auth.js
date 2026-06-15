@@ -5,6 +5,7 @@ import { initRouter, destroyRouter } from '../router/router.js';
 import { DEFAULT_GUEST_ROUTE, getDefaultAuthRoute } from '../router/router.config.js';
 import { startSessionWatcher, stopSessionWatcher } from '../SessionWatcher.js';
 import { determineDefaultRoute } from '../router/resolve.js';
+import { setActiveModules } from '../services/ModuleService.js';
 
 const TOKEN_KEY = 'erp_jwt';
 
@@ -13,6 +14,7 @@ const authChannel = new BroadcastChannel('auth');
 window.__LOGGING_OUT__ = false;
 
 let sessionPromise = false;
+let _isTenantOwner = false;
 
 authChannel.onmessage = (event) => {
 	if (event.data === 'LOGIN') {
@@ -46,10 +48,19 @@ export async function ensureSession() {
             const res = await apiFetch('api/auth/me'); // raw fetch Response
             const data = await res.json();                 // parse JSON
             if (!data.success) throw new Error(data.message);
+
+            // Store active modules from /auth/me response
+            if (data.data && data.data.active_modules) {
+                setActiveModules(data.data.active_modules);
+            }
+
+            // Store tenant owner flag from /auth/me response
+            _isTenantOwner = !!(data.data && data.data.is_tenant_owner);
 			
             return true; // resolved value of the promise
         } catch (err) {
             clearToken();
+            _isTenantOwner = false;
             return false;
         } finally {
             sessionPromise = null; // reset so next call always checks again
@@ -122,7 +133,21 @@ export async function login(username, password, remember) {
 			return;
 		}
 
-		localStorage.setItem('business_id', firstActiveRole.business_id);
+		let default_business_id = firstActiveRole.business_id;
+
+		// Tenant owners have business_id = null on their TENANT_OWNER role.
+		// Fall back to the first role that has a business_id, or use the
+		// first_business_id returned by the backend for tenant owners.
+		if (default_business_id == null) {
+			const roleWithBusiness = roles.find(r => r.business_id != null);
+			if (roleWithBusiness) {
+				default_business_id = roleWithBusiness.business_id;
+			} else if (data.data.user.first_business_id) {
+				default_business_id = data.data.user.first_business_id;
+			}
+		}
+
+		localStorage.setItem('business_id', default_business_id);
 		forceLogin(true);
 	} catch (err) {
 		console.error(err);
@@ -142,7 +167,7 @@ export async function logout() {
             credentials: 'include',
 			headers: { 
 					'Authorization': `Bearer ${token}`,
-					'X-Business-Id': savedBusinessId,
+					...(savedBusinessId && savedBusinessId !== 'null' ? { 'X-Business-Id': savedBusinessId } : {}),
 					'Content-Type': 'application/json' }
         });
 
@@ -192,6 +217,7 @@ export async function forceLogout(shouldBroadcast = true) {
 
 	clearToken();
 	localStorage.removeItem('business_id');
+	_isTenantOwner = false;
 	stopSessionWatcher();
 	destroyRouter();
 
@@ -229,4 +255,8 @@ export function hasPermission(code) {
     }
 
     return false;
+}
+
+export function isTenantOwner() {
+    return _isTenantOwner;
 }

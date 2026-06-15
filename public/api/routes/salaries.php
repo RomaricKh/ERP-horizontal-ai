@@ -1,0 +1,33 @@
+<?php
+
+use App\Controllers\SalariesController;
+
+// GET /salaries
+$router->get('/salaries',
+    fn() => (new SalariesController())->index(),
+    ['salaries.view']
+);
+
+// GET /salaries/{id}
+$router->get('/salaries/{id}',
+    fn($id) => (new SalariesController())->viewById((int)$id),
+    ['salaries.view']
+);
+
+// POST /salaries
+$router->post('/salaries',
+    fn() => (new SalariesController())->store(),
+    ['salaries.create']
+);
+
+// PUT /salaries/{id}
+$router->put('/salaries/{id}',
+    fn($id) => (new SalariesController())->update((int)$id),
+    ['salaries.edit']
+);
+
+// DELETE /salaries/{id}
+$router->delete('/salaries/{id}',
+    fn($id) => (new SalariesController())->delete((int)$id),
+    ['salaries.delete']
+);

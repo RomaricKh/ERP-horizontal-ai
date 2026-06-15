@@ -1,0 +1,54 @@
+<!-- Send Notification modal -->
+<div class="modal-dialog modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-info text-white">
+      <h5 class="modal-title">
+        <i class="fas fa-paper-plane me-2"></i>Send Notification
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="sendNotifForm" novalidate>
+
+        <div class="border rounded p-3 mb-4 bg-light">
+          <h6 class="text-info fw-bold mb-3">
+            <i class="fas fa-user me-1"></i> Recipient
+          </h6>
+          <div class="mb-0">
+            <label class="form-label small text-muted" for="notifRecipient">Send to <span class="text-danger">*</span></label>
+            <select id="notifRecipient" class="form-select" required>
+              <option value="">— Select a recipient —</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="border rounded p-3 mb-3">
+          <h6 class="text-info fw-bold mb-3">
+            <i class="fas fa-envelope me-1"></i> Message
+          </h6>
+          <div class="mb-3">
+            <label class="form-label small text-muted" for="notifTitle">Title <span class="text-danger">*</span></label>
+            <input type="text" id="notifTitle" class="form-control" placeholder="Notification title" required maxlength="255">
+          </div>
+          <div class="mb-0">
+            <label class="form-label small text-muted" for="notifBody">Message <span class="text-danger">*</span></label>
+            <textarea id="notifBody" class="form-control" rows="4" placeholder="Write your message..." required></textarea>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i>Cancel
+      </button>
+      <button class="btn btn-info text-white" type="button" id="sendNotifBtn">
+        <i class="fas fa-paper-plane me-1"></i> Send
+      </button>
+    </div>
+
+  </div>
+</div>

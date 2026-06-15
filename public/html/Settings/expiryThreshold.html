@@ -1,0 +1,31 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800"><span data-i18n="settings.expiry_threshold_title">Expiry Threshold</span></h1>
+
+<div class="card shadow mb-4">
+	<div class="card-header py-3">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="settings.expiry_threshold_heading">Item Expiry Alert Threshold</h6>
+	</div>
+	<div class="card-body">
+		<p class="text-muted mb-3" data-i18n="settings.expiry_threshold_desc">
+			Set the number of days before an item's expiry date to trigger low-expiry alerts.
+		</p>
+		<div class="row g-3 align-items-end">
+			<div class="col-md-4">
+				<label class="form-label small text-muted" for="inputExpiryThresholdDays">
+					<span data-i18n="settings.threshold_days_label">Days Before Expiry</span>
+					<span class="text-danger">*</span>
+				</label>
+				<div class="input-group">
+					<input class="form-control" id="inputExpiryThresholdDays" type="number"
+						   step="1" min="1" max="365" placeholder="30" value="30" required>
+					<span class="input-group-text">days</span>
+				</div>
+			</div>
+			<div class="col-md-3">
+				<button class="btn btn-primary" data-action="settings.save-expiry-threshold">
+					<i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+				</button>
+			</div>
+		</div>
+	</div>
+</div>

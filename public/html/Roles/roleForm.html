@@ -1,0 +1,67 @@
+<!-- Role form modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-dark text-white">
+      <h5 class="modal-title" id="roleModalTitle">
+        <i class="fas fa-user-shield me-2"></i><span data-i18n="roles.form_title">Create Role</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="roleForm" novalidate>
+
+        <!-- Role Details -->
+        <div class="border rounded p-3 mb-4 bg-light">
+          <h6 class="text-dark fw-bold mb-3">
+            <i class="fas fa-info-circle me-1"></i> Role Details
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label small text-muted" for="roleName"><span data-i18n="roles.role_name">Role Name</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="roleName" type="text"
+                     data-i18n-placeholder="roles.name_placeholder" placeholder="Enter role name"
+                     minlength="2" maxlength="50" required>
+              <small class="form-text text-muted" data-i18n="roles.name_help">2–50 characters</small>
+            </div>
+            <div class="col-md-7">
+              <label class="form-label small text-muted" for="roleDescription" data-i18n="common.description">Description</label>
+              <input class="form-control" id="roleDescription" type="text"
+                     maxlength="255" data-i18n-placeholder="roles.description_placeholder"
+                     placeholder="Optional description for this role">
+            </div>
+          </div>
+        </div>
+
+        <!-- Permissions -->
+        <div class="border rounded p-3 mb-3">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <h6 class="text-dark fw-bold mb-0">
+              <i class="fas fa-lock me-1"></i> Permissions
+            </h6>
+            <span class="badge bg-primary" id="permissionCountBadge">0 selected</span>
+          </div>
+          <div class="mb-3">
+            <input class="form-control form-control-sm" id="permissionSearch" type="text"
+                   data-i18n-placeholder="roles.search_permissions" placeholder="Search permissions…">
+          </div>
+          <div id="permissionsContainer" style="max-height: 400px; overflow-y: auto;">
+            <span class="text-muted small" data-i18n="roles.loading_permissions">Loading permissions…</span>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.cancel">Cancel</span>
+      </button>
+      <button class="btn btn-dark" type="button" id="saveRoleBtn">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+      </button>
+    </div>
+
+  </div>
+</div>

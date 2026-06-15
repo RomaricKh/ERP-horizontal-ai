@@ -1,0 +1,108 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="finance.balance_sheet_title">Balance Sheet</h1>
+
+<!-- Date Filter -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Report Date</h6>
+    </div>
+    <div class="card-body">
+        <form id="bsFilterForm" class="row align-items-end">
+            <div class="col-md-3 mb-2">
+                <label for="bsAsOfDate" class="form-label">As Of</label>
+                <input type="date" class="form-control" id="bsAsOfDate" required>
+            </div>
+            <div class="col-md-3 mb-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-chart-bar mr-1"></i> Generate Report
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Report Output -->
+<div id="bsReportOutput" style="display:none;">
+    <div class="row">
+        <!-- Assets -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-success">Assets</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>Accounts (Cash & Bank)</td>
+                                <td class="text-end" id="bsAccounts">0.00</td>
+                            </tr>
+                            <tr>
+                                <td>Inventory</td>
+                                <td class="text-end" id="bsInventory">0.00</td>
+                            </tr>
+                            <tr>
+                                <td>Fixed Assets</td>
+                                <td class="text-end" id="bsFixedAssets">0.00</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-weight-bold">
+                                <td>Total Assets</td>
+                                <td class="text-end" id="bsTotalAssets">0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- Liabilities -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-danger">Liabilities</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>Outstanding Payables</td>
+                                <td class="text-end" id="bsPayables">0.00</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-weight-bold">
+                                <td>Total Liabilities</td>
+                                <td class="text-end" id="bsTotalLiabilities">0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- Equity -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Equity</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>Partner Shares</td>
+                                <td class="text-end" id="bsPartnerShares">0.00</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-weight-bold">
+                                <td>Total Equity</td>
+                                <td class="text-end" id="bsTotalEquity">0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

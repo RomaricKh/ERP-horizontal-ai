@@ -1,0 +1,64 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="recurring_expenses.title">Recurring Expenses</h1>
+<p class="mb-4 text-muted">
+    Manage recurring expense schedules and their payment instances.
+    <a href="#/prepaid-assets" class="ms-2"><i class="fas fa-calendar-check me-1"></i>View Prepaid Assets</a>
+</p>
+
+<!-- Status Filter Tabs -->
+<div class="mb-3">
+    <div class="btn-group" role="group" aria-label="Status filter">
+        <button type="button" class="btn btn-outline-primary btn-sm active" data-filter="all" data-i18n="recurring_expenses.filter_all">All</button>
+        <button type="button" class="btn btn-outline-warning btn-sm" data-filter="pending" data-i18n="recurring_expenses.filter_pending">Pending</button>
+        <button type="button" class="btn btn-outline-success btn-sm" data-filter="paid" data-i18n="recurring_expenses.filter_paid">Paid</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="skipped" data-i18n="recurring_expenses.filter_skipped">Skipped</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" data-filter="overdue" data-i18n="recurring_expenses.filter_overdue">Overdue</button>
+    </div>
+</div>
+
+<!-- Overdue Section -->
+<div id="overdueSection" class="card border-left-danger shadow mb-4 d-none">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-danger">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            <span data-i18n="recurring_expenses.overdue_heading">Overdue Expenses</span>
+        </h6>
+    </div>
+    <div class="card-body p-0">
+        <div id="overdueList" class="list-group list-group-flush"></div>
+    </div>
+</div>
+
+<!-- Recurring Expenses DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="recurring_expenses.heading">Recurring Expenses</h6>
+        <div class="d-flex gap-2">
+            <button class="btn btn-info btn-icon-split btn-sm"
+                    data-action="recurring-expenses.bulk-advance" title="Pay multiple periods in advance">
+                <span class="text" data-i18n="recurring_expenses.bulk_advance_btn">Pay in Advance</span>
+                <span class="icon"><i class="fas fa-fw fa-forward"></i></span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="recurringExpensesTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th data-i18n="common.id">ID</th>
+                        <th data-i18n="recurring_expenses.expense_name">Expense</th>
+                        <th data-i18n="common.due_date">Due Date</th>
+                        <th data-i18n="common.amount">Amount</th>
+                        <th data-i18n="common.currency">Currency</th>
+                        <th data-i18n="common.status">Status</th>
+                        <th data-i18n="recurring_expenses.days_overdue">Days Overdue</th>
+                        <th data-i18n="common.actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>

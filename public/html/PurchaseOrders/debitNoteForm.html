@@ -1,0 +1,102 @@
+<!-- Debit Note Form Modal -->
+<div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header">
+      <h5 class="modal-title" id="debitNoteModalTitle">Issue Debit Note</h5>
+      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- ── Header Section ─────────────────────────────────────────── -->
+      <h6 class="fw-bold text-primary mb-3">Debit Note Details</h6>
+      <form id="debitNoteHeaderForm" novalidate>
+        <div class="row g-3 mb-4">
+
+          <div class="col-md-6">
+            <label class="form-label" for="inputDNPurchaseOrder">Purchase Order <span class="text-danger">*</span></label>
+            <input class="form-control" id="inputDNPurchaseOrder" type="text" readonly>
+            <input type="hidden" id="inputDNPurchaseOrderId">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label" for="inputDNDate">Debit Note Date <span class="text-danger">*</span></label>
+            <input class="form-control" id="inputDNDate" type="date" required>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label" for="inputDNCurrency">Currency</label>
+            <input class="form-control" id="inputDNCurrency" type="text" readonly>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="inputDNNotes">Notes</label>
+            <textarea class="form-control" id="inputDNNotes" rows="2" placeholder="Reason for debit note..."></textarea>
+          </div>
+        </div>
+      </form>
+
+      <!-- ── Line Items Section ─────────────────────────────────────── -->
+      <h6 class="fw-bold text-primary mb-3">Return Items</h6>
+      <div class="alert alert-info small">
+        <i class="fas fa-info-circle me-1"></i>
+        Select items from the original purchase order to return. Quantities must not exceed the ordered amounts.
+      </div>
+
+      <div class="table-responsive mb-3">
+        <table class="table table-bordered table-sm" id="dnLinesTable">
+          <thead class="table-light">
+            <tr>
+              <th>Item</th>
+              <th style="width:100px">Max Qty</th>
+              <th style="width:100px">Return Qty</th>
+              <th style="width:120px">Unit Price (FC)</th>
+              <th style="width:120px">Unit Price (BC)</th>
+              <th style="width:120px">Line Total (BC)</th>
+            </tr>
+          </thead>
+          <tbody id="dnLinesBody">
+            <!-- Populated dynamically from PO lines -->
+          </tbody>
+          <tfoot>
+            <tr class="fw-bold">
+              <td colspan="5" class="text-end">Total:</td>
+              <td id="dnTotalBc">0.00</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- ── View Mode (for issued debit notes) ───────────────────── -->
+      <div id="dnViewSection" class="d-none">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Debit Note #</label>
+            <p id="viewDNNumber" class="form-control-plaintext">—</p>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Status</label>
+            <p id="viewDNStatus" class="form-control-plaintext">—</p>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Total (BC)</label>
+            <p id="viewDNTotal" class="form-control-plaintext">—</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
+      <button class="btn btn-primary" type="button" id="btnSaveDebitNote">
+        <i class="fas fa-save me-1"></i> Create Draft
+      </button>
+      <button class="btn btn-success d-none" type="button" id="btnIssueDebitNote">
+        <i class="fas fa-check-circle me-1"></i> Issue Debit Note
+      </button>
+    </div>
+
+  </div>
+</div>

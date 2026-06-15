@@ -1,0 +1,39 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="invoices.title">Sales Invoices</h1>
+
+<!-- DataTable Card -->
+<div class="card shadow mb-4">
+	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="invoices.heading">Sales Invoices</h6>
+		<div class="d-flex gap-2">
+			<button class="btn btn-primary btn-icon-split btn-sm" data-action="invoice.create">
+				<span class="text" data-i18n="invoices.new_btn">New Invoice</span>
+				<span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+			</button>
+		</div>
+	</div>
+	<div class="card-body">
+		<div class="table-responsive">
+			<table class="table table-bordered table-hover" id="salesInvoicesTable" width="100%" cellspacing="0">
+				<thead>
+					<tr>
+						<th data-i18n="common.id">ID</th>
+						<th data-i18n="invoices.invoice_number">Invoice #</th>
+						<th data-i18n="common.customer">Customer</th>
+						<th data-i18n="common.date">Date</th>
+						<th data-i18n="invoices.due_date">Due Date</th>
+						<th data-i18n="common.status">Status</th>
+						<th data-i18n="invoices.total_fc">Total (FC)</th>
+						<th data-i18n="invoices.paid_fc">Paid (FC)</th>
+						<th data-i18n="invoices.balance_fc">Balance (FC)</th>
+						<th class="text-center" data-i18n="common.actions">Actions</th>
+						<th class="d-none">DueDateRaw</th>
+					</tr>
+				</thead>
+				<tbody>
+					<!-- rows injected by JS -->
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>

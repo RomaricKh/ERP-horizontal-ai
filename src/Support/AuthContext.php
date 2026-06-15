@@ -26,4 +26,13 @@ final class AuthContext {
     public static function userId(): int {
         return self::get()->user_id;
     }
+
+    public static function businessIdOrNull(): ?int {
+        $ctx = self::get();
+        return $ctx->business_id ?? null;
+    }
+
+    public static function isTenantOwner(): bool {
+        return self::$user && !empty(self::$user->is_tenant_owner);
+    }
 }

@@ -1,7 +1,10 @@
 <?php
+
 namespace App\Support;
 
+use App\Config\Database;
 use App\Middleware\AuthMiddleware;
+use App\Middleware\ModuleGateMiddleware;
 
 class Router
 {
@@ -38,20 +41,25 @@ class Router
         $this->add('PATCH', $path, $handler, $permissions, $authRequired);
     }
 
-    private function add(string $method, string $path, callable $handler, 
-						 array $permissions, bool $authRequired = true): void
-    {
+    private function add(
+        string $method,
+        string $path,
+        callable $handler,
+        array $permissions,
+        bool $authRequired = true
+    ): void {
         $this->routes[] = [
             'method'      => $method,
             'path'        => $path,
             'regex'       => $this->pathToRegex($path),
             'handler'     => $handler,
             'permissions' => $permissions,
-        	'auth'        => $authRequired
+            'auth'        => $authRequired
         ];
     }
 
-    public function dispatch(): void {
+    public function dispatch(): void
+    {
         $method = $_SERVER['REQUEST_METHOD'];
 
         if ($method === 'OPTIONS') {
@@ -60,7 +68,8 @@ class Router
         }
 
         $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-        $uri = preg_replace('#^/api#', '', $uri);
+        // Strip everything up to and including /api (handles subdirectory installs like /ERP-horizontal-ai/api/)
+        $uri = preg_replace('#^.*/api#', '', $uri);
         $uri = rtrim($uri, '/');
         $uri = $uri === '' ? '/' : $uri;
 
@@ -77,14 +86,18 @@ class Router
             array_shift($matches);
 
             if ($route['auth']) {
-				$middleware = new AuthMiddleware($this->jwtSecret);
+                $middleware = new AuthMiddleware($this->jwtSecret);
 
-				if (!empty($route['permissions'])) {
-					$middleware->handle($route['permissions']);
-				} else {
-					$middleware->handle();
-				}
-			}
+                if (!empty($route['permissions'])) {
+                    $middleware->handle($route['permissions']);
+                } else {
+                    $middleware->handle();
+                }
+
+                // Module gate check
+                $moduleGate = new ModuleGateMiddleware(Database::getConnection());
+                $moduleGate->handle($uri);
+            }
 
             call_user_func_array($route['handler'], $matches);
             return;
@@ -99,7 +112,12 @@ class Router
 
     private function pathToRegex(string $path): string
     {
-        $regex = preg_replace('#\{id\}#', '(\d+)', $path);
+        // Escape literal dots (none expected, but safe)
+        $regex = str_replace('.', '\.', $path);
+        // {id} → numeric capture group
+        $regex = preg_replace('#\{id\}#', '(\d+)', $regex);
+        // any other {param} → generic non-slash capture group
+        $regex = preg_replace('#\{[a-zA-Z_][a-zA-Z0-9_]*\}#', '([^/]+)', $regex);
         return '#^' . $regex . '$#';
     }
 }

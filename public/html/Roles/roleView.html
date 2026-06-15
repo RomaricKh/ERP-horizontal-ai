@@ -1,0 +1,43 @@
+<!-- Role view modal (read-only) -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+
+    <!-- HEADER -->
+    <div class="modal-header">
+      <h5 class="modal-title" id="roleViewTitle" data-i18n="roles.view_title">Role Details</h5>
+      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <!-- BODY -->
+    <div class="modal-body">
+
+      <!-- Role Info -->
+      <div class="mb-3">
+        <h6 class="text-primary fw-bold mb-1" id="roleViewName">—</h6>
+        <p class="text-muted mb-0" id="roleViewDescription" data-i18n="roles.no_description">No description</p>
+      </div>
+
+      <hr>
+
+      <!-- Permissions Summary -->
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 class="mb-0" data-i18n="roles.permissions">Permissions</h6>
+        <span class="badge bg-primary" id="roleViewPermCount">0 permissions</span>
+      </div>
+
+      <div id="roleViewPermissions">
+        <span class="text-muted small" data-i18n="common.loading">Loading…</span>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" data-bs-dismiss="modal" data-i18n="common.close">Close</button>
+      <button class="btn btn-primary" type="button" id="roleViewEditBtn" style="display:none;">
+        <i class="fas fa-edit me-1"></i> <span data-i18n="roles.edit_role">Edit Role</span>
+      </button>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,81 @@
+<!-- Page Heading -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h3 mb-0 text-gray-800" data-i18n="activity_log.title">Activity Log</h1>
+</div>
+
+<!-- Filter Bar -->
+<div class="card shadow mb-3">
+    <div class="card-body py-2">
+        <form id="activityLogFilterForm" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label for="activityLogEventType" class="form-label mb-1 small" data-i18n="activity_log.event_type">Event Type</label>
+                <select id="activityLogEventType" class="form-select form-select-sm" name="event_type">
+                    <option value="" data-i18n="activity_log.all_types">All Types</option>
+                    <option value="CREATE">CREATE</option>
+                    <option value="UPDATE">UPDATE</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="LOGIN">LOGIN</option>
+                    <option value="LOGOUT">LOGOUT</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label for="activityLogFrom" class="form-label mb-1 small" data-i18n="activity_log.from">From</label>
+                <input type="date" id="activityLogFrom" class="form-control form-control-sm" name="from">
+            </div>
+            <div class="col-auto">
+                <label for="activityLogTo" class="form-label mb-1 small" data-i18n="activity_log.to">To</label>
+                <input type="date" id="activityLogTo" class="form-control form-control-sm" name="to">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm" data-action="activityLog.applyFilters">
+                    <i class="fas fa-fw fa-filter"></i> <span data-i18n="activity_log.apply_filters">Apply Filters</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Activity Log DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="activity_log.heading">Audit Events</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="activityLogTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th data-i18n="common.date">Date</th>
+                        <th data-i18n="activity_log.user">User</th>
+                        <th data-i18n="activity_log.event_type">Event Type</th>
+                        <th data-i18n="activity_log.table">Table</th>
+                        <th data-i18n="activity_log.action">Action</th>
+                        <th data-i18n="activity_log.record_id">Record ID</th>
+                        <th>Old Values</th>
+                        <th>New Values</th>
+                        <th data-i18n="activity_log.details">Details</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Details Expand Panel (hidden by default, shown inline below row) -->
+<template id="activityLogDetailsTpl">
+    <div class="activity-log-details p-3 bg-light border rounded">
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-muted small mb-1" data-i18n="activity_log.old_values">Old Values</h6>
+                <pre class="activity-log-old-values small mb-0 text-danger" style="white-space: pre-wrap; word-break: break-all;"></pre>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-muted small mb-1" data-i18n="activity_log.new_values">New Values</h6>
+                <pre class="activity-log-new-values small mb-0 text-success" style="white-space: pre-wrap; word-break: break-all;"></pre>
+            </div>
+        </div>
+    </div>
+</template>

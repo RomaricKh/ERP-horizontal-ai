@@ -1,0 +1,46 @@
+<!-- People Transaction Insights Modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
+  <div class="modal-content text-gray-800">
+
+    <!-- HEADER -->
+    <div class="modal-header">
+      <h5 class="modal-title" id="insightsModalTitle">
+        <i class="fas fa-chart-line text-primary me-2"></i>
+        <span>Transaction Insights</span>
+      </h5>
+      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <!-- BODY -->
+    <div class="modal-body">
+
+      <!-- Loading Spinner -->
+      <div id="insightsLoading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="text-muted mt-2 mb-0">Loading insights...</p>
+      </div>
+
+      <!-- Error Message -->
+      <div id="insightsError" class="d-none">
+        <div class="alert alert-danger d-flex align-items-center" role="alert">
+          <i class="fas fa-exclamation-circle me-2"></i>
+          <span id="insightsErrorText">An error occurred while loading insights.</span>
+        </div>
+      </div>
+
+      <!-- Content Area (DataTable for supplier/customer, summary cards for general) -->
+      <div id="insightsContent" class="d-none">
+        <!-- Dynamically populated by insights.modal.js -->
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
+    </div>
+
+  </div>
+</div>

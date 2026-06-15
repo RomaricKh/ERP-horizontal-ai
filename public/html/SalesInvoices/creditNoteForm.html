@@ -1,0 +1,102 @@
+<!-- Credit Note Form Modal -->
+<div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header">
+      <h5 class="modal-title" id="creditNoteModalTitle">Issue Credit Note</h5>
+      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- ── Header Section ─────────────────────────────────────────── -->
+      <h6 class="fw-bold text-primary mb-3">Credit Note Details</h6>
+      <form id="creditNoteHeaderForm" novalidate>
+        <div class="row g-3 mb-4">
+
+          <div class="col-md-6">
+            <label class="form-label" for="inputCNInvoice">Sales Invoice <span class="text-danger">*</span></label>
+            <input class="form-control" id="inputCNInvoice" type="text" readonly>
+            <input type="hidden" id="inputCNInvoiceId">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label" for="inputCNDate">Credit Note Date <span class="text-danger">*</span></label>
+            <input class="form-control" id="inputCNDate" type="date" required>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label" for="inputCNCurrency">Currency</label>
+            <input class="form-control" id="inputCNCurrency" type="text" readonly>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="inputCNNotes">Notes</label>
+            <textarea class="form-control" id="inputCNNotes" rows="2" placeholder="Reason for credit note..."></textarea>
+          </div>
+        </div>
+      </form>
+
+      <!-- ── Line Items Section ─────────────────────────────────────── -->
+      <h6 class="fw-bold text-primary mb-3">Return Items</h6>
+      <div class="alert alert-info small">
+        <i class="fas fa-info-circle me-1"></i>
+        Select items from the original invoice to return. Quantities must not exceed the invoiced amounts.
+      </div>
+
+      <div class="table-responsive mb-3">
+        <table class="table table-bordered table-sm" id="cnLinesTable">
+          <thead class="table-light">
+            <tr>
+              <th>Item / Service</th>
+              <th style="width:100px">Max Qty</th>
+              <th style="width:100px">Return Qty</th>
+              <th style="width:120px">Unit Price (FC)</th>
+              <th style="width:120px">Unit Price (BC)</th>
+              <th style="width:120px">Line Total (BC)</th>
+            </tr>
+          </thead>
+          <tbody id="cnLinesBody">
+            <!-- Populated dynamically from invoice lines -->
+          </tbody>
+          <tfoot>
+            <tr class="fw-bold">
+              <td colspan="5" class="text-end">Total:</td>
+              <td id="cnTotalBc">0.00</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- ── View Mode (for issued credit notes) ──────────────────── -->
+      <div id="cnViewSection" class="d-none">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Credit Note #</label>
+            <p id="viewCNNumber" class="form-control-plaintext">—</p>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Status</label>
+            <p id="viewCNStatus" class="form-control-plaintext">—</p>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Total (BC)</label>
+            <p id="viewCNTotal" class="form-control-plaintext">—</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
+      <button class="btn btn-primary" type="button" id="btnSaveCreditNote">
+        <i class="fas fa-save me-1"></i> Create Draft
+      </button>
+      <button class="btn btn-success d-none" type="button" id="btnIssueCreditNote">
+        <i class="fas fa-check-circle me-1"></i> Issue Credit Note
+      </button>
+    </div>
+
+  </div>
+</div>

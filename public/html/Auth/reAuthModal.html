@@ -2,7 +2,7 @@
 <div class="modal-dialog" role="document">
 	<div class="modal-content text-gray-800">
 		<div class="modal-header">
-			<h5 class="modal-title" id="reauthModalLabel">Not ready to Leave?</h5>
+			<h5 class="modal-title" id="reauthModalLabel" data-i18n="auth.reauth_title">Not ready to Leave?</h5>
 			<button class="close" type="button" data-bs-dismiss="modal" aria-bs-label="Close">
 				<span aria-hidden="true">×</span>
 			</button>
@@ -11,10 +11,10 @@
 			<form class="user" id="reauthForm">
 				<div class="form-group">
 					<input type="password" class="form-control form-control-user"
-						id="reauthPassword" placeholder="Password">
+						id="reauthPassword" data-i18n-placeholder="auth.password_placeholder" placeholder="Password">
 				</div>
 				<div class="error hidden" id="reauthError"></div>
-				<button type="submit" class="btn btn-primary btn-user btn-block" data-action="reAuth">Stay logged in</button>
+				<button type="submit" class="btn btn-primary btn-user btn-block" data-action="reAuth" data-i18n="auth.stay_logged_in">Stay logged in</button>
 			</form>
 		</div>
 	</div>

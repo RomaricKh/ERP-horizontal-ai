@@ -1,0 +1,38 @@
+<!-- Service Categories management modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title">
+        <i class="fas fa-folder me-2"></i><span data-i18n="services.manage_categories_title">Manage Service Categories</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <div class="border rounded p-3 mb-4 bg-light">
+        <h6 class="text-primary fw-bold mb-3">
+          <i class="fas fa-plus-circle me-1"></i> Add New Category
+        </h6>
+        <div class="input-group">
+          <input class="form-control" id="newServiceCategoryName" type="text"
+                 data-i18n-placeholder="services.new_category_placeholder" placeholder="New category name (e.g. Consulting, Design…)">
+          <button class="btn btn-primary" type="button" data-action="service-categories.add">
+            <i class="fas fa-plus me-1"></i><span data-i18n="common.add">Add</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="serviceCategoriesList">
+        <div class="text-center text-muted py-3" data-i18n="common.loading">Loading…</div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.close">Close</span>
+      </button>
+    </div>
+
+  </div>
+</div>

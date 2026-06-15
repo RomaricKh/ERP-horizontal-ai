@@ -2,24 +2,32 @@
 import { MENU_CONFIG, USER_INFO_CONFIG } from './appShell.config.js';
 import { getDefaultAuthRoute } from '../router/router.config.js';
 import { determineDefaultRoute } from '../router/resolve.js';
-import { getUser, hasPermission } from '../Auth/auth.js';
+import { getUser, hasPermission, isTenantOwner } from '../Auth/auth.js';
+import { apiFetch } from '../Auth/apiFetch.js';
 import { resolveRoute } from '../router/router.js';
 import { registerPageActions, handlePageAction } from '../pages/Core/pageActions.js';
 import { MODAL_SCOPE, openModal, closeAllModals } from '../components/modals.js';
+import { init as initTranslations, applyTranslations } from '../i18n/translationClient.js';
+import notificationPollingService from '../services/NotificationPollingService.js';
+import { init as initNotificationCenter, cleanup as cleanupNotificationCenter } from '../components/NotificationCenter.js';
+import { isModuleActive } from '../services/ModuleService.js';
+import { init as initTenantSwitcher } from '../components/tenantSwitcher.js';
 
 export let shellActive = false;
 
 let unregisterShellActions = null;
 let shellChannel = null;
 let businessChangeInProgress = false;
+let modulesChangedHandler = null;
 
 export function mountAppShell() {
     // Delegated shell actions
     unregisterShellActions = registerPageActions({
 		'businessChanged': async ({ el }) => {
-			const id = el.closest('a')?.value;
-			const name = el.closest('a')?.textContent;
-			if (id != localStorage.getItem('business_id')){
+			const anchor = el.closest('a');
+			const id = anchor?.dataset?.businessId;
+			const name = anchor?.textContent;
+			if (id && id != localStorage.getItem('business_id')){
 				localStorage.setItem('business_id', id);
 				document.getElementById('business').textContent = name;
 
@@ -34,6 +42,13 @@ export function mountAppShell() {
 			options: { backdrop: 'static', keyboard: true, focus: true }
 		})
     });
+
+    // Listen for module changes to re-render sidebar
+    modulesChangedHandler = () => {
+        renderMenu();
+        applyTranslations(document.getElementById('accordionSidebar'));
+    };
+    window.addEventListener('modules:changed', modulesChangedHandler);
 
     // Broadcast channel
     shellChannel = new BroadcastChannel('shell');
@@ -60,6 +75,12 @@ export function unmountAppShell() {
         shellChannel = null;
     }
 
+    // Remove modules:changed listener
+    if (modulesChangedHandler) {
+        window.removeEventListener('modules:changed', modulesChangedHandler);
+        modulesChangedHandler = null;
+    }
+
     // Clear shell-only state
     shellActive = false;
 }
@@ -76,11 +97,18 @@ export async function activateAppShell(path) {
 			
     const user = getUser();
 	
+	// Initialize translations and regional formatting before rendering shell content
+	await initTranslations();
+	
 	determineDefaultRoute(user);
 	renderSidebarBrand();
 	renderMenu();
-	renderBusinessSelector(user);
+	await renderBusinessSelector(user);
+	await initTenantSwitcher();
 	renderUserInfo(user);
+	
+	// Apply translations to the shell (sidebar, menus, etc.)
+	applyTranslations(document.getElementById('appShell'));
 	
 	delegateEvents();
 	
@@ -89,11 +117,19 @@ export async function activateAppShell(path) {
 	mountAppShell();
 	
     shellActive = true;
+
+	// Start notification polling and initialize the NotificationCenter UI
+	notificationPollingService.start();
+	initNotificationCenter();
 }
 
 export function deactivateAppShell() {
     if (!shellActive) return; // never remove if not rendered
-	
+
+	// Stop notification polling and cleanup the NotificationCenter UI
+	notificationPollingService.stop();
+	cleanupNotificationCenter();
+
 	document.getElementById("authViews").style.display = "block";
 	document.getElementById("appShell").style.display = "none";
 	
@@ -105,14 +141,36 @@ export function deactivateAppShell() {
 }
 
 export function setActiveMenu(hash) {
-    document.querySelectorAll('.nav-item')
+    // Clear all active states
+    document.querySelectorAll('#accordionSidebar .nav-item')
+        .forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#accordionSidebar .dropdown-item')
+        .forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#accordionSidebar .dropdown-toggle')
         .forEach(el => el.classList.remove('active'));
 
-    const el = document.querySelector(
-        `.nav-item[data-route="${hash}"]`
+    // Check standalone items first
+    const standaloneItem = document.querySelector(
+        `#accordionSidebar > .nav-item:not(.dropdown)[data-route="${hash}"]`
     );
+    if (standaloneItem) {
+        standaloneItem.classList.add('active');
+        return;
+    }
 
-    if (el) el.classList.add('active');
+    // Check dropdown items
+    const dropdownItem = document.querySelector(
+        `#accordionSidebar .dropdown-item[data-route="${hash}"]`
+    );
+    if (dropdownItem) {
+        dropdownItem.classList.add('active');
+        const parentDropdown = dropdownItem.closest('.nav-item.dropdown');
+        if (parentDropdown) {
+            parentDropdown.classList.add('active');
+            const toggle = parentDropdown.querySelector('.dropdown-toggle');
+            if (toggle) toggle.classList.add('active');
+        }
+    }
 }
 
 export function delegateEvents() {
@@ -152,68 +210,139 @@ function renderMenu() {
 	
     // Clear existing menu items
     container.innerHTML = '';
+
+    const userIsTenantOwner = isTenantOwner();
 	
-    MENU_CONFIG.forEach(item => {
-        if (!hasPermission(item.permission)) return;
+    MENU_CONFIG.forEach(entry => {
+        if (entry.type === 'item') {
+            // Tenant owner items: check tenantOwner flag instead of permission/module
+            if (entry.tenantOwner) {
+                if (!userIsTenantOwner) return;
+            } else {
+                if (!hasPermission(entry.permission)) return;
+                if (!isModuleActive(entry.module)) return;
+            }
 
-        const li = document.createElement('li');
-        li.className = 'nav-item';
-        li.id = item.id;
-		li.setAttribute('data-route', item.hash);
-        li.innerHTML = `
-            <a class="nav-link" href="${item.hash}">
-                <i class="${item.icon}"></i>
-                <span>${item.label}</span>
-            </a>
-        `;
+            const li = document.createElement('li');
+            li.className = 'nav-item';
+            li.id = entry.id;
+            li.setAttribute('data-route', entry.hash);
+            li.innerHTML = `
+                <a class="nav-link" href="${entry.hash}">
+                    <i class="${entry.icon}"></i>
+                    <span data-i18n="${entry.i18nKey}">${entry.label}</span>
+                </a>
+            `;
 
-        container.appendChild(li);
+            container.appendChild(li);
+        } else if (entry.type === 'group') {
+            // Filter children through permission and module activation checks
+            const visibleChildren = (entry.children || []).filter(child => {
+                if (child.tenantOwner) {
+                    return userIsTenantOwner;
+                }
+                return hasPermission(child.permission) && isModuleActive(child.module);
+            });
+
+            // For tenant owner groups, also check the group-level flag
+            if (entry.tenantOwner && !userIsTenantOwner) return;
+
+            // Skip group if no children are visible
+            if (visibleChildren.length === 0) return;
+
+            const toggleId = entry.id + 'Toggle';
+
+            const li = document.createElement('li');
+            li.className = 'nav-item dropdown';
+            li.id = entry.id;
+
+            // Build dropdown items HTML
+            const childrenHtml = visibleChildren.map(child =>
+                `<li><a class="dropdown-item" href="${child.hash}" data-route="${child.hash}">
+                    <i class="${child.icon}"></i> <span data-i18n="${child.i18nKey}">${child.label}</span>
+                </a></li>`
+            ).join('');
+
+            li.innerHTML = `
+                <a class="nav-link dropdown-toggle" href="#" role="button"
+                   data-bs-toggle="dropdown" aria-expanded="false"
+                   id="${toggleId}">
+                    <i class="${entry.icon}"></i>
+                    <span data-i18n="${entry.i18nKey}">${entry.label}</span>
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="${toggleId}">
+                    ${childrenHtml}
+                </ul>
+            `;
+
+            container.appendChild(li);
+        } else {
+            console.warn(`renderMenu: unrecognized menu entry type "${entry.type}" for entry`, entry);
+        }
     });
 }
 
-function renderBusinessSelector(user) {
+async function renderBusinessSelector(user) {
     /* ===============================
        BUSINESS DROPDOWN
     =============================== */
     const bContainer = document.getElementById('businessList');
     const bLabel = document.getElementById('business');
 
-    if (bContainer && Array.isArray(user.roles)) {
-        bContainer.innerHTML = '';
+    if (!bContainer) return;
 
-        const businesses = new Map();
+    bContainer.innerHTML = '';
 
-        // collect unique businesses from roles
+    const businesses = new Map();
+
+    // For regular users: collect unique businesses from roles in the JWT
+    if (Array.isArray(user.roles)) {
         for (const role of user.roles) {
             if (!role.business_id) continue;
-
             businesses.set(role.business_id, role.business_name);
         }
+    }
 
-        const savedBusinessId = localStorage.getItem('business_id');
-
-        businesses.forEach((name, id) => {
-            const a = document.createElement('a');
-			a.role = 'button';
-            a.className = 'dropdown-item';
-			a.setAttribute('data-action', 'businessChanged');
-            a.textContent = name;
-			a.value = id;
-
-            bContainer.appendChild(a);
-
-            // restore label on refresh
-            if (savedBusinessId && String(id) === savedBusinessId) {
-                bLabel.textContent = name;
+    // For tenant owners with no business roles in JWT: fetch businesses from API
+    if (businesses.size === 0 && isTenantOwner()) {
+        try {
+            const res = await apiFetch('/api/tenant/businesses');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.data?.businesses)) {
+                for (const biz of data.data.businesses) {
+                    if (biz.id && biz.name) {
+                        businesses.set(biz.id, biz.name);
+                    }
+                }
             }
-        });
-
-        // fallback label
-        if (!savedBusinessId && businesses.size > 0) {
-            const [firstId, firstName] = businesses.entries().next().value;
-            localStorage.setItem('business_id', firstId);
-            bLabel.textContent = firstName;
+        } catch (err) {
+            console.error('Failed to fetch tenant businesses for switcher:', err);
         }
+    }
+
+    const savedBusinessId = localStorage.getItem('business_id');
+
+    businesses.forEach((name, id) => {
+        const a = document.createElement('a');
+        a.role = 'button';
+        a.className = 'dropdown-item';
+        a.setAttribute('data-action', 'businessChanged');
+        a.setAttribute('data-business-id', id);
+        a.textContent = name;
+
+        bContainer.appendChild(a);
+
+        // restore label on refresh
+        if (savedBusinessId && String(id) === savedBusinessId) {
+            bLabel.textContent = name;
+        }
+    });
+
+    // fallback label
+    if (!savedBusinessId && businesses.size > 0) {
+        const [firstId, firstName] = businesses.entries().next().value;
+        localStorage.setItem('business_id', firstId);
+        bLabel.textContent = firstName;
     }
 }
 
@@ -255,6 +384,7 @@ function renderUserInfo(user) {
 
     USER_INFO_CONFIG.forEach(item => {
         if (!hasPermission(item.permission)) return;
+        if (item.module && !isModuleActive(item.module)) return;
 
         const a = document.createElement('a');
         a.className = 'dropdown-item';
@@ -308,7 +438,7 @@ function renderSidebarBrand(containerId = 'topbar') {
         container.prepend(brandLink); // always on top
     }
 
-    // Update href dynamically
-    brandLink.href = getDefaultAuthRoute();
+    // Update href dynamically — always navigate to dashboard
+    brandLink.href = '#/dashboard';
 }
 

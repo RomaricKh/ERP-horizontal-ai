@@ -63,9 +63,7 @@ html, body, #authViews, #appShell {
 	position: relative;
 	z-index: 500;
   	flex-shrink: 0;
-  	height: 100%;
-  	overflow-y: auto;   /* scroll only vertically if sidebar is tall */
-  	overflow-x: hidden; /* kill horizontal scroll */
+  	overflow: visible;  /* allow dropdown menus to escape the navbar bounds */
 }
 
 #accordionSidebar .nav-link span {
@@ -86,8 +84,19 @@ html, body, #authViews, #appShell {
 /* Topbar stays fixed */
 #topbar {
 	position: relative;
-	z-index: 500;
+	z-index: 1020;
   	flex-shrink: 0;
+}
+
+/* Topbar dropdown menus must appear above the horizontal app menu */
+#topbar .dropdown-menu {
+	z-index: 1030;
+}
+
+/* Horizontal app menu sits below topbar in stacking order */
+#appMenu {
+	position: relative;
+	z-index: 1010;
 }
 
 /* THIS is the only scrollable area */
@@ -141,3 +150,37 @@ html, body, #authViews, #appShell {
   	flex-shrink: 0;         /* footer never collapses */
 }
 
+
+/* Dropdown menu on the primary navbar */
+#appMenu .dropdown-menu {
+    background-color: #4e73df;
+    border: none;
+    border-radius: 0.375rem;
+    margin-top: 0;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+/* Dropdown items */
+#appMenu .dropdown-item {
+    color: rgba(255, 255, 255, 0.85);
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+}
+
+#appMenu .dropdown-item:hover,
+#appMenu .dropdown-item:focus {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+#appMenu .dropdown-item.active {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Active dropdown toggle (group contains active route) */
+#appMenu .dropdown-toggle.active {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 0.375rem;
+}

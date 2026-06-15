@@ -1,0 +1,40 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="people.title">People &amp; Contacts</h1>
+
+<!-- DataTable Card -->
+<div class="card shadow mb-4">
+	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="people.heading">Contacts</h6>
+		<div class="d-flex gap-2">
+			<button class="btn btn-outline-secondary btn-icon-split btn-sm" data-action="people.manage-types"
+					data-bs-toggle="tooltip" data-bs-placement="top" title="Manage payee types">
+				<span class="text" data-i18n="people.types_btn">Types</span>
+				<span class="icon"><i class="fas fa-fw fa-tags"></i></span>
+			</button>
+			<button class="btn btn-primary btn-icon-split btn-sm" data-action="people.create"
+					data-bs-toggle="tooltip" data-bs-placement="top" title="Add a new person">
+				<span class="text" data-i18n="people.add_btn">Add Person</span>
+				<span class="icon"><i class="fas fa-fw fa-user-plus"></i></span>
+			</button>
+		</div>
+	</div>
+	<div class="card-body">
+		<div class="table-responsive">
+			<table class="table table-bordered table-striped table-hover row-border"
+				   id="peopleTable" width="100%" cellspacing="0">
+				<thead>
+					<tr>
+						<th data-i18n="common.id">ID</th>
+						<th data-i18n="common.name">Name</th>
+						<th data-i18n="common.phone">Phone</th>
+						<th data-i18n="common.email">Email</th>
+						<th data-i18n="people.types">Types</th>
+						<th data-i18n="common.balance">Balance</th>
+						<th data-i18n="common.actions">Actions</th>
+					</tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</div>
+</div>

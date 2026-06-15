@@ -1,0 +1,50 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="partner_equity.title">Partner Equity</h1>
+
+<!-- Partner Equity DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="partner_equity.heading">Equity Ledger</h6>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success btn-icon-split btn-sm"
+                    data-action="partnerEquity.contribute" title="Record a contribution">
+                <span class="text" data-i18n="partner_equity.contribute_btn">Contribute</span>
+                <span class="icon"><i class="fas fa-fw fa-plus-circle"></i></span>
+            </button>
+            <button class="btn btn-warning btn-icon-split btn-sm"
+                    data-action="partnerEquity.withdraw" title="Record a withdrawal">
+                <span class="text" data-i18n="partner_equity.withdraw_btn">Withdraw</span>
+                <span class="icon"><i class="fas fa-fw fa-minus-circle"></i></span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Filter -->
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label" for="filterPartner" data-i18n="partner_equity.filter_partner">Filter by Partner</label>
+                <select class="form-select" id="filterPartner">
+                    <option value="" data-i18n="partner_equity.all_partners">— All Partners —</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="partnerEquityTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th data-i18n="partner_equity.partner_name">Partner Name</th>
+                        <th data-i18n="partner_equity.type">Type</th>
+                        <th data-i18n="common.amount">Amount</th>
+                        <th>Slip Reference</th>
+                        <th data-i18n="common.notes">Notes</th>
+                        <th data-i18n="common.date">Date</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>

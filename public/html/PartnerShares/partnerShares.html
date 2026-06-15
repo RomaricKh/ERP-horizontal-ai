@@ -1,0 +1,80 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="partner_shares.title">Partner Shares</h1>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-xl-4 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Ownership Allocated</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalSharePercent">0%</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-chart-pie fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Remaining %</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="remainingPercent">100%</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-percentage fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Invested Capital</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalInvestedCapital">0.00</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Partner Shares DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="partner_shares.heading">Partner Ownership</h6>
+        <button class="btn btn-primary btn-icon-split btn-sm"
+                data-action="partnerShares.create" title="Add a new partner share">
+            <span class="text" data-i18n="partner_shares.add_btn">Add Share</span>
+            <span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="partnerSharesTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th data-i18n="partner_shares.partner_name">Partner Name</th>
+                        <th data-i18n="partner_shares.share_percent">Ownership %</th>
+                        <th data-i18n="partner_shares.invested_capital">Invested Capital</th>
+                        <th data-i18n="common.actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>

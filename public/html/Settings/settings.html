@@ -1,0 +1,179 @@
+<!-- Page Heading -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h3 mb-0 text-gray-800" data-i18n="settings.title">Regional Settings</h1>
+</div>
+
+<!-- Settings Form -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="settings.heading">Business Regional Preferences</h6>
+    </div>
+    <div class="card-body">
+        <form id="settingsForm" novalidate>
+
+            <!-- Language -->
+            <div class="mb-4">
+                <label for="settingsLanguage" class="form-label fw-semibold" data-i18n="settings.language">Language</label>
+                <select id="settingsLanguage" name="language" class="form-select">
+                    <option value="en">English</option>
+                    <option value="ar">Arabic</option>
+                    <option value="fr">French</option>
+                </select>
+                <div class="form-text text-muted" data-i18n="settings.language_help">The display language for this business.</div>
+            </div>
+
+            <!-- Timezone -->
+            <div class="mb-4">
+                <label for="settingsTimezone" class="form-label fw-semibold" data-i18n="settings.timezone">Timezone</label>
+                <select id="settingsTimezone" name="timezone" class="form-select">
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">America/New_York (Eastern)</option>
+                    <option value="America/Chicago">America/Chicago (Central)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
+                    <option value="Europe/London">Europe/London</option>
+                    <option value="Europe/Paris">Europe/Paris</option>
+                    <option value="Asia/Dubai">Asia/Dubai</option>
+                    <option value="Asia/Beirut">Asia/Beirut</option>
+                    <option value="Asia/Riyadh">Asia/Riyadh</option>
+                    <option value="Asia/Kuwait">Asia/Kuwait</option>
+                    <option value="Africa/Cairo">Africa/Cairo</option>
+                </select>
+                <div class="form-text text-muted" data-i18n="settings.timezone_help">All dates and times will be displayed in this timezone.</div>
+            </div>
+
+            <!-- Date Format -->
+            <div class="mb-4">
+                <label for="settingsDateFormat" class="form-label fw-semibold" data-i18n="settings.date_format">Date Format</label>
+                <input type="text" id="settingsDateFormat" name="date_format"
+                       class="form-control" placeholder="Y-m-d">
+                <div class="form-text text-muted" data-i18n="settings.date_format_help">
+                    PHP date format string used to display dates. Example: Y-m-d → 2025-01-31, d/m/Y → 31/01/2025.
+                </div>
+            </div>
+
+            <!-- Number Format -->
+            <div class="mb-4">
+                <label for="settingsNumberFormat" class="form-label fw-semibold" data-i18n="settings.number_format">Number Format</label>
+                <input type="text" id="settingsNumberFormat" name="number_format"
+                       class="form-control" placeholder="1,234.56">
+                <div class="form-text text-muted" data-i18n="settings.number_format_help">
+                    Example of how numbers should be formatted (thousands separator and decimal point). Example: 1,234.56 or 1.234,56.
+                </div>
+            </div>
+
+            <!-- Currency Format -->
+            <div class="mb-4">
+                <label for="settingsCurrencyFormat" class="form-label fw-semibold" data-i18n="settings.currency_format">Currency Format</label>
+                <input type="text" id="settingsCurrencyFormat" name="currency_format"
+                       class="form-control" placeholder="USD">
+                <div class="form-text text-muted" data-i18n="settings.currency_format_help">
+                    Default currency code or symbol used for display. Example: USD, EUR, $.
+                </div>
+            </div>
+
+            <!-- Phone Format -->
+            <div class="mb-4">
+                <label for="settingsPhoneFormat" class="form-label fw-semibold" data-i18n="settings.phone_format">Phone Format</label>
+                <input type="text" id="settingsPhoneFormat" name="phone_format"
+                       class="form-control" placeholder="+1 (###) ###-####">
+                <div class="form-text text-muted" data-i18n="settings.phone_format_help">
+                    Phone number display template. Use # as digit placeholder. Example: +1 (###) ###-#### or +961 ## ###-###.
+                </div>
+            </div>
+
+            <!-- Activity Logging Toggle -->
+            <hr class="my-4">
+            <div class="mb-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="settingsAuditEnabled" name="audit_enabled" checked>
+                    <label class="form-check-label fw-semibold" for="settingsAuditEnabled"
+                           data-i18n="settings.audit_enabled">Enable Activity Logging</label>
+                </div>
+                <div class="form-text text-muted" data-i18n="settings.audit_enabled_help">
+                    When enabled, all user actions in this business will be recorded in the activity log for auditing purposes.
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-primary" data-action="settings.save">
+                    <i class="fas fa-fw fa-save"></i> <span data-i18n="settings.save_btn">Save Settings</span>
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<!-- SMTP Settings Card -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="settings.smtp_heading">Email (SMTP) Configuration</h6>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">Configure SMTP settings to enable email features like password reset links.</p>
+        <form id="smtpSettingsForm" novalidate>
+
+            <div class="row">
+                <!-- SMTP Host -->
+                <div class="col-md-8 mb-3">
+                    <label for="smtpHost" class="form-label fw-semibold">SMTP Host</label>
+                    <input type="text" id="smtpHost" name="host" class="form-control" placeholder="smtp.gmail.com">
+                </div>
+
+                <!-- SMTP Port -->
+                <div class="col-md-4 mb-3">
+                    <label for="smtpPort" class="form-label fw-semibold">Port</label>
+                    <input type="number" id="smtpPort" name="port" class="form-control" placeholder="587" value="587">
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Username -->
+                <div class="col-md-6 mb-3">
+                    <label for="smtpUsername" class="form-label fw-semibold">Username</label>
+                    <input type="text" id="smtpUsername" name="username" class="form-control" placeholder="your-email@gmail.com">
+                </div>
+
+                <!-- Password -->
+                <div class="col-md-6 mb-3">
+                    <label for="smtpPassword" class="form-label fw-semibold">Password</label>
+                    <input type="password" id="smtpPassword" name="password" class="form-control" placeholder="App password or SMTP password">
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- From Address -->
+                <div class="col-md-6 mb-3">
+                    <label for="smtpFromAddress" class="form-label fw-semibold">From Address</label>
+                    <input type="email" id="smtpFromAddress" name="from_address" class="form-control" placeholder="noreply@yourbusiness.com">
+                </div>
+
+                <!-- From Name -->
+                <div class="col-md-6 mb-3">
+                    <label for="smtpFromName" class="form-label fw-semibold">From Name</label>
+                    <input type="text" id="smtpFromName" name="from_name" class="form-control" placeholder="My Business ERP">
+                </div>
+            </div>
+
+            <!-- Active Toggle -->
+            <div class="mb-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="smtpIsActive" name="is_active">
+                    <label class="form-check-label fw-semibold" for="smtpIsActive">Enable SMTP</label>
+                </div>
+                <div class="form-text text-muted">When enabled, the system will send emails (e.g., password reset links) via this SMTP server.</div>
+            </div>
+
+            <!-- Save SMTP Button -->
+            <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-primary" data-action="settings.save-smtp">
+                    <i class="fas fa-fw fa-save"></i> Save SMTP Settings
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>

@@ -1,0 +1,71 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="payments.title">Payments</h1>
+
+<!-- Payments DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="payments.heading">Payment Slips</h6>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-icon-split btn-sm"
+                    data-action="payments.create" data-bs-toggle="tooltip" data-bs-placement="top" title="Record a new payment">
+                <span class="text" data-i18n="payments.add_btn">Add Payment</span>
+                <span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="paymentsTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th data-i18n="common.id">ID</th>
+                        <th data-i18n="payments.number">Number</th>
+                        <th data-i18n="common.date">Date</th>
+                        <th data-i18n="common.payee">Payee</th>
+                        <th data-i18n="common.account">Account</th>
+                        <th data-i18n="common.amount_fc">Amount FC</th>
+                        <th data-i18n="common.amount_bc">Amount BC</th>
+                        <th data-i18n="common.method">Method</th>
+                        <th data-i18n="common.actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Allocation Detail Modal -->
+<div class="modal fade" id="paymentAllocDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-gradient-dark text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-layer-group me-2"></i>Payment Allocations
+                </h5>
+                <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3" id="paymentAllocDetailHeader"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th class="text-end">Amount (BC)</th>
+                                <th class="text-end">Amount (FC)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentAllocDetailBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-light border" type="button" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

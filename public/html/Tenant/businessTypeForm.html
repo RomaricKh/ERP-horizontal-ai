@@ -1,0 +1,67 @@
+<div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+        <div class="modal-header bg-gradient-primary text-white">
+            <h5 class="modal-title" id="businessTypeModalTitle">
+                <i class="fas fa-tags me-2"></i>Create Business Type
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body px-4">
+            <form id="businessTypeForm" novalidate>
+
+                <!-- Template Selection (create mode only) -->
+                <div class="border rounded p-3 mb-4 bg-light" id="templateGroup">
+                    <h6 class="text-primary fw-bold mb-3">
+                        <i class="fas fa-copy me-1"></i> Copy from System Template
+                    </h6>
+                    <div class="mb-0">
+                        <label for="inputSystemTemplate" class="form-label small text-muted">System Template</label>
+                        <select class="form-select" id="inputSystemTemplate">
+                            <option value="">— Select a template to pre-fill modules —</option>
+                        </select>
+                        <small class="form-text text-muted">Optional. Selecting a template pre-checks its modules below.</small>
+                    </div>
+                </div>
+
+                <!-- Name & Description -->
+                <div class="border rounded p-3 mb-4">
+                    <h6 class="text-primary fw-bold mb-3">
+                        <i class="fas fa-info-circle me-1"></i> Type Details
+                    </h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="inputTypeName" class="form-label small text-muted">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="inputTypeName"
+                                   placeholder="e.g. My Retail Type" required minlength="2" maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="inputTypeDescription" class="form-label small text-muted">Description</label>
+                            <input type="text" class="form-control" id="inputTypeDescription"
+                                   placeholder="Optional description" maxlength="500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Module Selection -->
+                <div class="border rounded p-3 mb-3" id="modulesGroup">
+                    <h6 class="text-primary fw-bold mb-3">
+                        <i class="fas fa-puzzle-piece me-1"></i> Modules <span class="text-danger">*</span>
+                    </h6>
+                    <p class="text-muted small mb-3">Select which modules businesses of this type will have access to.</p>
+                    <div class="row g-2" id="modulesContainer">
+                        <span class="text-muted small">Loading modules...</span>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
+                <i class="fas fa-times me-1"></i>Cancel
+            </button>
+            <button type="button" class="btn btn-primary" data-action="businessTypeForm.save">
+                <i class="fas fa-save me-1"></i> Save
+            </button>
+        </div>
+    </div>
+</div>

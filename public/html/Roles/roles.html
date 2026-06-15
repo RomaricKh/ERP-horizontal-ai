@@ -1,0 +1,57 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="roles.title">Roles</h1>
+
+<!-- Business Roles Card -->
+<div class="card shadow mb-4">
+	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="roles.heading">Manage Roles</h6>
+		<button class="btn btn-primary btn-icon-split btn-sm" data-action="roles.create"
+				data-bs-toggle="tooltip" data-bs-placement="top" title="Create a new role">
+			<span class="text" data-i18n="roles.create_btn">Create Role</span>
+			<span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+		</button>
+	</div>
+	<div class="card-body">
+		<div class="table-responsive">
+			<table class="table table-bordered table-striped table-hover row-border"
+				   id="rolesTable" width="100%" cellspacing="0">
+				<thead>
+					<tr>
+						<th data-i18n="roles.role_name">Role Name</th>
+						<th data-i18n="common.description">Description</th>
+						<th data-i18n="common.actions">Actions</th>
+					</tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</div>
+</div>
+
+<!-- Template Roles Card -->
+<div class="card shadow mb-4" id="templateRolesCard" style="display:none;">
+	<div class="card-header py-3">
+		<h6 class="m-0 font-weight-bold text-secondary">
+			<i class="fas fa-layer-group mr-1"></i>
+			<span data-i18n="roles.templates_heading">Role Templates</span>
+		</h6>
+	</div>
+	<div class="card-body">
+		<p class="text-muted small mb-3" data-i18n="roles.templates_description">
+			Templates are predefined role configurations that can be cloned into your business as custom roles.
+		</p>
+		<div class="table-responsive">
+			<table class="table table-bordered table-striped table-hover row-border"
+				   id="templateRolesTable" width="100%" cellspacing="0">
+				<thead>
+					<tr>
+						<th data-i18n="roles.role_name">Role Name</th>
+						<th data-i18n="common.description">Description</th>
+						<th data-i18n="common.actions">Actions</th>
+					</tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</div>
+</div>

@@ -101,6 +101,43 @@ export async function mount() {
 					console.error('fetchUsers failed:', err);		
 				}
 			}
+		},
+
+		'users.toggleActive': async ({ el }) => {
+			const table = usersDataTable;
+			const tr = el.closest('tr');
+			const rowData = table.row(tr).data();
+
+			const user_id = rowData[0];
+			const username = rowData[1];
+
+			if (!user_id) return;
+
+			const confirmed = await confirm({
+				title: 'Toggle Account Status',
+				message: `Toggle account active status for ${username}?`
+			});
+
+			if (confirmed) {
+				try {
+					const res = await apiFetch(`/api/users/${user_id}/active`, {
+						method: 'PATCH'
+					});
+
+					const data = await res.json();
+
+					if (!data.success) {
+						await alert({
+							title: 'Toggle Account',
+							alertText: data.message || 'Failed to toggle account status'
+						});
+					} else {
+						await fetchUsers();
+					}
+				} catch (err) {
+					console.error('toggleActive failed:', err);
+				}
+			}
 		}
 	});
 }
@@ -154,7 +191,7 @@ function renderUsersTable(users) {
 			columnDefs: [
 				{ targets: 0, visible: false, searchable: false },
 				{ targets: '_all', className: 'text-nowrap' },
-				{ targets: 7, className: 'text-center', orderable: false, searchable: false }
+				{ targets: 8, className: 'text-center', orderable: false, searchable: false }
 			]
 		});
 	}
@@ -179,6 +216,14 @@ function renderUsersTable(users) {
 			</button>`;
 	}
 	users.forEach(user => {
+		const accountToggle = canEdit
+			? (user.is_account_active
+				? `<button data-action="users.toggleActive" class="btn btn-success btn-sm" title="Deactivate account"><i class="fas fa-toggle-on"></i> Active</button>`
+				: `<button data-action="users.toggleActive" class="btn btn-secondary btn-sm" title="Activate account"><i class="fas fa-toggle-off"></i> Disabled</button>`)
+			: (user.is_account_active
+				? '<span class="badge badge-success text-white">Active</span>'
+				: '<span class="badge badge-danger text-white">Disabled</span>');
+
 		usersDataTable.row.add([
 			user.user_id,
 			user.username,
@@ -189,6 +234,7 @@ function renderUsersTable(users) {
 			user.is_active
 				? '<span class="badge badge-success text-white">Active</span>'
 				: '<span class="badge badge-danger text-white">Inactive</span>',
+			accountToggle,
 			actions
 		]);
 	});

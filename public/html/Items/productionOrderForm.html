@@ -1,0 +1,85 @@
+<!-- Production Order Form Modal -->
+<div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-dark text-white">
+      <h5 class="modal-title" id="productionOrderModalTitle">
+        <i class="fas fa-industry me-2"></i><span data-i18n="production.form_title">New Production Order</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+
+      <!-- Order Details -->
+      <div class="border rounded p-3 mb-4 bg-light">
+        <h6 class="text-dark fw-bold mb-3">
+          <i class="fas fa-clipboard-list me-1"></i> <span data-i18n="production.details_heading">Order Details</span>
+        </h6>
+        <form id="productionOrderForm" novalidate>
+          <div class="row g-3">
+            <div class="col-md-7">
+              <label class="form-label small text-muted" for="selectRecipe"><span data-i18n="production.recipe">Recipe</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="selectRecipe" required>
+                <option value="" data-i18n="production.select_recipe">Select a recipe</option>
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small text-muted" for="inputProductionQty"><span data-i18n="production.production_qty">Quantity</span> <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-hashtag"></i></span>
+                <input class="form-control" id="inputProductionQty" type="number" step="1" min="1" data-i18n-placeholder="production.qty_placeholder" placeholder="Units to produce" required>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Material Requirements -->
+      <div class="border rounded p-3 mb-4">
+        <h6 class="text-dark fw-bold mb-3">
+          <i class="fas fa-cubes me-1"></i> <span data-i18n="production.material_requirements">Material Requirements</span>
+        </h6>
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm mb-0" id="materialRequirementsTable">
+            <thead class="table-light">
+              <tr>
+                <th style="min-width:180px" data-i18n="production.component">Component</th>
+                <th style="min-width:100px" data-i18n="production.required_qty">Required</th>
+                <th style="min-width:70px" data-i18n="items.unit">Unit</th>
+                <th style="min-width:100px" data-i18n="production.available_stock">Available</th>
+              </tr>
+            </thead>
+            <tbody id="materialRequirementsBody">
+              <tr id="materialRequirementsPlaceholder">
+                <td colspan="4" class="text-center text-muted py-3" data-i18n="production.material_placeholder">
+                  Select a recipe and enter quantity to see requirements
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Cost Summary -->
+      <div class="d-flex justify-content-end">
+        <div class="border rounded p-3 bg-light" style="min-width:220px;">
+          <div class="text-muted small">Total Cost</div>
+          <div class="fs-6 fw-semibold" id="productionTotalCost">0.00</div>
+          <hr class="my-1">
+          <div class="text-muted small">Unit Cost</div>
+          <div class="fs-5 fw-bold text-primary" id="productionUnitCost">0.00</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i><span data-i18n="common.cancel">Cancel</span></button>
+      <button class="btn btn-dark" type="button" data-action="production-order.execute" id="productionOrderExecuteBtn">
+        <i class="fas fa-play me-1"></i><span data-i18n="production.execute_btn">Execute</span>
+      </button>
+    </div>
+
+  </div>
+</div>

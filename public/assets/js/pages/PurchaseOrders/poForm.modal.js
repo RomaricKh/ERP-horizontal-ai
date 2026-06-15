@@ -1,0 +1,437 @@
+// assets/js/pages/PurchaseOrders/poForm.modal.js
+
+import { registerPageActions } from '../Core/pageActions.js';
+import { apiFetch } from '../../Auth/apiFetch.js';
+import { calcBc, formatAmount } from '../../utils/currency.js';
+import { populatePayeeSelect } from '../../utils/payeeSelect.js';
+import { attachRateAutoFetch } from '../../utils/exchangeRateHelper.js';
+import { renderSupplierPricesPanel } from '../../components/supplierPricesPanel.js';
+
+let modalRoot;
+let unregister;
+let cleanupRateAutoFetch;
+let currentPoId = null;
+let lineRowIndex = 0;
+let itemsList    = [];
+
+const F = {
+    title:        () => document.getElementById('poModalTitle'),
+    supplier:     () => document.getElementById('inputPoSupplier'),
+    poNumber:     () => document.getElementById('inputPoNumber'),
+    poDate:       () => document.getElementById('inputPoDate'),
+    currency:     () => document.getElementById('inputPoCurrency'),
+    exchangeRate: () => document.getElementById('inputPoExchangeRate'),
+    notes:        () => document.getElementById('inputPoNotes'),
+    linesBody:    () => document.getElementById('poLinesBody'),
+    subtotalFc:   () => document.getElementById('poSubtotalFc'),
+    subtotalBc:   () => document.getElementById('poSubtotalBc'),
+    taxTotalFc:   () => document.getElementById('poTaxTotalFc'),
+    taxTotalBc:   () => document.getElementById('poTaxTotalBc'),
+    grandTotalFc: () => document.getElementById('poGrandTotalFc'),
+    grandTotalBc: () => document.getElementById('poGrandTotalBc'),
+};
+
+export async function mount({ modalRoot: root, data }) {
+    modalRoot   = root;
+    currentPoId = data?.po_id ?? null;
+    lineRowIndex = 0;
+
+    F.title().textContent = currentPoId ? 'Edit Purchase Order' : 'New Purchase Order';
+
+    // Populate supplier select
+    await populatePayeeSelect(F.supplier(), { typeFilter: 'Supplier' });
+
+    // Load items list for line item selects
+    await loadItems();
+
+    if (currentPoId) {
+        await fetchAndFill(currentPoId);
+        // Render read-only: disable all inputs and hide save button
+        modalRoot.querySelectorAll('input, select, textarea').forEach(el => {
+            el.disabled = true;
+        });
+        modalRoot.querySelectorAll('[data-action="po.save"]').forEach(el => {
+            el.style.display = 'none';
+        });
+        modalRoot.querySelectorAll('[data-action="po.add-line"]').forEach(el => {
+            el.style.display = 'none';
+        });
+        modalRoot.querySelectorAll('[data-action="po.remove-line"]').forEach(el => {
+            el.style.display = 'none';
+        });
+    } else {
+        // Auto-suggest PO number
+        await suggestPoNumber();
+        // Set today's date
+        F.poDate().value = new Date().toISOString().slice(0, 10);
+    }
+
+    // Recalculate BC when exchange rate changes
+    F.exchangeRate().addEventListener('input', () => recalcAllLines());
+
+    // Auto-fetch exchange rate when currency changes
+    cleanupRateAutoFetch = attachRateAutoFetch(F.currency(), F.exchangeRate());
+
+    unregister = registerPageActions({
+
+        'po.add-line': () => {
+            addLineRow();
+        },
+
+        'po.remove-line': ({ el }) => {
+            const row = el.closest('tr');
+            if (row) {
+                row.remove();
+                recalcGrandTotal();
+            }
+        },
+
+        'po.view-supplier-prices': async ({ el }) => {
+            const tr = el.closest('tr');
+            if (!tr) return;
+            const select = tr.querySelector('.line-item-select');
+            const itemId = select?.value;
+            if (!itemId) return;
+
+            const itemName = select.options[select.selectedIndex]?.textContent || 'Item';
+            const section = document.getElementById('poSupplierPricesSection');
+            const nameSpan = document.getElementById('poSupplierPricesItemName');
+            if (!section) return;
+
+            if (nameSpan) nameSpan.textContent = itemName;
+            section.classList.remove('d-none');
+            await renderSupplierPricesPanel('poSupplierPricesContainer', itemId);
+        },
+
+        'po.close-supplier-prices': () => {
+            const section = document.getElementById('poSupplierPricesSection');
+            if (section) section.classList.add('d-none');
+        },
+
+        'po.save': async () => {
+            if (!validateForm()) return;
+
+            const lines = collectLines();
+            const payload = {
+                supplier_id:   F.supplier().value     || null,
+                po_number:     F.poNumber().value.trim(),
+                po_date:       F.poDate().value,
+                currency:      F.currency().value,
+                exchange_rate: parseFloat(F.exchangeRate().value),
+                notes:         F.notes().value.trim() || null,
+                lines:         lines,
+            };
+
+            try {
+                let res, json;
+                if (currentPoId) {
+                    // For existing POs, we only support adding/removing lines via the modal
+                    // Header edits are not supported after creation in this version
+                    res  = await apiFetch(`/api/purchase-orders/${currentPoId}`, {
+                        method: 'PUT',
+                        body:   JSON.stringify(payload)
+                    });
+                } else {
+                    res  = await apiFetch('/api/purchase-orders', {
+                        method: 'POST',
+                        body:   JSON.stringify(payload)
+                    });
+                }
+                json = await res.json();
+                if (!res.ok || !json.success) throw new Error(json.message || 'Operation failed');
+                bootstrap.Modal.getInstance(modalRoot).hide();
+                document.dispatchEvent(new CustomEvent('module.updated'));
+            } catch (err) {
+                console.error(err);
+                showFormError(err.message || 'Unable to save purchase order');
+            }
+        }
+    });
+}
+
+export function unmount() {
+    cleanupRateAutoFetch?.();
+    cleanupRateAutoFetch = null;
+    unregister?.();
+    unregister    = null;
+    currentPoId   = null;
+    lineRowIndex  = 0;
+    itemsList     = [];
+}
+
+/* ── Private helpers ──────────────────────────────────────────────────── */
+
+async function loadItems() {
+    try {
+        const res  = await apiFetch('/api/items');
+        const json = await res.json();
+        itemsList  = json.success ? (json.data?.items ?? []) : [];
+    } catch (err) {
+        console.error('loadItems failed:', err);
+        itemsList = [];
+    }
+}
+
+async function suggestPoNumber() {
+    try {
+        // We'll generate client-side suggestion; server will auto-generate if blank
+        // Just leave the field empty — server generates on save
+        F.poNumber().placeholder = 'Auto-generated on save';
+    } catch (err) {
+        // ignore
+    }
+}
+
+async function fetchAndFill(poId) {
+    try {
+        const res  = await apiFetch(`/api/purchase-orders/${poId}`);
+        const json = await res.json();
+        if (!json.success) return;
+
+        const po = json.data?.purchase_order ?? {};
+
+        F.supplier().value     = po.supplier_id    ?? '';
+        F.poNumber().value     = po.po_number      ?? '';
+        F.poDate().value       = po.po_date        ?? '';
+        F.currency().value     = po.currency       ?? '';
+        F.exchangeRate().value = po.exchange_rate  ?? '';
+        F.notes().value        = po.notes          ?? '';
+
+        // Render existing lines
+        const lines = po.lines ?? [];
+        lines.forEach(line => {
+            addLineRow({
+                item_id:          line.item_id,
+                quantity:         line.quantity,
+                unit_price_fc:    line.unit_price_fc,
+                unit_price_bc:    line.unit_price_bc,
+                tax_rate:         line.tax_rate,
+                discount_percent: line.discount_percent,
+            });
+        });
+
+        recalcGrandTotal();
+    } catch (err) {
+        console.error('fetchAndFill failed:', err);
+    }
+}
+
+function buildItemOptions(selectedId) {
+    let opts = '<option value="">— Select item —</option>';
+    itemsList.forEach(item => {
+        const sel = String(item.id) === String(selectedId) ? ' selected' : '';
+        opts += `<option value="${item.id}"${sel}>${escHtml(item.name)}</option>`;
+    });
+    return opts;
+}
+
+function addLineRow(prefill) {
+    const idx  = lineRowIndex++;
+    const tbody = F.linesBody();
+
+    const qty      = prefill?.quantity      ?? '';
+    const unitFc   = prefill?.unit_price_fc ?? '';
+    const unitBc   = prefill?.unit_price_bc ?? '';
+    const taxRate  = prefill?.tax_rate      ?? '';
+    const discountPercent = prefill?.discount_percent ?? '';
+    const discount = parseFloat(discountPercent) || 0;
+    const totalFc  = (qty && unitFc) ? formatAmount(parseFloat(qty) * parseFloat(unitFc) * (1 - discount / 100)) : '0.00';
+
+    const tr = document.createElement('tr');
+    tr.dataset.lineIdx = idx;
+    tr.innerHTML = `
+        <td>
+            <select class="form-select form-select-sm line-item-select" data-line="${idx}">
+                ${buildItemOptions(prefill?.item_id)}
+            </select>
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm line-qty"
+                   data-line="${idx}" step="0.001" min="0"
+                   value="${escHtml(String(qty))}" placeholder="0">
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm line-unit-fc"
+                   data-line="${idx}" step="0.01" min="0"
+                   value="${escHtml(String(unitFc))}" placeholder="0.00">
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm line-unit-bc bg-light"
+                   data-line="${idx}" readonly
+                   value="${escHtml(String(unitBc))}" placeholder="Auto">
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm line-tax-rate"
+                   data-line="${idx}" step="0.01" min="0" max="100"
+                   value="${escHtml(String(taxRate))}" placeholder="0">
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm line-discount"
+                   data-line="${idx}" step="0.01" min="0" max="100"
+                   value="${escHtml(String(discountPercent))}" placeholder="0">
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm line-total-fc bg-light"
+                   data-line="${idx}" readonly
+                   value="${totalFc}" placeholder="0.00">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-info btn-circle btn-sm me-1"
+                    data-action="po.view-supplier-prices" title="Supplier Prices">
+                <i class="fas fa-truck"></i>
+            </button>
+            <button type="button" class="btn btn-danger btn-circle btn-sm"
+                    data-action="po.remove-line" title="Remove line">
+                <i class="fas fa-times"></i>
+            </button>
+        </td>
+    `;
+
+    // Attach input listeners
+    tr.querySelector('.line-qty').addEventListener('input', () => recalcLine(tr));
+    tr.querySelector('.line-unit-fc').addEventListener('input', () => recalcLine(tr));
+    tr.querySelector('.line-tax-rate').addEventListener('input', () => recalcLine(tr));
+    tr.querySelector('.line-discount').addEventListener('input', () => recalcLine(tr));
+
+    tbody.appendChild(tr);
+    recalcGrandTotal();
+}
+
+function recalcLine(tr) {
+    const qty      = parseFloat(tr.querySelector('.line-qty').value)      || 0;
+    const unitFc   = parseFloat(tr.querySelector('.line-unit-fc').value)  || 0;
+    const discount = parseFloat(tr.querySelector('.line-discount').value) || 0;
+    const rate     = parseFloat(F.exchangeRate().value)                   || 0;
+
+    const unitBc  = calcBc(unitFc, rate);
+    const totalFc = round2(qty * unitFc * (1 - discount / 100));
+
+    tr.querySelector('.line-unit-bc').value   = formatAmount(unitBc);
+    tr.querySelector('.line-total-fc').value  = formatAmount(totalFc);
+
+    recalcGrandTotal();
+}
+
+function recalcAllLines() {
+    const tbody = F.linesBody();
+    tbody.querySelectorAll('tr').forEach(tr => recalcLine(tr));
+}
+
+function recalcGrandTotal() {
+    const tbody = F.linesBody();
+    let subtotalFc = 0;
+    let subtotalBc = 0;
+    let taxFc = 0;
+    let taxBc = 0;
+    const rate = parseFloat(F.exchangeRate().value) || 0;
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+        const qty      = parseFloat(tr.querySelector('.line-qty')?.value)      || 0;
+        const unitFc   = parseFloat(tr.querySelector('.line-unit-fc')?.value)  || 0;
+        const taxRate  = parseFloat(tr.querySelector('.line-tax-rate')?.value) || 0;
+        const discount = parseFloat(tr.querySelector('.line-discount')?.value) || 0;
+        const unitBc   = calcBc(unitFc, rate);
+        const lineTotalFc = round2(qty * unitFc * (1 - discount / 100));
+        const lineTotalBc = round2(qty * unitBc * (1 - discount / 100));
+        const lineTaxFc   = round2(lineTotalFc * (taxRate / 100));
+        const lineTaxBc   = round2(lineTotalBc * (taxRate / 100));
+
+        subtotalFc += lineTotalFc;
+        subtotalBc += lineTotalBc;
+        taxFc      += lineTaxFc;
+        taxBc      += lineTaxBc;
+    });
+
+    F.subtotalFc().textContent  = formatAmount(subtotalFc);
+    F.subtotalBc().textContent  = formatAmount(subtotalBc);
+    F.taxTotalFc().textContent  = formatAmount(taxFc);
+    F.taxTotalBc().textContent  = formatAmount(taxBc);
+    F.grandTotalFc().textContent = formatAmount(round2(subtotalFc + taxFc));
+    F.grandTotalBc().textContent = formatAmount(round2(subtotalBc + taxBc));
+}
+
+function collectLines() {
+    const tbody = F.linesBody();
+    const lines = [];
+    const rate  = parseFloat(F.exchangeRate().value) || 0;
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+        const itemId   = tr.querySelector('.line-item-select')?.value;
+        const qty      = parseFloat(tr.querySelector('.line-qty')?.value)      || 0;
+        const unitFc   = parseFloat(tr.querySelector('.line-unit-fc')?.value)  || 0;
+        const taxRate  = parseFloat(tr.querySelector('.line-tax-rate')?.value) || 0;
+        const discount = parseFloat(tr.querySelector('.line-discount')?.value) || 0;
+        const unitBc   = calcBc(unitFc, rate);
+
+        if (itemId && qty > 0) {
+            lines.push({
+                item_id:          parseInt(itemId, 10),
+                quantity:         qty,
+                unit_price_fc:    unitFc,
+                unit_price_bc:    unitBc,
+                tax_rate:         taxRate,
+                discount_percent: discount,
+            });
+        }
+    });
+
+    return lines;
+}
+
+function validateForm() {
+    clearValidation();
+    let valid = true;
+
+    if (!F.poDate().value) {
+        markInvalid(F.poDate(), 'PO date is required');
+        valid = false;
+    }
+    if (!F.currency().value) {
+        markInvalid(F.currency(), 'Currency is required');
+        valid = false;
+    }
+    if (!F.exchangeRate().value) {
+        markInvalid(F.exchangeRate(), 'Exchange rate is required');
+        valid = false;
+    }
+    return valid;
+}
+
+function clearValidation() {
+    modalRoot.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    modalRoot.querySelectorAll('.invalid-feedback').forEach(el => el.remove());
+    modalRoot.querySelector('.modal-footer .form-error')?.remove();
+}
+
+function markInvalid(input, message) {
+    if (!input) return;
+    input.classList.add('is-invalid');
+    let fb = input.parentElement.querySelector('.invalid-feedback');
+    if (!fb) {
+        fb = document.createElement('div');
+        fb.className = 'invalid-feedback';
+        input.parentElement.appendChild(fb);
+    }
+    fb.textContent = message;
+}
+
+function showFormError(message) {
+    const footer = modalRoot.querySelector('.modal-footer');
+    let el = footer?.querySelector('.form-error');
+    if (!el) {
+        el = document.createElement('div');
+        el.className = 'form-error text-danger me-auto';
+        footer?.prepend(el);
+    }
+    el.textContent = message;
+}
+
+function round2(val) {
+    return Math.round(val * 100) / 100;
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s ?? '';
+    return d.innerHTML;
+}

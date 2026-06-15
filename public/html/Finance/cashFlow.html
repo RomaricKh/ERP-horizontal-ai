@@ -1,0 +1,117 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="finance.cash_flow_title">Cash Flow Statement</h1>
+
+<!-- Date Range Filter -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Report Period</h6>
+    </div>
+    <div class="card-body">
+        <form id="cfFilterForm" class="row align-items-end">
+            <div class="col-md-3 mb-2">
+                <label for="cfStartDate" class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="cfStartDate" required>
+            </div>
+            <div class="col-md-3 mb-2">
+                <label for="cfEndDate" class="form-label">End Date</label>
+                <input type="date" class="form-control" id="cfEndDate" required>
+            </div>
+            <div class="col-md-3 mb-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-chart-bar mr-1"></i> Generate Report
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Report Output -->
+<div id="cfReportOutput" style="display:none;">
+    <!-- Net Movement Card -->
+    <div class="row mb-4">
+        <div class="col-xl-4 col-md-6 mb-3">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Inflows</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="cfTotalInflows">0.00</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-md-6 mb-3">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Total Outflows</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="cfTotalOutflows">0.00</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-md-6 mb-3">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Net Movement</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="cfNetMovement">0.00</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inflows & Outflows Detail -->
+    <div class="row">
+        <!-- Inflows -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-success">Inflows</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>Collections</td>
+                                <td class="text-end" id="cfCollections">0.00</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-weight-bold">
+                                <td>Total</td>
+                                <td class="text-end" id="cfInflowsTotal">0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- Outflows -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-danger">Outflows</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>Payments</td>
+                                <td class="text-end" id="cfPayments">0.00</td>
+                            </tr>
+                            <tr>
+                                <td>Salaries</td>
+                                <td class="text-end" id="cfSalaries">0.00</td>
+                            </tr>
+                            <tr>
+                                <td>Expenses</td>
+                                <td class="text-end" id="cfExpenses">0.00</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-weight-bold">
+                                <td>Total</td>
+                                <td class="text-end" id="cfOutflowsTotal">0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

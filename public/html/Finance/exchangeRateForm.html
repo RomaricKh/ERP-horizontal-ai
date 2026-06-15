@@ -1,0 +1,69 @@
+<!-- Exchange Rate form modal -->
+<div class="modal-dialog modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-success text-white">
+      <h5 class="modal-title" id="exchangeRateModalTitle">
+        <i class="fas fa-exchange-alt me-2"></i><span data-i18n="exchange_rates.form_title">Exchange Rate Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="exchangeRateForm" novalidate>
+
+        <div class="border rounded p-3 mb-4 bg-light">
+          <h6 class="text-success fw-bold mb-3">
+            <i class="fas fa-info-circle me-1"></i> <span data-i18n="exchange_rates.rate_info">Rate Information</span>
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputErCurrency"><span data-i18n="common.currency">Currency</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputErCurrency" required>
+                <option value="" data-i18n="common.select_currency">Select</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="LBP">LBP</option>
+                <option value="AED">AED</option>
+                <option value="SAR">SAR</option>
+                <option value="EGP">EGP</option>
+                <option value="JOD">JOD</option>
+                <option value="KWD">KWD</option>
+                <option value="TRY">TRY</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputErRateDate"><span data-i18n="exchange_rates.rate_date">Rate Date</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputErRateDate" type="date" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputErRate"><span data-i18n="exchange_rates.rate">Rate</span> <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-chart-line"></i></span>
+                <input class="form-control" id="inputErRate" type="number" step="0.000001" min="0" placeholder="0.000000" required>
+              </div>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-12">
+              <label class="form-label small text-muted" for="inputErSource" data-i18n="exchange_rates.source">Source</label>
+              <input class="form-control" id="inputErSource" type="text" data-i18n-placeholder="exchange_rates.source_placeholder" placeholder="Optional source (e.g. Central Bank, Market)">
+            </div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.cancel">Cancel</span>
+      </button>
+      <button class="btn btn-success" type="button" data-action="exchange-rates.save">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+      </button>
+    </div>
+
+  </div>
+</div>

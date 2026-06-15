@@ -1,175 +1,122 @@
-<!-- Account details modal -->
+<!-- User form modal -->
 <div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
   <div class="modal-content text-gray-800">
 
-    <!-- HEADER -->
-    <div class="modal-header">
-      <h5 class="modal-title" id="modalTitle">Account Details</h5>
-      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title" id="modalTitle">
+        <i class="fas fa-user-plus me-2"></i><span data-i18n="users.form_title">Account Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
 
-    <!-- BODY -->
-    <div class="modal-body">
+    <div class="modal-body px-4">
       <form>
-
         <div class="row">
 
-          <!-- ========================= -->
-          <!-- LEFT COLUMN: IDENTITY -->
-          <!-- ========================= -->
+          <!-- LEFT: Identity & Security -->
           <div class="col-md-7">
+            <div class="border rounded p-3 mb-4 bg-light">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-id-card me-1"></i> <span data-i18n="users.identity_heading">Identity & Security</span>
+              </h6>
 
-            <h6 class="text-muted mb-3">Identity &amp; Security</h6>
-
-            <!-- Modify Identity -->
-            <div class="mb-3">
-              <button
-                class="btn btn-outline-primary"
-                type="button"
-                data-action="users.modify.identity"
-                id="modifyIdentity"
-                title="Modify Identity">
-                Modify Identity
-              </button>
-            </div>
-
-            <!-- Lookup Fields -->
-            <div class="row gx-3 mb-3" id="lookupFields">
-              <div class="col-md-6">
-                <label class="mb-1" for="inputEmailAddress">Email address</label>
-                <input
-                  class="form-control"
-                  id="inputEmailAddress"
-                  type="email"
-                  placeholder="Enter email address">
+              <!-- Modify Identity Button -->
+              <div class="mb-3">
+                <button class="btn btn-outline-primary btn-sm" type="button"
+                        data-action="users.modify.identity" id="modifyIdentity" title="Modify Identity">
+                  <i class="fas fa-edit me-1"></i><span data-i18n="users.modify_identity">Modify Identity</span>
+                </button>
               </div>
 
-              <div class="col-md-6">
-                <label class="mb-1" for="inputUsername">Username</label>
-                <input
-                  class="form-control"
-                  id="inputUsername"
-                  type="text"
-                  placeholder="Enter username">
+              <!-- Lookup Fields -->
+              <div class="row g-3 mb-3" id="lookupFields">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputEmailAddress" data-i18n="users.email_address">Email</label>
+                  <input class="form-control" id="inputEmailAddress" type="email"
+                         data-i18n-placeholder="users.email_placeholder" placeholder="Enter email address">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputUsername" data-i18n="users.username">Username</label>
+                  <input class="form-control" id="inputUsername" type="text"
+                         data-i18n-placeholder="users.username_placeholder" placeholder="Enter username">
+                </div>
+                <div class="col-12">
+                  <div class="form-text" id="lookupFeedback"></div>
+                </div>
               </div>
 
-              <div class="col-12">
-                <div class="form-text" id="lookupFeedback"></div>
-              </div>
-            </div>
-
-            <div class="dropdown-divider"></div>
-
-            <!-- Name -->
-            <div class="row gx-3 mb-3">
-              <div class="col-md-6">
-                <label class="mb-1" for="inputFirstName">First name</label>
-                <input
-                  class="form-control"
-                  id="inputFirstName"
-                  type="text"
-                  placeholder="Enter first name">
-              </div>
-
-              <div class="col-md-6">
-                <label class="mb-1" for="inputLastName">Last name</label>
-                <input
-                  class="form-control"
-                  id="inputLastName"
-                  type="text"
-                  placeholder="Enter last name">
+              <!-- Name -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputFirstName" data-i18n="users.first_name">First name</label>
+                  <input class="form-control" id="inputFirstName" type="text"
+                         data-i18n-placeholder="users.first_name_placeholder" placeholder="Enter first name">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputLastName" data-i18n="users.last_name">Last name</label>
+                  <input class="form-control" id="inputLastName" type="text"
+                         data-i18n-placeholder="users.last_name_placeholder" placeholder="Enter last name">
+                </div>
               </div>
             </div>
 
-            <div class="dropdown-divider"></div>
-
-            <!-- Password Reset -->
-            <div class="mb-3">
-              <button
-                class="btn btn-outline-warning"
-                type="button"
-                data-action="users.password.reset"
-                id="passwordReset"
-                title="Password Reset">
-                Reset Password
-              </button>
-            </div>
-
-            <!-- Password Fields -->
-            <div class="row gx-3 mb-3">
-              <div class="col-md-6">
-                <label class="mb-1" for="inputPassword">Password</label>
-                <input
-                  class="form-control"
-                  id="inputPassword"
-                  type="password"
-                  placeholder="Enter password">
-              </div>
-
-              <div class="col-md-6">
-                <label class="mb-1" for="inputConfirmPass">Confirm Password</label>
-                <input
-                  class="form-control"
-                  id="inputConfirmPass"
-                  type="password"
-                  placeholder="Confirm password">
+            <!-- Password Section -->
+            <div class="border rounded p-3 mb-4">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-key me-1"></i> Password
+                <button class="btn btn-outline-warning btn-sm ms-2" type="button"
+                        data-action="users.password.reset" id="passwordReset">
+                  <i class="fas fa-redo me-1"></i><span data-i18n="users.reset_password">Reset</span>
+                </button>
+              </h6>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputPassword" data-i18n="users.password">Password</label>
+                  <input class="form-control" id="inputPassword" type="password"
+                         data-i18n-placeholder="users.password_placeholder" placeholder="Enter password">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputConfirmPass" data-i18n="users.confirm_password">Confirm</label>
+                  <input class="form-control" id="inputConfirmPass" type="password"
+                         data-i18n-placeholder="users.confirm_password_placeholder" placeholder="Confirm password">
+                </div>
               </div>
             </div>
-
           </div>
 
-          <!-- ========================= -->
-          <!-- RIGHT COLUMN: ACCESS -->
-          <!-- ========================= -->
-          <div class="col-md-5 border-start">
+          <!-- RIGHT: Business Access -->
+          <div class="col-md-5">
+            <div class="border rounded p-3 mb-4">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-briefcase me-1"></i> <span data-i18n="users.access_heading">Business Access</span>
+              </h6>
 
-            <h6 class="text-muted mb-3">Business Access</h6>
+              <div class="mb-4">
+                <label class="form-label small text-muted" for="roleSelect" data-i18n="users.role">Role</label>
+                <select class="form-select" id="roleSelect">
+                  <option value="" selected data-i18n="users.select_role">Select a role</option>
+                </select>
+              </div>
 
-            <!-- Role -->
-            <div class="mb-4">
-              <label class="form-label" for="roleSelect">Role</label>
-              <select class="form-select" id="roleSelect">
-                <option value="" selected>Select a role</option>
-                <option value="1">Business_Owner</option>
-                <option value="2">ACCOUNTANT</option>
-                <!-- populated dynamically -->
-              </select>
+              <div class="form-check form-switch">
+                <input class="form-check-input" id="isActiveCheck" type="checkbox">
+                <label class="form-check-label fw-semibold" for="isActiveCheck" data-i18n="users.active_label">
+                  Active on this business
+                </label>
+              </div>
             </div>
-
-            <!-- Active -->
-            <div class="form-check form-check-solid">
-              <input
-                class="form-check-input"
-                id="isActiveCheck"
-                type="checkbox">
-              <label class="form-check-label" for="isActiveCheck">
-                Active on this business
-              </label>
-            </div>
-
           </div>
 
         </div>
       </form>
     </div>
 
-    <!-- FOOTER -->
     <div class="modal-footer">
-      <button
-        class="btn btn-secondary"
-        type="button"
-        data-bs-dismiss="modal"
-        title="Close">
-        Close
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.close">Close</span>
       </button>
-
-      <button
-        class="btn btn-primary"
-        type="button"
-        data-action="users.save"
-        id="saveBtn"
-        title="Save user">
-        Save user
+      <button class="btn btn-primary" type="button" data-action="users.save" id="saveBtn">
+        <i class="fas fa-save me-1"></i><span data-i18n="users.save_btn">Save user</span>
       </button>
     </div>
 

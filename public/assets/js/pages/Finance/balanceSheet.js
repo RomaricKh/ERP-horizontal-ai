@@ -1,0 +1,80 @@
+// assets/js/pages/Finance/balanceSheet.js
+
+import { apiFetch } from '../../Auth/apiFetch.js';
+import { getFormatter } from '../../i18n/translationClient.js';
+
+let bsContainer;
+
+export async function mount() {
+    initDateDefaults();
+    bindEvents();
+}
+
+export function unmount() {
+    // No cleanup needed
+}
+
+export async function render(container) {
+    bsContainer = container;
+    const html = await fetch('html/Finance/balanceSheet.html').then(r => r.text());
+    container.innerHTML = html;
+}
+
+function initDateDefaults() {
+    const now = new Date();
+    document.getElementById('bsAsOfDate').value = formatDate(now);
+}
+
+function bindEvents() {
+    const form = document.getElementById('bsFilterForm');
+    form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await fetchReport();
+    });
+}
+
+async function fetchReport() {
+    const asOf = document.getElementById('bsAsOfDate').value;
+
+    if (!asOf) return;
+
+    try {
+        const res = await apiFetch(`/api/reports/balance-sheet?as_of=${asOf}`);
+        const json = await res.json();
+        if (!json.success) {
+            console.error('Balance Sheet report error:', json.message);
+            return;
+        }
+        renderReport(json.data?.report);
+    } catch (err) {
+        console.error('Failed to fetch Balance Sheet report:', err);
+    }
+}
+
+function renderReport(report) {
+    if (!report) return;
+
+    const output = document.getElementById('bsReportOutput');
+    output.style.display = 'block';
+
+    const fmt = getFormatter();
+
+    const assets = report.assets ?? {};
+    const liabilities = report.liabilities ?? {};
+    const equity = report.equity ?? {};
+
+    document.getElementById('bsAccounts').textContent = fmt.formatNumber(assets.accounts ?? 0, 2);
+    document.getElementById('bsInventory').textContent = fmt.formatNumber(assets.inventory ?? 0, 2);
+    document.getElementById('bsFixedAssets').textContent = fmt.formatNumber(assets.fixed_assets ?? 0, 2);
+    document.getElementById('bsTotalAssets').textContent = fmt.formatNumber(assets.total ?? 0, 2);
+
+    document.getElementById('bsPayables').textContent = fmt.formatNumber(liabilities.outstanding_payables ?? 0, 2);
+    document.getElementById('bsTotalLiabilities').textContent = fmt.formatNumber(liabilities.total ?? 0, 2);
+
+    document.getElementById('bsPartnerShares').textContent = fmt.formatNumber(equity.partner_shares ?? 0, 2);
+    document.getElementById('bsTotalEquity').textContent = fmt.formatNumber(equity.total ?? 0, 2);
+}
+
+function formatDate(d) {
+    return d.toISOString().split('T')[0];
+}

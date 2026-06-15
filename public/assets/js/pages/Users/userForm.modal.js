@@ -152,7 +152,41 @@ export function unmount() {
 }
 	
 async function fetchRoles(){
-	
+    try {
+        const res = await apiFetch('/api/roles', { method: 'GET' });
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Failed to fetch roles');
+
+        const select = document.getElementById('roleSelect');
+        if (!select) return;
+
+        // Clear all options except the placeholder (first option)
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+
+        const rolesData = data.data.roles;
+        const businessRoles = rolesData.business_roles || [];
+        const templateRoles = rolesData.template_roles || [];
+
+        businessRoles.forEach(role => {
+            const option = document.createElement('option');
+            option.value = role.id;
+            option.textContent = role.name;
+            select.appendChild(option);
+        });
+
+        templateRoles.forEach(role => {
+            const option = document.createElement('option');
+            option.value = role.id;
+            option.textContent = `${role.name} (template)`;
+            select.appendChild(option);
+        });
+    } catch (err) {
+        console.error('fetchRoles failed:', err);
+    }
 }
 	
 function setMode(mode) {

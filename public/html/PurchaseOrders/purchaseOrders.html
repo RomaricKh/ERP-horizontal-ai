@@ -1,0 +1,37 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="po.title">Purchase Orders</h1>
+
+<!-- Purchase Orders DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="po.heading">Purchase Orders</h6>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-icon-split btn-sm"
+                    data-action="po.create" data-bs-toggle="tooltip" data-bs-placement="top" title="Create a new purchase order">
+                <span class="text" data-i18n="po.new_btn">New PO</span>
+                <span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="purchaseOrdersTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th data-i18n="common.id">ID</th>
+                        <th data-i18n="po.po_number">PO Number</th>
+                        <th data-i18n="po.supplier">Supplier</th>
+                        <th data-i18n="common.date">Date</th>
+                        <th data-i18n="common.status">Status</th>
+                        <th data-i18n="po.total_fc">Total (FC)</th>
+                        <th data-i18n="po.paid_fc">Paid (FC)</th>
+                        <th data-i18n="po.balance_fc">Balance (FC)</th>
+                        <th data-i18n="common.actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>

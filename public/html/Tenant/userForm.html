@@ -1,0 +1,88 @@
+<div class="modal-dialog modal-lg">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Add User to Tenant</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <div id="tenantLookupFeedback" class="form-text text-muted mb-2"></div>
+
+            <!-- Tenant Owner Alert (hidden by default) -->
+            <div id="tenantOwnerAlert" class="alert alert-info d-none" role="alert">
+                <i class="fas fa-info-circle me-1"></i>
+                This user is a tenant owner and manages all businesses directly. Business-level roles cannot be assigned.
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="tenantInputEmail" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="tenantInputEmail" placeholder="user@example.com">
+                </div>
+                <div class="col-md-6">
+                    <label for="tenantInputUsername" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="tenantInputUsername" placeholder="username">
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="tenantInputFirstName" class="form-label">First Name</label>
+                    <input type="text" class="form-control" id="tenantInputFirstName">
+                </div>
+                <div class="col-md-6">
+                    <label for="tenantInputLastName" class="form-label">Last Name</label>
+                    <input type="text" class="form-control" id="tenantInputLastName">
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="tenantInputPassword" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="tenantInputPassword">
+                </div>
+                <div class="col-md-6">
+                    <label for="tenantInputConfirmPass" class="form-label">Confirm Password</label>
+                    <input type="password" class="form-control" id="tenantInputConfirmPass">
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="tenantOwnerCheck">
+                <label class="form-check-label" for="tenantOwnerCheck">
+                    Make this user a Tenant Owner
+                </label>
+            </div>
+
+            <!-- Business Access Section (hidden when user is already a tenant owner) -->
+            <div id="businessAccessSection">
+                <h6 class="text-muted mb-2">Business Access</h6>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="tenantBusinessSelect" class="form-label">Business</label>
+                        <select class="form-select" id="tenantBusinessSelect">
+                            <option value="">— Select a business —</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="tenantRoleSelect" class="form-label">Role</label>
+                        <select class="form-select" id="tenantRoleSelect" disabled>
+                            <option value="">— Select a business first —</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="tenantIsActiveCheck" checked>
+                    <label class="form-check-label" for="tenantIsActiveCheck">Active</label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="tenantUserSaveBtn" data-action="tenant.users.save">
+                <i class="fas fa-save me-1"></i> Save
+            </button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,9 @@
+{
+  "name": "erp-app",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "vitest": "3.2.1",
+    "fast-check": "4.1.1"
+  }
+}

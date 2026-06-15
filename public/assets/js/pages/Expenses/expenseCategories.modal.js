@@ -1,0 +1,163 @@
+// assets/js/pages/Expenses/expenseCategories.modal.js
+
+import { registerPageActions } from '../Core/pageActions.js';
+import { apiFetch } from '../../Auth/apiFetch.js';
+import { confirm } from '../../components/modals.js';
+
+let modalRoot;
+let unregister;
+let categories = [];
+
+export async function mount({ modalRoot: root }) {
+    modalRoot = root;
+    await loadCategories();
+
+    unregister = registerPageActions({
+
+        'expense-categories.add': async () => {
+            const nameInput    = document.getElementById('newExpenseCategoryName');
+            const isFixedInput = document.getElementById('newExpenseCategoryIsFixed');
+            const name         = nameInput?.value.trim();
+
+            if (!name) {
+                nameInput?.classList.add('is-invalid');
+                return;
+            }
+            nameInput.classList.remove('is-invalid');
+
+            try {
+                const res  = await apiFetch('/api/expenses/categories', {
+                    method: 'POST',
+                    body: JSON.stringify({ name, is_fixed: isFixedInput?.checked ? 1 : 0 })
+                });
+                const json = await res.json();
+                if (!res.ok || !json.success) throw new Error(json.message || 'Failed');
+                nameInput.value       = '';
+                if (isFixedInput) isFixedInput.checked = false;
+                await loadCategories();
+                document.dispatchEvent(new CustomEvent('expenses.updated'));
+            } catch (err) {
+                console.error(err);
+            }
+        },
+
+        'expense-categories.edit': async ({ el }) => {
+            const id  = parseInt(el.dataset.id, 10);
+            const cat = categories.find(c => c.id === id);
+            if (!cat) return;
+
+            const row   = el.closest('.expense-category-row');
+            const label = row?.querySelector('.category-label');
+            if (!label) return;
+
+            // Inline edit: replace label with input
+            const input = document.createElement('input');
+            input.type      = 'text';
+            input.className = 'form-control form-control-sm d-inline-block w-auto';
+            input.value     = cat.name;
+            label.replaceWith(input);
+            input.focus();
+
+            const save = async () => {
+                const newName = input.value.trim();
+                if (!newName || newName === cat.name) {
+                    await loadCategories();
+                    return;
+                }
+                try {
+                    const res  = await apiFetch(`/api/expenses/categories/${id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ name: newName, is_fixed: cat.is_fixed ? 1 : 0 })
+                    });
+                    const json = await res.json();
+                    if (!res.ok || !json.success) throw new Error(json.message || 'Failed');
+                    await loadCategories();
+                    document.dispatchEvent(new CustomEvent('expenses.updated'));
+                } catch (err) {
+                    console.error(err);
+                    await loadCategories();
+                }
+            };
+
+            input.addEventListener('blur',    save);
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter')  { e.preventDefault(); save(); }
+                if (e.key === 'Escape') { loadCategories(); }
+            });
+        },
+
+        'expense-categories.delete': async ({ el }) => {
+            const id  = parseInt(el.dataset.id, 10);
+            const cat = categories.find(c => c.id === id);
+            if (!cat) return;
+
+            const confirmed = await confirm({
+                title:   'Delete expense category',
+                message: `Delete the category "${cat.name}"? This cannot be undone.`
+            });
+            if (!confirmed) return;
+
+            try {
+                const res  = await apiFetch(`/api/expenses/categories/${id}`, { method: 'DELETE' });
+                const json = await res.json();
+                if (!res.ok || !json.success) throw new Error(json.message || 'Failed');
+                await loadCategories();
+                document.dispatchEvent(new CustomEvent('expenses.updated'));
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    });
+}
+
+export function unmount() {
+    unregister?.();
+    unregister = null;
+    categories = [];
+}
+
+async function loadCategories() {
+    try {
+        const res  = await apiFetch('/api/expenses/categories');
+        const data = await res.json();
+        categories = data.success ? (data.data?.categories ?? []) : [];
+        renderList();
+    } catch (err) {
+        console.error('loadCategories failed:', err);
+    }
+}
+
+function renderList() {
+    const container = document.getElementById('expenseCategoriesList');
+    if (!container) return;
+
+    if (categories.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center py-3">No expense categories defined yet.</p>';
+        return;
+    }
+
+    container.innerHTML = categories.map(cat => `
+        <div class="expense-category-row d-flex align-items-center justify-content-between border-bottom py-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="category-label">${escHtml(cat.name)}</span>
+                ${cat.is_fixed ? '<span class="badge bg-secondary">Fixed</span>' : ''}
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" data-action="expense-categories.edit" data-id="${cat.id}" title="Edit">
+                    <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" data-action="expense-categories.delete" data-id="${cat.id}" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}

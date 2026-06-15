@@ -1,0 +1,36 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="businesses.title">Businesses</h1>
+
+<!-- DataTable Card -->
+<div class="card shadow mb-4">
+	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="businesses.heading">Manage Businesses</h6>
+		<button class="btn btn-primary btn-icon-split btn-sm" data-action="businesses.create"
+				data-bs-toggle="tooltip" data-bs-placement="top" title="Create a new business">
+			<span class="text" data-i18n="common.create">Create</span>
+			<span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+		</button>
+	</div>
+	<div class="card-body">
+		<div class="table-responsive">
+			<table class="table table-bordered table-striped table-hover row-border"
+				   id="dataTable" width="100%" cellspacing="0">
+				<thead>
+					<tr>
+						<th data-i18n="businesses.business_id">Business id</th>
+						<th data-i18n="common.name">Name</th>
+						<th data-i18n="businesses.business_type">Type</th>
+						<th data-i18n="businesses.legal_name">Legal Name</th>
+						<th data-i18n="businesses.registration_no">Registration Nº</th>
+						<th data-i18n="common.phone">Phone</th>
+						<th data-i18n="common.email">Email</th>
+						<th data-i18n="common.currency">Currency</th>
+						<th data-i18n="common.status">Status</th>
+						<th data-i18n="common.actions">Actions</th>
+					</tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</div>
+</div>

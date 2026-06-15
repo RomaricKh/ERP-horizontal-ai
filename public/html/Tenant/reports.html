@@ -1,0 +1,41 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800">Tenant Reports</h1>
+
+<div class="card shadow mb-4">
+	<div class="card-header py-3">
+		<h6 class="m-0 font-weight-bold text-primary">Generate Cross-Business Report</h6>
+	</div>
+	<div class="card-body">
+		<div class="row g-3 align-items-end mb-4">
+			<div class="col-md-3">
+				<label class="form-label small text-muted" for="inputReportType">Report Type <span class="text-danger">*</span></label>
+				<select class="form-select" id="inputReportType">
+					<option value="">— Select —</option>
+					<option value="profit_loss">Profit &amp; Loss</option>
+					<option value="balance_sheet">Balance Sheet</option>
+					<option value="cash_flow">Cash Flow</option>
+					<option value="aging">AR Aging</option>
+					<option value="activity">Activity Log</option>
+				</select>
+			</div>
+			<div class="col-md-3">
+				<label class="form-label small text-muted" for="inputReportFrom">From Date</label>
+				<input class="form-control" id="inputReportFrom" type="date">
+			</div>
+			<div class="col-md-3">
+				<label class="form-label small text-muted" for="inputReportTo">To Date</label>
+				<input class="form-control" id="inputReportTo" type="date">
+			</div>
+			<div class="col-md-3">
+				<button class="btn btn-primary" data-action="tenant-reports.generate">
+					<i class="fas fa-file-alt me-1"></i>Generate
+				</button>
+			</div>
+		</div>
+
+		<!-- Report Results -->
+		<div id="reportResults">
+			<div class="text-muted text-center py-4">Select a report type and click Generate to view results.</div>
+		</div>
+	</div>
+</div>

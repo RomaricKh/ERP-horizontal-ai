@@ -1,0 +1,41 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="accounts.title">Business Accounts</h1>
+
+<!-- Accounts DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="accounts.heading">Accounts</h6>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-icon-split btn-sm"
+                    data-action="accounts.create" title="Add a new account">
+                <span class="text" data-i18n="accounts.add_btn">Add Account</span>
+                <span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="accountsTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th data-i18n="common.id">ID</th>
+                        <th data-i18n="common.name">Name</th>
+                        <th data-i18n="common.currency">Currency</th>
+                        <th data-i18n="accounts.balance_fc">Balance (FC)</th>
+                        <th data-i18n="accounts.balance_bc">Balance (BC)</th>
+                        <th data-i18n="common.actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="4" class="text-end" data-i18n="accounts.total_bc">Total (BC):</th>
+                        <th id="totalBalanceBc">0.00</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>

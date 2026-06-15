@@ -1,0 +1,52 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="items.title">Items &amp; Inventory</h1>
+
+<!-- Items DataTable -->
+<div class="card shadow mb-4">
+	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+		<h6 class="m-0 font-weight-bold text-primary" data-i18n="items.heading">Items</h6>
+		<div class="d-flex gap-2">
+			<button class="btn btn-outline-secondary btn-icon-split btn-sm"
+					data-action="item-types.manage" title="Manage item types">
+				<span class="text" data-i18n="items.types_btn">Types</span>
+				<span class="icon"><i class="fas fa-fw fa-tags"></i></span>
+			</button>
+			<button class="btn btn-outline-secondary btn-icon-split btn-sm"
+					data-action="stock.view" title="View stock levels">
+				<span class="text" data-i18n="items.stock_btn">Stock</span>
+				<span class="icon"><i class="fas fa-fw fa-warehouse"></i></span>
+			</button>
+			<button class="btn btn-success btn-icon-split btn-sm"
+					data-action="items.create-recipe" title="Create a new recipe (manufactured item)">
+				<span class="text" data-i18n="items.create_recipe_btn">Create Recipe</span>
+				<span class="icon"><i class="fas fa-fw fa-flask"></i></span>
+			</button>
+			<button class="btn btn-primary btn-icon-split btn-sm"
+					data-action="items.create" title="Add a new item">
+				<span class="text" data-i18n="items.add_btn">Add Item</span>
+				<span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+			</button>
+		</div>
+	</div>
+	<div class="card-body">
+		<div class="table-responsive">
+			<table class="table table-bordered table-striped table-hover row-border"
+				   id="itemsTable" width="100%" cellspacing="0">
+				<thead>
+					<tr>
+						<th data-i18n="common.id">ID</th>
+						<th data-i18n="common.name">Name</th>
+						<th data-i18n="common.sku">SKU</th>
+						<th data-i18n="common.type">Type</th>
+						<th data-i18n="items.unit">Unit</th>
+						<th data-i18n="items.cost">Cost</th>
+						<th data-i18n="items.sale_price">Sale Price</th>
+						<th data-i18n="items.stock">Stock</th>
+						<th data-i18n="common.actions">Actions</th>
+					</tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</div>
+</div>

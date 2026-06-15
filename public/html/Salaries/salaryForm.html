@@ -1,0 +1,191 @@
+<!-- Salary form modal -->
+<div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-info text-white">
+      <h5 class="modal-title" id="salaryModalTitle">
+        <i class="fas fa-user-tie me-2"></i><span data-i18n="salaries.form_title">Salary Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="salaryForm" novalidate>
+
+        <!-- Employee & Period Section -->
+        <div class="border rounded p-3 mb-4 bg-light">
+          <h6 class="text-info fw-bold mb-3">
+            <i class="fas fa-user me-1"></i> <span data-i18n="salaries.employee_period">Employee & Period</span>
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalaryEmployee"><span data-i18n="salaries.employee">Employee</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputSalaryEmployee" required>
+                <option value="" data-i18n="salaries.select_employee">— Select employee —</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalaryPeriodStart"><span data-i18n="salaries.period_start">Period Start</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputSalaryPeriodStart" type="date" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalaryPeriodEnd"><span data-i18n="salaries.period_end">Period End</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputSalaryPeriodEnd" type="date" required>
+            </div>
+          </div>
+        </div>
+
+        <!-- Amount Section -->
+        <div class="border rounded p-3 mb-4">
+          <h6 class="text-info fw-bold mb-3">
+            <i class="fas fa-calculator me-1"></i> <span data-i18n="common.amount">Amount</span>
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="inputSalaryCurrency"><span data-i18n="common.currency">Currency</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputSalaryCurrency" required>
+                <option value="" data-i18n="common.select_currency">Select a currency</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="LBP">LBP</option>
+                <option value="AED">AED</option>
+                <option value="SAR">SAR</option>
+                <option value="EGP">EGP</option>
+                <option value="JOD">JOD</option>
+                <option value="KWD">KWD</option>
+                <option value="TRY">TRY</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="inputSalaryExchangeRate"><span data-i18n="common.exchange_rate">Exchange Rate</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputSalaryExchangeRate" type="number"
+                     step="0.000001" min="0" placeholder="1.000000" required>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalaryGrossAmountFc"><span data-i18n="salaries.gross_amount_fc">Gross (FC)</span> <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-coins"></i></span>
+                <input class="form-control" id="inputSalaryGrossAmountFc" type="number"
+                       step="0.01" min="0" placeholder="0.00" required>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalaryTaxFc" data-i18n="salaries.tax_fc_label">Tax (FC)</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-percent"></i></span>
+                <input class="form-control" id="inputSalaryTaxFc" type="number"
+                       step="0.01" min="0" data-i18n-placeholder="salaries.tax_placeholder" placeholder="0.00">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalaryNetAmountFc" data-i18n="salaries.net_amount_fc">Net (FC)</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-equals"></i></span>
+                <input class="form-control bg-light" id="inputSalaryNetAmountFc" type="text"
+                       readonly data-i18n-placeholder="common.auto_calculated" placeholder="Auto-calculated" tabindex="-1">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="mb-3">
+          <label class="form-label small text-muted" for="inputSalaryNotes">
+            <i class="fas fa-sticky-note me-1"></i> <span data-i18n="common.notes">Notes</span>
+          </label>
+          <textarea class="form-control" id="inputSalaryNotes" rows="2"
+                    data-i18n-placeholder="common.optional_notes" placeholder="Optional notes"></textarea>
+        </div>
+
+        <!-- Recurrence Configuration -->
+        <div id="salaryRecurrenceSection" style="display:none;">
+          <div class="border rounded p-3 mb-3">
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="inputSalaryRecurrenceToggle">
+              <label class="form-check-label fw-bold" for="inputSalaryRecurrenceToggle">
+                <i class="fas fa-redo me-1 text-info"></i>
+                <span data-i18n="salaries.configure_recurrence">Configure Recurrence</span>
+              </label>
+            </div>
+
+            <div id="salaryRecurrenceFields" style="display:none;">
+              <div class="card border-left-info mb-0">
+                <div class="card-body py-3">
+
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <label class="form-label small text-muted" for="inputRecurrenceFrequency"><span data-i18n="recurring.frequency">Frequency</span> <span class="text-danger">*</span></label>
+                      <select class="form-select" id="inputRecurrenceFrequency" required>
+                        <option value="" data-i18n="recurring.select_frequency">— Select —</option>
+                        <option value="weekly" data-i18n="recurring.weekly">Weekly</option>
+                        <option value="bi-weekly" data-i18n="recurring.bi_weekly">Bi-Weekly</option>
+                        <option value="monthly" data-i18n="recurring.monthly">Monthly</option>
+                        <option value="quarterly" data-i18n="recurring.quarterly">Quarterly</option>
+                        <option value="yearly" data-i18n="recurring.yearly">Yearly</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small text-muted" for="inputRecurrenceStartDate"><span data-i18n="recurring.start_date">Start Date</span> <span class="text-danger">*</span></label>
+                      <input class="form-control" id="inputRecurrenceStartDate" type="date" required>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small text-muted" for="inputRecurrenceEndDate" data-i18n="recurring.end_date">End Date</label>
+                      <input class="form-control" id="inputRecurrenceEndDate" type="date">
+                      <div class="invalid-feedback" id="recurrenceEndDateError" data-i18n="recurring.end_date_error">End date must be on or after start date</div>
+                    </div>
+                  </div>
+
+                  <div class="row g-3 mt-1">
+                    <div class="col-md-3">
+                      <label class="form-label small text-muted" for="inputRecurrenceGrossAmountFc"><span data-i18n="salaries.gross_amount_fc">Gross (FC)</span> <span class="text-danger">*</span></label>
+                      <input class="form-control" id="inputRecurrenceGrossAmountFc" type="number" step="0.01" min="0" placeholder="0.00" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small text-muted" for="inputRecurrenceTaxFc" data-i18n="salaries.tax_fc_label">Tax (FC)</label>
+                      <input class="form-control" id="inputRecurrenceTaxFc" type="number" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small text-muted" for="inputRecurrenceCurrency"><span data-i18n="common.currency">Currency</span> <span class="text-danger">*</span></label>
+                      <select class="form-select" id="inputRecurrenceCurrency" required>
+                        <option value="" data-i18n="common.select_currency">Select</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                        <option value="LBP">LBP</option>
+                        <option value="AED">AED</option>
+                        <option value="SAR">SAR</option>
+                        <option value="EGP">EGP</option>
+                        <option value="JOD">JOD</option>
+                        <option value="KWD">KWD</option>
+                        <option value="TRY">TRY</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small text-muted" for="inputRecurrenceExchangeRate"><span data-i18n="common.exchange_rate">Rate</span> <span class="text-danger">*</span></label>
+                      <input class="form-control" id="inputRecurrenceExchangeRate" type="number" step="0.000001" min="0" placeholder="1.000000" required>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.cancel">Cancel</span>
+      </button>
+      <button class="btn btn-info text-white" type="button" data-action="salaries.save">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save Salary</span>
+      </button>
+    </div>
+
+  </div>
+</div>

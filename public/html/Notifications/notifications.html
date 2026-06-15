@@ -1,0 +1,72 @@
+<!-- Page Heading -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Notifications</h1>
+    <div>
+        <button class="btn btn-outline-danger btn-sm me-2" id="clearAllReadBtn">
+            <i class="fas fa-broom me-1"></i> Clear All Read
+        </button>
+        <button class="btn btn-primary btn-sm" id="sendNotificationBtn">
+            <i class="fas fa-paper-plane me-1"></i> Send Notification
+        </button>
+    </div>
+</div>
+
+<!-- Filters Row -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">Filter Notifications</h6>
+        <button class="btn btn-link btn-sm p-0" id="togglePreferencesBtn">
+            <i class="fas fa-cog me-1"></i> Preferences
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="typeFilter" class="form-label">Type</label>
+                <select id="typeFilter" class="form-select form-select-sm">
+                    <option value="">All Types</option>
+                    <option value="PO_STATUS_CHANGE">PO Status Change</option>
+                    <option value="INVOICE_DUE">Invoice Due</option>
+                    <option value="STOCK_LOW">Stock Low</option>
+                    <option value="PAYMENT_RECEIVED">Payment Received</option>
+                    <option value="USER_MESSAGE">User Message</option>
+                    <option value="SYSTEM_ALERT">System Alert</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="readFilter" class="form-label">Status</label>
+                <select id="readFilter" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="0">Unread</option>
+                    <option value="1">Read</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preferences Panel (hidden by default) -->
+<div class="card shadow mb-4" id="preferencesPanel" style="display: none;">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Notification Preferences</h6>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">Toggle which notification types you want to receive. User messages are always delivered.</p>
+        <div id="preferencesContainer" class="row g-3"></div>
+        <div class="mt-3">
+            <button class="btn btn-primary btn-sm" id="savePreferencesBtn">
+                <i class="fas fa-save me-1"></i> Save Preferences
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Notifications List -->
+<div class="card shadow mb-4">
+    <div class="card-body p-0">
+        <div id="notificationsList"></div>
+    </div>
+    <div class="card-footer">
+        <div id="paginationControls" class="d-flex justify-content-between align-items-center"></div>
+    </div>
+</div>

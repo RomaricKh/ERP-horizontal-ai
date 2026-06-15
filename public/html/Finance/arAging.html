@@ -1,0 +1,73 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="finance.ar_aging_title">Accounts Receivable Aging</h1>
+
+<!-- Summary Cards -->
+<div class="row mb-4" id="agingBucketCards">
+    <div class="col-xl-2 col-md-4 mb-3">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Current</div>
+                <div class="h6 mb-0 font-weight-bold text-gray-800" id="bucketCurrent">0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 mb-3">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">1-30 Days</div>
+                <div class="h6 mb-0 font-weight-bold text-gray-800" id="bucket1_30">0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 mb-3">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">31-60 Days</div>
+                <div class="h6 mb-0 font-weight-bold text-gray-800" id="bucket31_60">0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-4 mb-3">
+        <div class="card border-left-danger shadow h-100 py-2">
+            <div class="card-body">
+                <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">61-90 Days</div>
+                <div class="h6 mb-0 font-weight-bold text-gray-800" id="bucket61_90">0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-4 mb-3">
+        <div class="card border-left-dark shadow h-100 py-2">
+            <div class="card-body">
+                <div class="text-xs font-weight-bold text-dark text-uppercase mb-1">90+ Days</div>
+                <div class="h6 mb-0 font-weight-bold text-gray-800" id="bucket90_plus">0.00</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Per-Customer Breakdown Table -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="finance.ar_aging_by_customer">Aging by Customer</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="arAgingTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th class="text-end">Current</th>
+                        <th class="text-end">1-30 Days</th>
+                        <th class="text-end">31-60 Days</th>
+                        <th class="text-end">61-90 Days</th>
+                        <th class="text-end">90+ Days</th>
+                        <th class="text-end">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- rows injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

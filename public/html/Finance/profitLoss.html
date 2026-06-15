@@ -1,0 +1,93 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="finance.profit_loss_title">Profit & Loss Statement</h1>
+
+<!-- Date Range Filter -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Report Period</h6>
+    </div>
+    <div class="card-body">
+        <form id="plFilterForm" class="row align-items-end">
+            <div class="col-md-3 mb-2">
+                <label for="plStartDate" class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="plStartDate" required>
+            </div>
+            <div class="col-md-3 mb-2">
+                <label for="plEndDate" class="form-label">End Date</label>
+                <input type="date" class="form-control" id="plEndDate" required>
+            </div>
+            <div class="col-md-3 mb-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-chart-bar mr-1"></i> Generate Report
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Report Output -->
+<div id="plReportOutput" style="display:none;">
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Revenue</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="plRevenue">0.00</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">COGS</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="plCogs">0.00</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Gross Profit</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="plGrossProfit">0.00</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Net Profit</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="plNetProfit">0.00</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expenses by Category Table -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Expenses by Category</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="plExpensesTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- rows injected by JS -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="font-weight-bold">
+                            <td>Total Expenses</td>
+                            <td class="text-end" id="plTotalExpenses">0.00</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

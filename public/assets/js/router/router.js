@@ -4,6 +4,7 @@ import { DEFAULT_GUEST_ROUTE } from './router.config.js';
 import { activateAppShell, deactivateAppShell } from '../Shells/appShell.js';
 import { resolveRouteDecision } from './resolve.js';
 import { renderPage } from './renderPage.js';
+import { renderModuleUnavailable } from './renderModuleUnavailable.js';
 import { showLoading, hideLoading } from '../components/loading.js';
 import { startSessionWatcher } from '../SessionWatcher.js';
 import { logout } from '../Auth/auth.js';
@@ -45,6 +46,12 @@ export async function resolveRoute() {
 			startSessionWatcher();
 		} else {
 			deactivateAppShell();
+		}
+
+		// Module inactive — show message without redirecting
+		if (decision.moduleInactive) {
+			renderModuleUnavailable();
+			return;
 		}
 
 		// Page rendering responsibility

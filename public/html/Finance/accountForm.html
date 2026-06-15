@@ -1,0 +1,56 @@
+<!-- Account form modal -->
+<div class="modal-dialog modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title" id="accountModalTitle">
+        <i class="fas fa-university me-2"></i><span data-i18n="accounts.form_title">Account Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="accountForm" novalidate>
+
+        <div class="border rounded p-3 mb-4 bg-light">
+          <h6 class="text-primary fw-bold mb-3">
+            <i class="fas fa-info-circle me-1"></i> <span data-i18n="accounts.info_heading">Account Information</span>
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-7">
+              <label class="form-label small text-muted" for="inputAccountName"><span data-i18n="common.name">Name</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputAccountName" type="text" data-i18n-placeholder="accounts.name_placeholder" placeholder="Account name" required>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small text-muted" for="inputAccountCurrency"><span data-i18n="common.currency">Currency</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputAccountCurrency" required>
+                <option value="" data-i18n="common.select_currency">Select a currency</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="LBP">LBP</option>
+                <option value="AED">AED</option>
+                <option value="SAR">SAR</option>
+                <option value="EGP">EGP</option>
+                <option value="JOD">JOD</option>
+                <option value="KWD">KWD</option>
+                <option value="TRY">TRY</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.cancel">Cancel</span>
+      </button>
+      <button class="btn btn-primary" type="button" data-action="accounts.save">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+      </button>
+    </div>
+
+  </div>
+</div>

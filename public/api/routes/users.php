@@ -34,7 +34,22 @@ $router->delete('/users/{id}',
     ['users.delete']
 );
 
+$router->patch('/users/me',
+    fn() => (new UsersController())->updateMe(),
+    [] // authenticated user only, no specific permission needed
+);
+
+$router->post('/users/me/password',
+    fn() => (new UsersController())->changePassword(),
+    [] // authenticated user only, no specific permission needed
+);
+
 $router->patch('/users/{id}/status',
     fn($id) => (new UsersController())->toggleStatus((int)$id),
+    ['users.edit']
+);
+
+$router->patch('/users/{id}/active',
+    fn($id) => (new UsersController())->toggleActive((int)$id),
     ['users.edit']
 );

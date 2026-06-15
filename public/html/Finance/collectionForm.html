@@ -1,0 +1,174 @@
+<!-- Collection form modal with allocation support -->
+<div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-success text-white">
+      <h5 class="modal-title" id="collectionModalTitle">
+        <i class="fas fa-hand-holding-usd me-2"></i><span data-i18n="collections.form_title">Collection Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="collectionForm" novalidate>
+
+        <!-- Customer & Account Section -->
+        <div class="border rounded p-3 mb-4 bg-light">
+          <h6 class="text-success fw-bold mb-3">
+            <i class="fas fa-user me-1"></i> <span data-i18n="collections.customer_account">Customer & Account</span>
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="inputCollectionPayee"><span data-i18n="common.customer">Customer</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputCollectionPayee" required>
+                <option value="" data-i18n="collections.select_payee">— Select customer —</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="inputCollectionAccount"><span data-i18n="common.account">Account</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputCollectionAccount" required>
+                <option value="" data-i18n="collections.select_account">— Select account —</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slip Info Section -->
+        <div class="border rounded p-3 mb-4">
+          <h6 class="text-success fw-bold mb-3">
+            <i class="fas fa-receipt me-1"></i> <span data-i18n="collections.slip_info">Slip Info</span>
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputCollectionSlipNumber"><span data-i18n="collections.slip_number_short">Slip #</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputCollectionSlipNumber" type="text"
+                     data-i18n-placeholder="collections.slip_placeholder" placeholder="COL-2024-001" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputCollectionSlipDate"><span data-i18n="common.date">Date</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputCollectionSlipDate" type="date" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputCollectionMethod"><span data-i18n="common.method">Method</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputCollectionMethod" required>
+                <option value="" data-i18n="common.select">— Select —</option>
+                <option value="CASH">Cash</option>
+                <option value="BANK">Bank</option>
+                <option value="CHECK">Check</option>
+                <option value="TRANSFER">Transfer</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Amount Section -->
+        <div class="border rounded p-3 mb-4">
+          <h6 class="text-success fw-bold mb-3">
+            <i class="fas fa-calculator me-1"></i> <span data-i18n="common.amount">Amount</span>
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label small text-muted" for="inputCollectionCurrency"><span data-i18n="common.currency">Currency</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputCollectionCurrency" required>
+                <option value="" data-i18n="common.select">— Select —</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="LBP">LBP</option>
+                <option value="AED">AED</option>
+                <option value="SAR">SAR</option>
+                <option value="EGP">EGP</option>
+                <option value="JOD">JOD</option>
+                <option value="KWD">KWD</option>
+                <option value="TRY">TRY</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small text-muted" for="inputCollectionExchangeRate"><span data-i18n="common.exchange_rate">Exchange Rate</span> <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputCollectionExchangeRate" type="number"
+                     step="0.000001" min="0" placeholder="1.000000" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small text-muted" for="inputCollectionAmountFc"><span data-i18n="common.amount_fc">Amount (FC)</span> <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-coins"></i></span>
+                <input class="form-control" id="inputCollectionAmountFc" type="number"
+                       step="0.01" min="0" placeholder="0.00" required>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small text-muted" for="inputCollectionAmountBc" data-i18n="common.amount_bc">Amount (BC)</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-equals"></i></span>
+                <input class="form-control bg-light" id="inputCollectionAmountBc" type="text"
+                       readonly data-i18n-placeholder="common.auto_calculated" placeholder="Auto-calculated" tabindex="-1">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Allocation Section -->
+        <div class="border rounded p-3 mb-4" id="collectionAllocationSection" style="display:none;">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <h6 class="text-success fw-bold mb-0">
+              <i class="fas fa-layer-group me-1"></i> <span data-i18n="collections.allocations">Allocations</span>
+            </h6>
+            <div class="d-flex align-items-center gap-3">
+              <span class="badge" id="collectionAllocationStatus">
+                <i class="fas fa-exclamation-circle me-1"></i>Not balanced
+              </span>
+              <button type="button" class="btn btn-outline-success btn-sm" id="btnCollectionAutoFillFIFO">
+                <i class="fas fa-magic me-1"></i>Auto-fill FIFO
+              </button>
+            </div>
+          </div>
+          <div class="small text-muted mb-2">
+            Allocated: <strong id="collectionAllocatedTotal">0.00</strong> / <strong id="collectionSlipTotal">0.00</strong>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered table-hover mb-0" id="collectionAllocTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:30px;"></th>
+                  <th>Invoice #</th>
+                  <th>Date</th>
+                  <th class="text-end">Total</th>
+                  <th class="text-end">Already Collected</th>
+                  <th class="text-end">Remaining</th>
+                  <th class="text-end" style="width:140px;">Allocate</th>
+                </tr>
+              </thead>
+              <tbody id="collectionAllocBody">
+                <tr id="collectionAllocEmpty">
+                  <td colspan="7" class="text-center text-muted py-3">
+                    <i class="fas fa-info-circle me-1"></i>Select a customer to see outstanding invoices
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="mb-2">
+          <label class="form-label small text-muted" for="inputCollectionNotes">
+            <i class="fas fa-sticky-note me-1"></i> <span data-i18n="common.notes">Notes</span>
+          </label>
+          <textarea class="form-control" id="inputCollectionNotes" rows="2"
+                    data-i18n-placeholder="common.optional_notes" placeholder="Optional notes"></textarea>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.cancel">Cancel</span>
+      </button>
+      <button class="btn btn-success" type="button" data-action="collections.save">
+        <i class="fas fa-save me-1"></i><span data-i18n="collections.save_btn">Save Collection</span>
+      </button>
+    </div>
+
+  </div>
+</div>

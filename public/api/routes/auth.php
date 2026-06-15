@@ -27,3 +27,11 @@ $router->post('/auth/reauth',
 $router->get('/auth/session-status',
     fn() => (new AuthController($config['jwt_secret']))->sessionStatus()
 );
+
+$router->post('/auth/forgot-password',
+    fn() => (new AuthController($config['jwt_secret']))->forgotPassword(), [], false
+);
+
+$router->post('/auth/reset-password',
+    fn() => (new AuthController($config['jwt_secret']))->resetPassword(), [], false
+);

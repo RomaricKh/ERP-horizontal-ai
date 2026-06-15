@@ -18,6 +18,7 @@ class UserRepository {
                 u.username,
                 CONCAT(u.first_name, ' ', u.last_name) AS name,
                 u.email,
+                u.is_active AS is_account_active,
                 r.name AS role_name,
                 b.name AS business_name,
                 ur.is_active
@@ -121,7 +122,7 @@ class UserRepository {
 						),
 						user_roles_cte AS (
 							SELECT
-								ur.user_id, ur.role_id, r.name AS role_name, 
+								ur.user_id, ur.role_id, r.name AS role_name, ur.tenant_id,
 								ur.business_id, b.name AS business_name, ur.is_active
 							FROM user_roles ur
 							INNER JOIN roles r ON r.id = ur.role_id
@@ -134,6 +135,12 @@ class UserRepository {
 							FROM role_permissions rp
 							INNER JOIN permissions p ON p.id = rp.permission_id
 							WHERE rp.role_id IN (SELECT role_id FROM user_roles_cte)
+							UNION
+							SELECT ur.role_id, p.code AS permission_code
+							FROM user_roles_cte ur
+							INNER JOIN roles r ON r.id = ur.role_id
+							CROSS JOIN permissions p
+							WHERE r.type IN ('SYSTEM_OWNER', 'TENANT_OWNER')
 						),
 						roles_with_permissions AS (
 							SELECT
@@ -143,6 +150,14 @@ class UserRepository {
 							FROM user_roles_cte ur
 							LEFT JOIN role_permissions_cte rp ON rp.role_id = ur.role_id
 							GROUP BY ur.role_id, ur.business_id
+						),
+						first_business_cte AS (
+							SELECT b.id AS first_business_id
+							FROM user_roles_cte urc
+							INNER JOIN roles r ON r.id = urc.role_id AND r.type = 'TENANT_OWNER'
+							INNER JOIN businesses b ON b.tenant_id = urc.tenant_id
+							ORDER BY b.id ASC
+							LIMIT 1
 						)
 						SELECT
 							ud.id AS user_id,
@@ -154,6 +169,7 @@ class UserRepository {
 							ud.lock_until,
 							ud.created_at,
 							ud.updated_at,
+							(SELECT first_business_id FROM first_business_cte) AS first_business_id,
 							JSON_ARRAYAGG(
 								JSON_OBJECT(
 									'id', r.role_id,
@@ -261,15 +277,16 @@ class UserRepository {
 
     public function assignRole(int $user_id, int $businessId, int $roleId, $is_active): void {
         $stmt = $this->db->prepare("
-            INSERT INTO user_roles (user_id, business_id, role_id, is_active)
-            VALUES (:user, :business, :role, :is_active)
+            INSERT INTO user_roles (user_id, business_id, role_id, is_active, tenant_id)
+            VALUES (:user, :business, :role, :is_active, (SELECT tenant_id FROM businesses WHERE id = :biz_lookup))
         ");
 
         $stmt->execute([
             'user'     => $user_id,
             'business' => $businessId,
             'role'     => $roleId,
-			'is_active' => $is_active
+			'is_active' => $is_active,
+            'biz_lookup' => $businessId
         ]);
     }
 
@@ -300,7 +317,55 @@ class UserRepository {
         ]);
 	}
 	
+	/**
+	 * Set the is_active flag on the users table for a given user.
+	 */
+	public function setActive(int $userId, bool $active): void {
+		$stmt = $this->db->prepare("UPDATE users SET is_active = :active WHERE id = :id");
+		$stmt->execute([
+			'active' => $active ? 1 : 0,
+			'id' => $userId
+		]);
+	}
+
+	/**
+	 * Revoke all refresh tokens for a given user.
+	 */
+	public function revokeAllRefreshTokens(int $userId): void {
+		$stmt = $this->db->prepare("
+			UPDATE refresh_tokens SET revoked_at = NOW()
+			WHERE user_id = :user_id AND revoked_at IS NULL
+		");
+		$stmt->execute(['user_id' => $userId]);
+	}
+
+	/**
+	 * Check if a user holds the TENANT_OWNER role for a given tenant.
+	 */
+	public function isTenantOwner(int $userId, int $tenantId): bool {
+		$stmt = $this->db->prepare("
+			SELECT COUNT(*) FROM user_roles ur
+			JOIN roles r ON r.id = ur.role_id
+			WHERE ur.user_id = :userId AND ur.tenant_id = :tenantId AND r.type = 'TENANT_OWNER'
+		");
+		$stmt->execute(['userId' => $userId, 'tenantId' => $tenantId]);
+		return (int) $stmt->fetchColumn() > 0;
+	}
+
 	public function getPermissionsForRole(int $role_id) {
+		// Resolve role type from the roles table
+		$stmt = $this->db->prepare("SELECT type FROM roles WHERE id = :role_id");
+		$stmt->execute(['role_id' => $role_id]);
+		$type = $stmt->fetchColumn();
+
+		if ($type === 'SYSTEM_OWNER') {
+			// SYSTEM_OWNER always has ALL permissions
+			$stmt = $this->db->prepare("SELECT DISTINCT code FROM permissions ORDER BY code");
+			$stmt->execute();
+			return $stmt->fetchAll(PDO::FETCH_COLUMN);
+		}
+
+		// CUSTOM/TEMPLATE roles: return permissions via role_permissions join
 		$stmt = $this->db->prepare("
 						SELECT DISTINCT p.code
 						FROM role_permissions rp

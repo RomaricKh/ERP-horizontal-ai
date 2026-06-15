@@ -1,0 +1,106 @@
+<!-- Stock Adjustment modal -->
+<div class="modal-dialog modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-success text-white">
+      <h5 class="modal-title" id="stockModalTitle">
+        <i class="fas fa-boxes me-2"></i><span data-i18n="items.stock_adjust_title">Stock Adjustment</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <!-- Item Info Banner -->
+      <div class="alert alert-light border d-flex align-items-center mb-4">
+        <i class="fas fa-box text-primary me-2"></i>
+        <span><span data-i18n="common.item">Item</span>: <strong id="stockItemName">—</strong></span>
+        <span class="ms-auto badge bg-primary fs-6" id="stockCurrentQty">—</span>
+      </div>
+
+      <form id="stockForm" novalidate>
+
+        <!-- Transaction Section -->
+        <div class="border rounded p-3 mb-4">
+          <h6 class="text-success fw-bold mb-3">
+            <i class="fas fa-exchange-alt me-1"></i> Transaction
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="stockTypeSelect"><span data-i18n="items.transaction_type">Type</span> <span class="text-danger">*</span></label>
+              <select class="form-select" id="stockTypeSelect" required>
+                <option value="" data-i18n="items.select_type">Select type</option>
+                <option value="IN">IN — Receive stock</option>
+                <option value="OUT">OUT — Issue / sell stock</option>
+                <option value="ADJ">ADJ — Set absolute quantity</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="stockQty"><span data-i18n="common.quantity">Quantity</span> <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-hashtag"></i></span>
+                <input class="form-control" id="stockQty" type="number"
+                       step="0.001" min="0.001" placeholder="0.000" required>
+              </div>
+              <small class="form-text text-muted" id="stockQtyHint" data-i18n="items.stock_qty_hint">
+                For ADJ: enter the new absolute quantity.
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Batch Info (shown only for expiry-tracked items with type IN) -->
+        <div id="batchInfoSection" class="d-none">
+          <div class="border rounded p-3 mb-4">
+            <h6 class="text-success fw-bold mb-3">
+              <i class="fas fa-clock me-1"></i> Batch Information
+            </h6>
+            <p class="text-muted small mb-3" data-i18n="items.batch_info_hint">
+              This item tracks expiry dates. Provide batch information for stock IN.
+            </p>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label small text-muted" for="stockExpiryDate">
+                  <span data-i18n="items.expiry_date">Expiry Date</span> <span class="text-danger">*</span>
+                </label>
+                <input class="form-control" id="stockExpiryDate" type="date" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-muted" for="stockManufacturingDate" data-i18n="items.manufacturing_date">Mfg Date</label>
+                <input class="form-control" id="stockManufacturingDate" type="date">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-muted" for="stockBatchNumber" data-i18n="items.batch_number">Batch #</label>
+                <input class="form-control" id="stockBatchNumber" type="text"
+                       placeholder="Auto-generated" data-i18n-placeholder="items.batch_number_placeholder">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reference & Notes -->
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small text-muted" for="stockReference" data-i18n="common.reference">Reference</label>
+            <input class="form-control" id="stockReference" type="text"
+                   data-i18n-placeholder="items.stock_ref_placeholder" placeholder="e.g. PO-001, INV-005">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small text-muted" for="stockNotes" data-i18n="common.notes">Notes</label>
+            <input class="form-control" id="stockNotes" type="text" data-i18n-placeholder="common.optional_notes" placeholder="Optional notes">
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.cancel">Cancel</span>
+      </button>
+      <button class="btn btn-success" type="button" data-action="stock.save" id="stockSaveBtn">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+      </button>
+    </div>
+
+  </div>
+</div>

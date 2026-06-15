@@ -14,7 +14,10 @@ class AuditService {
         $this->repo = new AuditRepository($this->db);
     }
 
-    public function log(string $eventType, string $table, int|string $recordId,
+    /**
+     * @param int|string $recordId
+     */
+    public function log(string $eventType, string $table, $recordId,
 						string $action, ?array $oldValues = null, ?array $newValues = null,
 						?int $userId = null, ?int $tenantId = null, ?int $businessId = null): void {
 

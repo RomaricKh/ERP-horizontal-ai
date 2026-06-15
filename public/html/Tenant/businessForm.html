@@ -1,0 +1,109 @@
+<!-- Business form modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title" id="businessModalTitle">
+        <i class="fas fa-store me-2"></i><span data-i18n="businesses.form_title">Business Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="businessForm" novalidate>
+        <div class="row">
+
+          <!-- LEFT: Business Information -->
+          <div class="col-md-7">
+            <div class="border rounded p-3 mb-4 bg-light">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-info-circle me-1"></i> <span data-i18n="businesses.info_heading">Business Information</span>
+              </h6>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputBusinessName"><span data-i18n="businesses.business_name">Business Name</span> <span class="text-danger">*</span></label>
+                <input class="form-control" id="inputBusinessName" type="text"
+                       data-i18n-placeholder="businesses.name_placeholder" placeholder="Enter business name" required>
+              </div>
+
+              <div class="mb-3" id="businessTypeGroup">
+                <label class="form-label small text-muted" for="inputBusinessType"><span data-i18n="businesses.business_type">Business Type</span> <span class="text-danger">*</span></label>
+                <select class="form-select" id="inputBusinessType" required>
+                  <option value="" data-i18n="businesses.select_type">— Select business type —</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputLegalName" data-i18n="businesses.legal_name">Legal Name</label>
+                <input class="form-control" id="inputLegalName" type="text"
+                       data-i18n-placeholder="businesses.legal_name_placeholder" placeholder="Enter legal name">
+              </div>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="inputRegistrationNo" data-i18n="businesses.registration_no">Registration No.</label>
+                  <input class="form-control" id="inputRegistrationNo" type="text"
+                         data-i18n-placeholder="businesses.registration_placeholder" placeholder="Registration number">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="currencySelect"><span data-i18n="common.currency">Currency</span> <span class="text-danger">*</span></label>
+                  <select class="form-select" id="currencySelect" required>
+                    <option value="" data-i18n="common.select_currency">Select a currency</option>
+                    <option value="USD">USD — US Dollar</option>
+                    <option value="EUR">EUR — Euro</option>
+                    <option value="GBP">GBP — British Pound</option>
+                    <option value="LBP">LBP — Lebanese Pound</option>
+                    <option value="AED">AED — UAE Dirham</option>
+                    <option value="SAR">SAR — Saudi Riyal</option>
+                    <option value="EGP">EGP — Egyptian Pound</option>
+                    <option value="JOD">JOD — Jordanian Dinar</option>
+                    <option value="KWD">KWD — Kuwaiti Dinar</option>
+                    <option value="TRY">TRY — Turkish Lira</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="mb-0">
+                <label class="form-label small text-muted" for="inputAddress" data-i18n="people.address">Address</label>
+                <textarea class="form-control" id="inputAddress" rows="2"
+                          data-i18n-placeholder="people.address_placeholder" placeholder="Enter address"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: Contact -->
+          <div class="col-md-5">
+            <div class="border rounded p-3 mb-4">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-phone me-1"></i> <span data-i18n="businesses.contact_heading">Contact</span>
+              </h6>
+
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputPhone" data-i18n="common.phone">Phone</label>
+                <input class="form-control" id="inputPhone" type="tel"
+                       data-i18n-placeholder="businesses.phone_placeholder" placeholder="Enter phone number">
+              </div>
+
+              <div class="mb-0">
+                <label class="form-label small text-muted" for="inputBusinessEmail" data-i18n="common.email">Email</label>
+                <input class="form-control" id="inputBusinessEmail" type="email"
+                       data-i18n-placeholder="businesses.email_placeholder" placeholder="Enter email address">
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.close">Close</span>
+      </button>
+      <button class="btn btn-primary" type="button" data-action="businesses.save" id="businessSaveBtn">
+        <i class="fas fa-save me-1"></i><span data-i18n="common.save">Save</span>
+      </button>
+    </div>
+
+  </div>
+</div>

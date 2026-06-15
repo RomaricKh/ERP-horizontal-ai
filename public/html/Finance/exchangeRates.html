@@ -1,0 +1,34 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800" data-i18n="exchange_rates.title">Exchange Rates</h1>
+
+<!-- Exchange Rates DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary" data-i18n="exchange_rates.heading">Exchange Rates</h6>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-icon-split btn-sm"
+                    data-action="exchange-rates.create" data-bs-toggle="tooltip" data-bs-placement="top" title="Add a new exchange rate">
+                <span class="text" data-i18n="exchange_rates.add_btn">Add Rate</span>
+                <span class="icon"><i class="fas fa-fw fa-plus"></i></span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="exchangeRatesTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th data-i18n="common.id">ID</th>
+                        <th data-i18n="common.currency">Currency</th>
+                        <th data-i18n="common.date">Date</th>
+                        <th data-i18n="exchange_rates.rate">Rate</th>
+                        <th data-i18n="exchange_rates.source">Source</th>
+                        <th data-i18n="common.actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
