@@ -9,6 +9,11 @@ $router->get('/people',
     ['people.view']
 );
 
+$router->get('/people/payee-types',
+    fn() => (new PeopleController())->payeeTypes(),
+    ['people.view']
+);
+
 /* ========= PEOPLE INSIGHTS ========= */
 
 $router->get('/people/{id}/insights/supplier',
@@ -66,11 +71,6 @@ $router->delete('/people/{id}',
 );
 
 /* ========= PAYEE TYPES ========= */
-
-$router->get('/people/payee-types',
-    fn() => (new PeopleController())->payeeTypes(),
-    ['people.view']
-);
 
 $router->post('/people/payee-types',
     fn() => (new PeopleController())->storePayeeType(),

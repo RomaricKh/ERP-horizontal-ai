@@ -271,7 +271,7 @@ class InsightsController extends BaseController {
 
             // Partner shares
             $shareStmt = $db->prepare("
-                SELECT COALESCE(ownership_percentage, 0) AS ownership_pct,
+                SELECT COALESCE(share_percent, 0) AS ownership_pct,
                        COALESCE(invested_capital, 0) AS invested_capital
                 FROM partner_shares
                 WHERE partner_id = :payee_id AND business_id = :business_id
@@ -283,8 +283,8 @@ class InsightsController extends BaseController {
             // Equity movements
             $equityStmt = $db->prepare("
                 SELECT
-                    COALESCE(SUM(CASE WHEN type = 'CONTRIBUTION' THEN amount ELSE 0 END), 0) AS contributions,
-                    COALESCE(SUM(CASE WHEN type = 'WITHDRAWAL' THEN amount ELSE 0 END), 0) AS withdrawals
+                    COALESCE(SUM(CASE WHEN equity_type = 'CONTRIBUTION' THEN amount ELSE 0 END), 0) AS contributions,
+                    COALESCE(SUM(CASE WHEN equity_type = 'WITHDRAWAL' THEN amount ELSE 0 END), 0) AS withdrawals
                 FROM partner_equity
                 WHERE partner_id = :payee_id AND business_id = :business_id
             ");
@@ -295,11 +295,11 @@ class InsightsController extends BaseController {
 
             // Profit distributions
             $distStmt = $db->prepare("
-                SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
+                SELECT COUNT(*) AS count, COALESCE(SUM(amount_bc), 0) AS total
                 FROM profit_distributions
-                WHERE partner_id = :payee_id AND business_id = :business_id
+                WHERE partner_id = :payee_id
             ");
-            $distStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+            $distStmt->execute(['payee_id' => $payeeId]);
             $distRow = $distStmt->fetch(\PDO::FETCH_ASSOC);
 
             // Payments

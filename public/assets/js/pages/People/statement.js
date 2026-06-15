@@ -28,7 +28,10 @@ export async function render(container) {
 }
 
 export async function mount() {
-    if (!payeeId) return;
+    if (!payeeId) {
+        renderError('No payee ID found. Please navigate to this page from the People list.');
+        return;
+    }
 
     // Load button handler
     const loadBtn = statementContainer.querySelector('#statementLoadBtn');
@@ -81,7 +84,10 @@ async function loadStatement() {
     const startDate = statementContainer.querySelector('#statementStartDate').value;
     const endDate = statementContainer.querySelector('#statementEndDate').value;
 
-    if (!startDate || !endDate || !payeeId) return;
+    if (!startDate || !endDate || !payeeId) {
+        renderEmpty('Please select a date range.');
+        return;
+    }
 
     const params = new URLSearchParams();
     params.set('start_date', startDate);
@@ -231,6 +237,25 @@ function renderEmpty(message) {
     renderBalances(0, 0, []);
     if (statementTable) {
         statementTable.clear().draw();
+    }
+    // Show error/empty message in the table area
+    const tableBody = statementContainer.querySelector('#statementTable tbody');
+    if (tableBody && message) {
+        tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-3">${message}</td></tr>`;
+    }
+}
+
+/**
+ * Show a persistent error message on the page.
+ */
+function renderError(message) {
+    const tableCard = statementContainer.querySelector('#statementTable')?.closest('.card');
+    if (tableCard) {
+        tableCard.querySelector('.card-body').innerHTML = `
+            <div class="text-center text-danger py-4">
+                <i class="fas fa-exclamation-circle fa-2x mb-2"></i>
+                <p>${message}</p>
+            </div>`;
     }
 }
 

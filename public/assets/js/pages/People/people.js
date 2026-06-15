@@ -168,20 +168,26 @@ function renderTable(people) {
             ]
         });
 
-        // Wire type filter buttons
-        const filterGroup = document.getElementById('typeFilterGroup');
-        if (filterGroup) {
-            filterGroup.addEventListener('click', (e) => {
-                const btn = e.target.closest('[data-filter]');
-                if (!btn) return;
-                filterGroup.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                const filter = btn.dataset.filter;
-                if (filter === 'all') {
+        // Wire type filter
+        const typeFilter = document.getElementById('typeFilter');
+        const clearBtn = document.getElementById('clearTypeFilter');
+        if (typeFilter) {
+            typeFilter.addEventListener('change', () => {
+                const selected = [...typeFilter.selectedOptions].map(o => o.value);
+                if (selected.length === 0) {
                     peopleDataTable.column(4).search('').draw();
                 } else {
-                    peopleDataTable.column(4).search(filter, true, false).draw();
+                    const regex = selected.join('|');
+                    peopleDataTable.column(4).search(regex, true, false).draw();
                 }
+            });
+        }
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                if (typeFilter) {
+                    [...typeFilter.options].forEach(o => o.selected = false);
+                }
+                peopleDataTable.column(4).search('').draw();
             });
         }
     }

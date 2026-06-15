@@ -20,14 +20,17 @@
 	</div>
 	<div class="card-body">
 		<!-- Type Filter -->
-		<div class="mb-3">
-			<div class="btn-group btn-group-sm" role="group" id="typeFilterGroup">
-				<button type="button" class="btn btn-outline-primary active" data-filter="all">All</button>
-				<button type="button" class="btn btn-outline-primary" data-filter="customer">Customers</button>
-				<button type="button" class="btn btn-outline-primary" data-filter="supplier">Suppliers</button>
-				<button type="button" class="btn btn-outline-primary" data-filter="employee">Employees</button>
-				<button type="button" class="btn btn-outline-primary" data-filter="partner">Partners</button>
-			</div>
+		<div class="mb-3 d-flex align-items-center gap-2">
+			<label class="form-label mb-0 small text-muted fw-bold">Filter by type:</label>
+			<select class="form-select form-select-sm" id="typeFilter" multiple style="width: 300px; height: 34px;">
+				<option value="customer">Customer</option>
+				<option value="supplier">Supplier</option>
+				<option value="employee">Employee</option>
+				<option value="partner">Partner</option>
+			</select>
+			<button class="btn btn-outline-secondary btn-sm" id="clearTypeFilter" title="Clear filter">
+				<i class="fas fa-times"></i>
+			</button>
 		</div>
 		<div class="table-responsive">
 			<table class="table table-bordered table-striped table-hover row-border"
