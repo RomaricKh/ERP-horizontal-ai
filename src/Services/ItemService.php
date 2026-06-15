@@ -106,10 +106,10 @@ class ItemService {
 
     // ── ITEMS ─────────────────────────────────────────────────────────────────
 
-    public function listForCurrentBusiness(?string $excludeTypesParam = null): array {
+    public function listForCurrentBusiness(?string $excludeTypesParam = null, bool $includeInactive = false): array {
         $ctx = AuthContext::get();
         $excludeTypes = $this->parseExcludeTypes($excludeTypesParam);
-        return $this->repo->getAllForBusiness($ctx->tenant_id, $ctx->business_id, $excludeTypes);
+        return $this->repo->getAllForBusiness($ctx->tenant_id, $ctx->business_id, $excludeTypes, $includeInactive);
     }
 
     /**
@@ -306,6 +306,25 @@ class ItemService {
         try {
             $this->repo->deactivate($id, $ctx->tenant_id);
             $this->audit->log('DELETE', 'items', $id, 'DELETE', $before, null,
+                $ctx->user_id, $ctx->tenant_id, $ctx->business_id);
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function reactivate(int $id): void {
+        $ctx = AuthContext::get();
+        $item = $this->repo->getById($id, $ctx->tenant_id);
+        if (!$item) throw new \RuntimeException('Item not found');
+
+        $this->db->beginTransaction();
+        try {
+            $this->repo->update($id, $ctx->tenant_id, ['is_active' => 1]);
+            $this->audit->log('UPDATE', 'items', $id, 'REACTIVATE',
+                ['is_active' => 0], ['is_active' => 1],
                 $ctx->user_id, $ctx->tenant_id, $ctx->business_id);
 
             $this->db->commit();

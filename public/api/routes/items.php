@@ -58,6 +58,11 @@ $router->delete('/items/{id}',
     ['items.delete']
 );
 
+$router->post('/items/{id}/reactivate',
+    fn($id) => (new ItemsController())->reactivate((int)$id),
+    ['items.edit']
+);
+
 /* ========= STOCK PER ITEM ========= */
 
 // GET /items/{id}/price-history

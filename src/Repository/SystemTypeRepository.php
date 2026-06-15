@@ -45,10 +45,12 @@ class SystemTypeRepository {
         // Get active module codes for this business
         $activeModules = $this->moduleService->getActiveModules($businessId);
 
-        // Query all types visible to this tenant/business
+        // Query all types visible to this tenant/business:
+        // - System types (is_system=1) are global (tenant_id may be NULL)
+        // - User-defined types are scoped to tenant + business
         $sql = "SELECT * FROM `{$table}`
-                WHERE tenant_id = :tenant_id
-                  AND (business_id = :business_id OR business_id IS NULL)
+                WHERE (tenant_id = :tenant_id AND (business_id = :business_id OR business_id IS NULL))
+                   OR is_system = 1
                 ORDER BY is_system DESC, name ASC";
 
         $stmt = $this->db->prepare($sql);

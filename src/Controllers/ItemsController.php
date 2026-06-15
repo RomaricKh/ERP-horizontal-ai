@@ -71,7 +71,8 @@ class ItemsController extends BaseController {
         try {
             $this->auth();
             $excludeTypes = $_GET['exclude_types'] ?? null;
-            $items = $this->service->listForCurrentBusiness($excludeTypes);
+            $includeInactive = isset($_GET['include_inactive']) && $_GET['include_inactive'] === '1';
+            $items = $this->service->listForCurrentBusiness($excludeTypes, $includeInactive);
             $this->json(true, ['items' => $items]);
         } catch (\Throwable $e) {
             $this->serverError('Failed to fetch items');
@@ -127,6 +128,19 @@ class ItemsController extends BaseController {
             $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
             $this->serverError('Failed to delete item');
+        }
+    }
+
+    // POST /items/{id}/reactivate
+    public function reactivate(int $id): void {
+        try {
+            $this->auth();
+            $this->service->reactivate($id);
+            $this->json(true, ['id' => $id]);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to reactivate item');
         }
     }
 

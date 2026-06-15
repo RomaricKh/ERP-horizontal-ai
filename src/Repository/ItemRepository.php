@@ -77,7 +77,7 @@ class ItemRepository {
 
     // ── ITEMS ─────────────────────────────────────────────────────────────────
 
-    public function getAllForBusiness(int $tenantId, int $businessId, array $excludeTypes = []): array {
+    public function getAllForBusiness(int $tenantId, int $businessId, array $excludeTypes = [], bool $includeInactive = false): array {
         $params = ['tenant' => $tenantId, 'business1' => $businessId, 'business2' => $businessId];
         $excludeClause = '';
 
@@ -90,6 +90,8 @@ class ItemRepository {
             }
             $excludeClause = "AND LOWER(TRIM(it.name)) NOT IN (" . implode(',', $placeholders) . ")";
         }
+
+        $activeClause = $includeInactive ? '' : 'AND i.is_active = 1';
 
         // Cost change flag data comes from items.has_cost_change_flag + item_price_history
         $costFlagSelect = "i.has_cost_change_flag, iph.old_price AS flag_old_cost, iph.new_price AS flag_new_cost";
@@ -109,7 +111,7 @@ class ItemRepository {
         $sql = "
             SELECT i.id, i.name, i.sku, i.unit,
                    i.cost_price, i.sale_price, i.is_active, i.notes,
-                   i.business_id, i.has_expiry, i.customer_id,
+                   i.business_id, i.has_expiry, i.customer_id, i.min_stock,
                    {$costFlagSelect},
                    it.name AS type_name,
                    p.name AS customer_name,
@@ -121,7 +123,7 @@ class ItemRepository {
             {$costFlagJoin}
             WHERE i.tenant_id = :tenant
               AND (i.business_id = :business2 OR i.business_id IS NULL)
-              AND i.is_active = 1
+              {$activeClause}
               {$excludeClause}
             ORDER BY i.name
         ";

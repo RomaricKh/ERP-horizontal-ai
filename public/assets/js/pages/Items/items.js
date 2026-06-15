@@ -118,6 +118,32 @@ export async function mount() {
             }
         },
 
+        'items.reactivate': async ({ el }) => {
+            const tr      = el.closest('tr');
+            const rowData = itemsDataTable.row(tr).data();
+            const id      = rowData[0];
+            const name    = rowData[1];
+            if (!id) return;
+
+            const confirmed = await confirm({
+                title:   'Reactivate item',
+                message: `Reactivate "${name}"? It will appear in active listings again.`
+            });
+            if (!confirmed) return;
+
+            try {
+                const res  = await apiFetch(`/api/items/${id}/reactivate`, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    await alert({ title: 'Error', alertText: data.message || 'Failed to reactivate item' });
+                } else {
+                    await fetchItems();
+                }
+            } catch (err) {
+                console.error('Reactivate item failed:', err);
+            }
+        },
+
         'items.stock-adjust': async ({ el }) => {
             const tr      = el.closest('tr');
             const rowData = itemsDataTable.row(tr).data();
@@ -281,7 +307,7 @@ export async function render(container) {
 }
 
 async function fetchItems() {
-    const res  = await apiFetch('/api/items');
+    const res  = await apiFetch('/api/items?include_inactive=1');
     const data = await res.json();
     if (!data.success) return;
     itemsCache = data.data.items || [];
@@ -332,7 +358,11 @@ function renderTable(items) {
             actionItems.push({ action: 'items.dismiss-cost-flag', icon: 'fa-check text-warning', label: 'Dismiss Cost Flag' });
         }
         if (canDelete) {
-            actionItems.push({ action: 'items.delete', icon: 'fa-ban text-danger', label: 'Deactivate', divider: true });
+            if (parseInt(item.is_active) === 1) {
+                actionItems.push({ action: 'items.delete', icon: 'fa-ban text-danger', label: 'Deactivate', divider: true });
+            } else {
+                actionItems.push({ action: 'items.reactivate', icon: 'fa-redo text-success', label: 'Reactivate', divider: true });
+            }
         }
 
         // Render actions with overflow
@@ -376,7 +406,7 @@ function renderTable(items) {
 
         itemsDataTable.row.add([
             item.id,
-            item.name,
+            parseInt(item.is_active) === 1 ? item.name : `<span class="text-muted"><i class="fas fa-ban me-1 small"></i>${escHtml(item.name)}</span>`,
             item.sku   || '—',
             item.type_name,
             item.unit  || '—',
