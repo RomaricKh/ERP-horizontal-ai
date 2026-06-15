@@ -16,27 +16,30 @@ class AssetRepository {
      */
     public function findAll(int $businessId, ?string $assetType = null, ?string $category = null): array {
         $sql = "
-            SELECT id, business_id, name, category, asset_type, purchase_date,
-                   purchase_value, currency, exchange_rate, value_bc,
-                   current_value_bc, accumulated_depreciation,
-                   depreciation_method, useful_life, notes,
-                   created_at, updated_at
-            FROM assets
-            WHERE business_id = :business
+            SELECT a.id, a.business_id, a.name, a.category, a.category_id, a.asset_type, a.purchase_date,
+                   a.purchase_value, a.currency, a.exchange_rate, a.value_bc,
+                   a.current_value_bc, a.accumulated_depreciation,
+                   a.depreciation_method, a.useful_life, a.notes,
+                   a.created_at, a.updated_at,
+                   ac.name AS category_name
+            FROM assets a
+            LEFT JOIN asset_categories ac
+                ON ac.id = COALESCE(a.category_id, CAST(NULLIF(a.category, '') AS UNSIGNED))
+            WHERE a.business_id = :business
         ";
         $params = ['business' => $businessId];
 
         if ($assetType !== null) {
-            $sql .= " AND asset_type = :asset_type";
+            $sql .= " AND a.asset_type = :asset_type";
             $params['asset_type'] = $assetType;
         }
 
         if ($category !== null) {
-            $sql .= " AND category = :category";
+            $sql .= " AND a.category = :category";
             $params['category'] = $category;
         }
 
-        $sql .= " ORDER BY purchase_date DESC, id DESC";
+        $sql .= " ORDER BY a.purchase_date DESC, a.id DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -48,14 +51,17 @@ class AssetRepository {
      */
     public function findById(int $id, int $businessId): ?array {
         $stmt = $this->db->prepare("
-            SELECT id, business_id, name, category, asset_type, purchase_date,
-                   purchase_value, currency, exchange_rate, value_bc,
-                   current_value_bc, accumulated_depreciation,
-                   depreciation_method, useful_life, notes,
-                   created_at, updated_at
-            FROM assets
-            WHERE id          = :id
-              AND business_id = :business
+            SELECT a.id, a.business_id, a.name, a.category, a.category_id, a.asset_type, a.purchase_date,
+                   a.purchase_value, a.currency, a.exchange_rate, a.value_bc,
+                   a.current_value_bc, a.accumulated_depreciation,
+                   a.depreciation_method, a.useful_life, a.notes,
+                   a.created_at, a.updated_at,
+                   ac.name AS category_name
+            FROM assets a
+            LEFT JOIN asset_categories ac
+                ON ac.id = COALESCE(a.category_id, CAST(NULLIF(a.category, '') AS UNSIGNED))
+            WHERE a.id          = :id
+              AND a.business_id = :business
             LIMIT 1
         ");
         $stmt->execute(['id' => $id, 'business' => $businessId]);
@@ -73,13 +79,13 @@ class AssetRepository {
     public function insert(array $data): int {
         $stmt = $this->db->prepare("
             INSERT INTO assets
-              (business_id, name, category, asset_type, purchase_date,
+              (business_id, name, category, category_id, asset_type, purchase_date,
                purchase_value, currency, exchange_rate, value_bc,
                current_value_bc, accumulated_depreciation,
                depreciation_method, useful_life, notes,
                created_at, updated_at, created_by)
             VALUES
-              (:business_id, :name, :category, :asset_type, :purchase_date,
+              (:business_id, :name, :category, :category_id, :asset_type, :purchase_date,
                :purchase_value, :currency, :exchange_rate, :value_bc,
                :current_value_bc, :accumulated_depreciation,
                :depreciation_method, :useful_life, :notes,
@@ -89,6 +95,7 @@ class AssetRepository {
             'business_id'              => $data['business_id'],
             'name'                     => $data['name'],
             'category'                 => $data['category'],
+            'category_id'              => $data['category_id'] ?? null,
             'asset_type'               => $data['asset_type'],
             'purchase_date'            => $data['purchase_date'],
             'purchase_value'           => $data['purchase_value'],

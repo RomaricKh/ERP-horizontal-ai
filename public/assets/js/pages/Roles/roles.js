@@ -188,25 +188,27 @@ function renderBusinessRolesTable(roles) {
     const canDelete = hasPermission('roles.delete');
 
     roles.forEach(role => {
-        const isSystemOwner = role.type === 'SYSTEM_OWNER';
+        const isProtected = role.type === 'SYSTEM_OWNER' || role.type === 'TENANT_OWNER';
 
-        // Role name with badge for SYSTEM_OWNER — clickable to view details
+        // Role name with badge for protected system roles — clickable to view details
         let nameHtml = `<button data-action="roles.view" class="btn btn-link p-0 text-primary fw-bold text-decoration-none">${escHtml(role.name)}</button>`;
-        if (isSystemOwner) {
+        if (isProtected) {
             nameHtml += ' <span class="badge badge-warning text-dark ml-1"><i class="fas fa-lock mr-1"></i>System</span>';
         }
 
-        // Actions: disable edit/delete for SYSTEM_OWNER
+        // Actions: protected system roles cannot be edited or deleted — omit the buttons entirely
         let actions = '';
-        if (canEdit) {
-            actions += `<button data-action="roles.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit"
-                            ${isSystemOwner ? 'disabled' : ''}>
-                            <i class="fas fa-edit"></i></button>`;
-        }
-        if (canDelete) {
-            actions += `<button data-action="roles.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete"
-                            ${isSystemOwner ? 'disabled' : ''}>
-                            <i class="fas fa-trash"></i></button>`;
+        if (isProtected) {
+            actions = '<span class="text-muted small"><i class="fas fa-lock mr-1"></i>Protected</span>';
+        } else {
+            if (canEdit) {
+                actions += `<button data-action="roles.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
+                                <i class="fas fa-edit"></i></button>`;
+            }
+            if (canDelete) {
+                actions += `<button data-action="roles.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
+                                <i class="fas fa-trash"></i></button>`;
+            }
         }
 
         rolesDataTable.row.add([

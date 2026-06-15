@@ -74,10 +74,24 @@ class AssetService {
         $exchangeRate  = (float) $data['exchange_rate'];
         $valueBc       = round($purchaseValue * $exchangeRate, 2);
 
+        // Resolve category: the form sends category_id (int). Store both the id and
+        // a human-readable name in the legacy `category` column for display robustness.
+        $categoryId   = isset($data['category_id']) && $data['category_id'] !== null
+            ? (int) $data['category_id']
+            : (is_numeric($data['category'] ?? null) ? (int) $data['category'] : null);
+        $categoryName = $data['category'] ?? '';
+        if ($categoryId !== null) {
+            $cat = $this->categoryRepo->findById($categoryId, $ctx->tenant_id);
+            if ($cat) {
+                $categoryName = $cat['name'];
+            }
+        }
+
         $record = [
             'business_id'              => $ctx->business_id,
             'name'                     => $data['name'],
-            'category'                 => $data['category'],
+            'category'                 => $categoryName,
+            'category_id'              => $categoryId,
             'asset_type'               => $data['asset_type'],
             'purchase_date'            => $data['purchase_date'],
             'purchase_value'           => $purchaseValue,

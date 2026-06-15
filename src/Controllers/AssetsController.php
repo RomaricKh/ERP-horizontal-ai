@@ -60,6 +60,7 @@ class AssetsController extends BaseController {
                 'purchase_value', 'currency', 'exchange_rate',
                 'depreciation_method', 'useful_life'
             ]);
+            // category_id is optional in the validation list but passed through to the service
             $id = $this->service->create($data);
             $this->json(true, ['id' => $id], null, 201);
         } catch (\InvalidArgumentException $e) {
