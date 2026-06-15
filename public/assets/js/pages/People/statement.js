@@ -125,25 +125,33 @@ function renderBalances(openingBalance, closingBalance, transactions) {
     const openingEl = statementContainer.querySelector('#statementOpeningBalance');
     const closingEl = statementContainer.querySelector('#statementClosingBalance');
     const debitsEl = statementContainer.querySelector('#statementTotalDebits');
+    const hintEl = statementContainer.querySelector('#statementBalanceHint');
 
     if (openingEl) {
         const val = parseFloat(openingBalance) || 0;
         openingEl.textContent = fmt.formatNumber(val, 2);
-        openingEl.className = `h5 mb-0 font-weight-bold ${val < 0 ? 'text-danger' : 'text-gray-800'}`;
+        openingEl.className = `h5 mb-0 font-weight-bold ${val < 0 ? 'text-danger' : val > 0 ? 'text-success' : 'text-gray-800'}`;
     }
 
     if (closingEl) {
         const val = parseFloat(closingBalance) || 0;
         closingEl.textContent = fmt.formatNumber(val, 2);
-        closingEl.className = `h5 mb-0 font-weight-bold ${val < 0 ? 'text-danger' : 'text-gray-800'}`;
+        closingEl.className = `h5 mb-0 font-weight-bold ${val < 0 ? 'text-danger' : val > 0 ? 'text-success' : 'text-gray-800'}`;
+    }
+
+    if (hintEl) {
+        const val = parseFloat(closingBalance) || 0;
+        if (val > 0) hintEl.textContent = 'They owe us';
+        else if (val < 0) hintEl.textContent = 'We owe them';
+        else hintEl.textContent = 'Settled';
     }
 
     // Calculate total movements from transactions
     if (debitsEl) {
         let totalMovements = 0;
         transactions.forEach(txn => {
-            totalMovements += parseFloat(txn.debit_amount) || 0;
-            totalMovements += parseFloat(txn.credit_amount) || 0;
+            totalMovements += Math.abs(parseFloat(txn.debit_amount) || 0);
+            totalMovements += Math.abs(parseFloat(txn.credit_amount) || 0);
         });
         debitsEl.textContent = fmt.formatNumber(totalMovements, 2);
     }

@@ -40,7 +40,31 @@ async function loadCustomerItems(payeeId) {
         }
 
         content.classList.remove('d-none');
-        renderTable(json.data.items);
+        const items = json.data.items;
+
+        // Render summary
+        const summary = modalRoot.querySelector('#customerItemsSummary');
+        if (summary) {
+            const fmt = getFormatter();
+            const totalStock = items.reduce((s, i) => s + parseFloat(i.stock_quantity || 0), 0);
+            const totalBatches = items.reduce((s, i) => s + parseInt(i.batch_count || 0), 0);
+            summary.innerHTML = `
+                <div class="text-center">
+                    <div class="h5 mb-0 fw-bold text-primary">${items.length}</div>
+                    <small class="text-muted">Items</small>
+                </div>
+                <div class="text-center">
+                    <div class="h5 mb-0 fw-bold text-info">${fmt.formatNumber(totalStock, 2)}</div>
+                    <small class="text-muted">Total Stock</small>
+                </div>
+                <div class="text-center">
+                    <div class="h5 mb-0 fw-bold text-warning">${totalBatches}</div>
+                    <small class="text-muted">Active Batches</small>
+                </div>
+            `;
+        }
+
+        renderTable(items);
     } catch (err) {
         console.error('loadCustomerItems failed:', err);
         loading.classList.add('d-none');

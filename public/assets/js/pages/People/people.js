@@ -270,16 +270,20 @@ async function buildTypeFilterDropdown() {
 
     // Create a wrapper container to sit beside the search
     const filterHost = document.createElement('div');
-    filterHost.className = 'd-inline-block';
-    dtSearch.parentElement.style.display = 'flex';
-    dtSearch.parentElement.style.alignItems = 'flex-start';
-    dtSearch.parentElement.style.gap = '0.75rem';
-    dtSearch.parentElement.insertBefore(filterHost, dtSearch);
+    filterHost.style.minWidth = '220px';
+
+    const searchParent = dtSearch.parentElement;
+    searchParent.style.display = 'flex';
+    searchParent.style.alignItems = 'flex-start';
+    searchParent.style.gap = '1rem';
+    searchParent.style.flexWrap = 'wrap';
+    searchParent.insertBefore(filterHost, dtSearch);
 
     // Use the custom multi-select component
     typeFilterSelect = createMultiSelect({
         container: filterHost,
         placeholder: 'Filter by Type',
+        icon: 'fas fa-filter',
         options: types.map(t => ({ id: t.id, label: t.name })),
         onChange: (selectedLabels) => {
             if (selectedLabels.length === 0) {

@@ -65,6 +65,8 @@ async function loadInsights(payeeId, type, payeeTypes) {
                     : 'No sales records found for this customer.';
             } else {
                 content.classList.remove('d-none');
+                // Show summary row
+                renderSummaryRow(items, type);
                 renderItemsTable(items, type);
             }
         }
@@ -72,7 +74,37 @@ async function loadInsights(payeeId, type, payeeTypes) {
         console.error('loadInsights failed:', err);
         loading.classList.add('d-none');
         error.classList.remove('d-none');
+        const errMsg = modalRoot.querySelector('#insightsErrorMessage');
+        if (errMsg) errMsg.textContent = err.message || 'Failed to load insights.';
     }
+}
+
+function renderSummaryRow(items, type) {
+    const summaryRow = modalRoot.querySelector('#insightsSummaryRow');
+    if (!summaryRow) return;
+
+    const fmt = getFormatter();
+    const totalQty = items.reduce((sum, i) => sum + parseFloat(i.total_quantity || 0), 0);
+    const totalDocs = items.reduce((sum, i) => sum + parseInt(i.document_count || 0), 0);
+    const isSupplier = type === 'supplier';
+
+    summaryRow.classList.remove('d-none');
+    summaryRow.innerHTML = `
+        <div class="d-flex flex-wrap gap-4">
+            <div class="text-center">
+                <div class="h5 mb-0 fw-bold text-primary">${items.length}</div>
+                <small class="text-muted">Unique Items</small>
+            </div>
+            <div class="text-center">
+                <div class="h5 mb-0 fw-bold text-info">${fmt.formatNumber(totalQty, 2)}</div>
+                <small class="text-muted">Total Qty ${isSupplier ? 'Purchased' : 'Sold'}</small>
+            </div>
+            <div class="text-center">
+                <div class="h5 mb-0 fw-bold text-success">${totalDocs}</div>
+                <small class="text-muted">${isSupplier ? 'Purchase Orders' : 'Invoices'}</small>
+            </div>
+        </div>
+    `;
 }
 
 function renderItemsTable(items, type) {
@@ -80,12 +112,12 @@ function renderItemsTable(items, type) {
     const isSupplier = type === 'supplier';
 
     thead.innerHTML = `<tr>
-        <th>Item Name</th>
-        <th class="text-end">Total Qty ${isSupplier ? 'Purchased' : 'Sold'}</th>
-        <th class="text-end">Avg Unit Price</th>
+        <th>Item / Service</th>
+        <th class="text-end">Total Qty</th>
+        <th class="text-end">Avg Price</th>
         <th class="text-end">Last Price</th>
         <th>Last Date</th>
-        <th class="text-end"># of ${isSupplier ? 'POs' : 'Invoices'}</th>
+        <th class="text-end"># ${isSupplier ? 'POs' : 'Invoices'}</th>
     </tr>`;
 
     if (!insightsTable) {
