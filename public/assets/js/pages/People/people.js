@@ -6,11 +6,13 @@ import { MODAL_SCOPE, openModal, closeModalsInContainer, confirm, alert } from '
 import { createDataTable } from '../../templates/datatables.design.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
 import { getFormatter } from '../../i18n/translationClient.js';
+import { createMultiSelect } from '../../components/multiSelect.js';
 
 let people_container;
 let unregister;
 let peopleUpdatedHandler;
 let peopleDataTable = null;
+let typeFilterSelect = null;
 
 function escHtml(s) {
     const d = document.createElement('div');
@@ -128,6 +130,8 @@ export function unmount() {
     }
     unregister?.();
     unregister = null;
+    typeFilterSelect?.destroy();
+    typeFilterSelect = null;
     peopleDataTable?.destroy();
     peopleDataTable = null;
     closeModalsInContainer(people_container);
@@ -179,45 +183,51 @@ function renderTable(people) {
     const canViewStatement = hasPermission('people.view');
 
     people.forEach(p => {
-        let actions = '';
+        const types = (p.payee_types || '').toLowerCase();
+        let actionItems = [];
 
         if (canEdit) {
-            actions += `<button data-action="people.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
-                            <i class="fas fa-edit"></i></button>`;
+            actionItems.push({ action: 'people.edit', icon: 'fa-edit text-info', label: 'Edit' });
         }
-        // Show statement button only for people who have a payee (financial identity)
         if (canViewStatement && p.payee_id) {
-            actions += `<a href="#/people/statement?id=${p.payee_id}" class="btn btn-outline-primary btn-circle btn-sm me-1" title="View Statement">
-                            <i class="fas fa-file-invoice-dollar"></i></a>`;
+            actionItems.push({ href: `#/people/statement?id=${p.payee_id}`, icon: 'fa-file-invoice-dollar text-primary', label: 'Statement' });
         }
-        // Insight buttons based on payee type
-        if (p.payee_id) {
-            const types = (p.payee_types || '').toLowerCase();
-            if (types.includes('supplier')) {
-                actions += `<button data-action="people.insights" data-insight-type="supplier" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" data-types="${escHtml(p.payee_types || '')}" class="btn btn-outline-success btn-circle btn-sm me-1" title="Purchase Insights">
-                                <i class="fas fa-shopping-cart"></i></button>`;
+        if (p.payee_id && types.includes('supplier')) {
+            actionItems.push({ action: 'people.insights', data: { insightType: 'supplier', payeeId: p.payee_id, name: p.name, types: p.payee_types || '' }, icon: 'fa-shopping-cart text-success', label: 'Purchase Insights' });
+        }
+        if (p.payee_id && types.includes('customer')) {
+            actionItems.push({ action: 'people.insights', data: { insightType: 'customer', payeeId: p.payee_id, name: p.name, types: p.payee_types || '' }, icon: 'fa-chart-line text-info', label: 'Sales Insights' });
+            if (p.has_customer_items) {
+                actionItems.push({ action: 'people.customer-items', data: { payeeId: p.payee_id, name: p.name }, icon: 'fa-boxes text-warning', label: 'Customer Items' });
             }
-            if (types.includes('customer')) {
-                actions += `<button data-action="people.insights" data-insight-type="customer" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" data-types="${escHtml(p.payee_types || '')}" class="btn btn-outline-info btn-circle btn-sm me-1" title="Sales Insights">
-                                <i class="fas fa-chart-line"></i></button>`;
-                // Customer items stock button (for customers with specific items)
-                if (p.has_customer_items) {
-                    actions += `<button data-action="people.customer-items" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" class="btn btn-outline-warning btn-circle btn-sm me-1" title="Customer Items & Stock">
-                                    <i class="fas fa-boxes"></i></button>`;
-                }
-            }
-            if (types.includes('partner')) {
-                actions += `<button data-action="people.insights" data-insight-type="partner" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" data-types="${escHtml(p.payee_types || '')}" class="btn btn-outline-primary btn-circle btn-sm me-1" title="Partner Insights">
-                                <i class="fas fa-handshake"></i></button>`;
-            }
-            if (!types.includes('supplier') && !types.includes('customer') && !types.includes('partner')) {
-                actions += `<button data-action="people.insights" data-insight-type="general" data-payee-id="${p.payee_id}" data-name="${escHtml(p.name)}" data-types="${escHtml(p.payee_types || '')}" class="btn btn-outline-secondary btn-circle btn-sm me-1" title="Usage Insights">
-                                <i class="fas fa-chart-pie"></i></button>`;
-            }
+        }
+        if (p.payee_id && types.includes('partner')) {
+            actionItems.push({ action: 'people.insights', data: { insightType: 'partner', payeeId: p.payee_id, name: p.name, types: p.payee_types || '' }, icon: 'fa-handshake text-primary', label: 'Partner Insights' });
+        }
+        if (p.payee_id && !types.includes('supplier') && !types.includes('customer') && !types.includes('partner')) {
+            actionItems.push({ action: 'people.insights', data: { insightType: 'general', payeeId: p.payee_id, name: p.name, types: p.payee_types || '' }, icon: 'fa-chart-pie text-secondary', label: 'Usage Insights' });
         }
         if (canDelete) {
-            actions += `<button data-action="people.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash"></i></button>`;
+            actionItems.push({ action: 'people.delete', icon: 'fa-trash text-danger', label: 'Delete', divider: true });
+        }
+
+        // Render as dropdown if more than 3 actions, otherwise inline buttons
+        let actions = '';
+        if (actionItems.length <= 3) {
+            actions = actionItems.map(item => renderInlineAction(item)).join('');
+        } else {
+            // First 2 actions inline, rest in dropdown
+            const inline = actionItems.slice(0, 2);
+            const overflow = actionItems.slice(2);
+            actions = inline.map(item => renderInlineAction(item)).join('');
+            actions += `<div class="dropdown d-inline-block">
+                <button class="btn btn-light btn-circle btn-sm" data-bs-toggle="dropdown" data-bs-auto-close="true" title="More actions">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    ${overflow.map(item => renderDropdownItem(item)).join('')}
+                </ul>
+            </div>`;
         }
 
         const balance = p.payee_id
@@ -254,85 +264,61 @@ async function buildTypeFilterDropdown() {
 
     if (types.length === 0) return;
 
-    // Find the DataTables search container (DT2 uses .dt-search, legacy uses .dataTables_filter)
+    // Find the DataTables top layout row to place filter next to search
     const dtSearch = people_container.querySelector('.dt-search') || people_container.querySelector('.dataTables_filter');
     if (!dtSearch) return;
 
-    // Build the custom multi-select dropdown
-    const wrapper = document.createElement('div');
-    wrapper.className = 'dropdown d-inline-block';
-    wrapper.style.verticalAlign = 'middle';
+    // Create a wrapper container to sit beside the search
+    const filterHost = document.createElement('div');
+    filterHost.className = 'd-inline-block';
+    dtSearch.parentElement.style.display = 'flex';
+    dtSearch.parentElement.style.alignItems = 'flex-start';
+    dtSearch.parentElement.style.gap = '0.75rem';
+    dtSearch.parentElement.insertBefore(filterHost, dtSearch);
 
-    const toggleBtn = document.createElement('button');
-    toggleBtn.type = 'button';
-    toggleBtn.className = 'btn btn-outline-secondary btn-sm';
-    toggleBtn.setAttribute('data-bs-toggle', 'dropdown');
-    toggleBtn.setAttribute('data-bs-auto-close', 'outside');
-    toggleBtn.innerHTML = '<i class="fas fa-filter me-1"></i>Filter by Type';
-
-    const menu = document.createElement('div');
-    menu.className = 'dropdown-menu p-2 shadow';
-    menu.style.minWidth = '200px';
-
-    // Build checkbox list
-    types.forEach(type => {
-        const item = document.createElement('div');
-        item.className = 'form-check py-1';
-        item.innerHTML = `
-            <input class="form-check-input type-filter-cb" type="checkbox" value="${escHtml(type.name)}" id="typeFilter_${type.id}">
-            <label class="form-check-label" for="typeFilter_${type.id}">${escHtml(type.name)}</label>
-        `;
-        menu.appendChild(item);
-    });
-
-    // Divider + clear button
-    const divider = document.createElement('div');
-    divider.className = 'dropdown-divider';
-    menu.appendChild(divider);
-
-    const clearBtn = document.createElement('button');
-    clearBtn.type = 'button';
-    clearBtn.className = 'btn btn-sm btn-link text-decoration-none w-100 text-start';
-    clearBtn.innerHTML = '<i class="fas fa-times me-1"></i>Clear all';
-    clearBtn.addEventListener('click', () => {
-        menu.querySelectorAll('.type-filter-cb').forEach(cb => { cb.checked = false; });
-        applyTypeFilter();
-    });
-    menu.appendChild(clearBtn);
-
-    wrapper.appendChild(toggleBtn);
-    wrapper.appendChild(menu);
-
-    // Insert next to the search input
-    const searchParent = dtSearch.parentElement;
-    searchParent.style.display = 'flex';
-    searchParent.style.alignItems = 'center';
-    searchParent.style.gap = '0.75rem';
-    searchParent.insertBefore(wrapper, dtSearch);
-
-    // Wire checkbox change events
-    menu.addEventListener('change', (e) => {
-        if (e.target.classList.contains('type-filter-cb')) {
-            applyTypeFilter();
+    // Use the custom multi-select component
+    typeFilterSelect = createMultiSelect({
+        container: filterHost,
+        placeholder: 'Filter by Type',
+        options: types.map(t => ({ id: t.id, label: t.name })),
+        onChange: (selectedLabels) => {
+            if (selectedLabels.length === 0) {
+                peopleDataTable.column(4).search('').draw();
+            } else {
+                const regex = selectedLabels.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                peopleDataTable.column(4).search(regex, true, false).draw();
+            }
         }
     });
 }
 
-function applyTypeFilter() {
-    const checkboxes = people_container.querySelectorAll('.type-filter-cb:checked');
-    const selected = [...checkboxes].map(cb => cb.value);
-
-    if (selected.length === 0) {
-        peopleDataTable.column(4).search('').draw();
-        // Reset button label
-        const btn = people_container.querySelector('.type-filter-wrapper .dropdown-toggle');
-        if (btn) btn.innerHTML = '<i class="fas fa-filter me-1"></i>Filter by Type';
-    } else {
-        // Build regex: match any of the selected types (case-insensitive word match)
-        const regex = selected.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-        peopleDataTable.column(4).search(regex, true, false).draw();
-        // Update button label to show count
-        const btn = people_container.querySelector('.type-filter-wrapper .dropdown-toggle');
-        if (btn) btn.innerHTML = `<i class="fas fa-filter me-1"></i>Types (${selected.length})`;
+function renderInlineAction(item) {
+    if (item.href) {
+        return `<a href="${item.href}" class="btn btn-light btn-circle btn-sm me-1" title="${escHtml(item.label)}">
+                    <i class="fas ${item.icon}"></i></a>`;
     }
+    const dataAttrs = buildDataAttrs(item);
+    return `<button data-action="${item.action}" ${dataAttrs} class="btn btn-light btn-circle btn-sm me-1" title="${escHtml(item.label)}">
+                <i class="fas ${item.icon}"></i></button>`;
+}
+
+function renderDropdownItem(item) {
+    const divider = item.divider ? '<li><hr class="dropdown-divider"></li>' : '';
+    if (item.href) {
+        return `${divider}<li><a class="dropdown-item small" href="${item.href}">
+                    <i class="fas ${item.icon} me-2"></i>${escHtml(item.label)}</a></li>`;
+    }
+    const dataAttrs = buildDataAttrs(item);
+    return `${divider}<li><button class="dropdown-item small" data-action="${item.action}" ${dataAttrs}>
+                <i class="fas ${item.icon} me-2"></i>${escHtml(item.label)}</button></li>`;
+}
+
+function buildDataAttrs(item) {
+    if (!item.data) return '';
+    let attrs = '';
+    if (item.data.insightType) attrs += ` data-insight-type="${item.data.insightType}"`;
+    if (item.data.payeeId) attrs += ` data-payee-id="${item.data.payeeId}"`;
+    if (item.data.name) attrs += ` data-name="${escHtml(item.data.name)}"`;
+    if (item.data.types) attrs += ` data-types="${escHtml(item.data.types)}"`;
+    return attrs;
 }

@@ -133,7 +133,7 @@ class PayeeStatementController extends BaseController {
         // Payment Slips (credit = reduces what we owe)
         $stmt = $db->prepare("
             SELECT ps.payment_date AS date, 'payment_slip' AS type,
-                   ps.slip_number AS reference_number,
+                   ps.payment_number AS reference_number,
                    ps.notes AS description,
                    0 AS debit_amount, ps.amount_fc AS credit_amount,
                    'PAID' AS status

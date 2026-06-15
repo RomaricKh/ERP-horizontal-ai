@@ -220,27 +220,30 @@ class InsightsController extends BaseController {
             $db = Database::getConnection();
             $businessId = $ctx->business_id;
 
-            // Verify payee belongs to current business
-            $stmt = $db->prepare("SELECT id FROM payees WHERE id = :id AND business_id = :bid LIMIT 1");
+            // Verify payee belongs to current business and get its people_id
+            $stmt = $db->prepare("SELECT id, people_id FROM payees WHERE id = :id AND business_id = :bid LIMIT 1");
             $stmt->execute(['id' => $payeeId, 'bid' => $businessId]);
-            if (!$stmt->fetch()) {
+            $payee = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$payee) {
                 $this->json(false, null, 'Payee not found', 404);
                 return;
             }
 
-            // Get items assigned to this customer with stock levels and batch info
+            $peopleId = $payee['people_id'];
+
+            // Get items assigned to this customer (items.customer_id = people.id) with stock and batch info
             $stmt = $db->prepare("
                 SELECT i.id, i.name,
                        COALESCE(s.quantity, 0) AS stock_quantity,
-                       (SELECT COUNT(*) FROM item_batches ib WHERE ib.item_id = i.id AND ib.business_id = :bid2 AND ib.status = 'ACTIVE') AS batch_count,
-                       (SELECT MIN(ib2.expiry_date) FROM item_batches ib2 WHERE ib2.item_id = i.id AND ib2.business_id = :bid3 AND ib2.status = 'ACTIVE' AND ib2.expiry_date IS NOT NULL) AS nearest_expiry
+                       (SELECT COUNT(*) FROM item_batches ib WHERE ib.item_id = i.id AND ib.business_id = :bid2 AND ib.status = 'active') AS batch_count,
+                       (SELECT MIN(ib2.expiry_date) FROM item_batches ib2 WHERE ib2.item_id = i.id AND ib2.business_id = :bid3 AND ib2.status = 'active' AND ib2.expiry_date IS NOT NULL) AS nearest_expiry
                 FROM items i
-                LEFT JOIN stock_levels s ON s.item_id = i.id AND s.business_id = :bid4
-                WHERE i.customer_id = :payee_id AND i.business_id = :bid1
+                LEFT JOIN stock s ON s.item_id = i.id AND s.business_id = :bid4
+                WHERE i.customer_id = :people_id AND i.business_id = :bid1
                 ORDER BY i.name
             ");
             $stmt->execute([
-                'payee_id' => $payeeId,
+                'people_id' => $peopleId,
                 'bid1' => $businessId,
                 'bid2' => $businessId,
                 'bid3' => $businessId,
