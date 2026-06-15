@@ -40,6 +40,7 @@ class UserRepository {
                 u.first_name, 
 				u.last_name,
 				u.email,
+				u.is_active AS is_account_active,
 				ur.role_id,
 				ur.is_active
             FROM users u

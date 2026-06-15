@@ -84,7 +84,10 @@ async function fetchAndRender(id, editBtn) {
         const nameEl = document.getElementById('roleViewName');
         nameEl.textContent = role.name;
         if (isSystem) {
-            nameEl.innerHTML += ' <span class="badge bg-warning text-dark ms-1">System</span>';
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-warning text-dark ms-2';
+            badge.textContent = 'System';
+            nameEl.appendChild(badge);
         }
 
         const descEl = document.getElementById('roleViewDescription');
@@ -145,32 +148,68 @@ function renderPermissionsReadOnly(permissions) {
         const label = getModuleLabel(prefix);
         const icon  = getModuleIcon(prefix);
 
-        const section = document.createElement('div');
-        section.className = 'mb-3';
+        const card = document.createElement('div');
+        card.className = 'card mb-2';
 
         const header = document.createElement('div');
-        header.className = 'd-flex align-items-center mb-1';
-        header.innerHTML = `
-            <i class="fas ${icon} text-primary me-2" style="width:16px;"></i>
-            <strong class="small text-uppercase text-gray-600">${label}</strong>
-            <span class="badge bg-light text-dark ms-2">${perms.length}</span>
-        `;
+        header.className = 'card-header py-2 d-flex align-items-center justify-content-between';
+        header.style.cssText = 'background: #f8f9fc; padding-left: 1.5rem; padding-right: 1rem;';
 
-        const badges = document.createElement('div');
-        badges.className = 'd-flex flex-wrap gap-1 ms-4';
+        const headerLeft = document.createElement('div');
+        headerLeft.className = 'd-flex align-items-center';
+
+        const iconEl = document.createElement('i');
+        iconEl.className = `fas ${icon} text-primary me-2`;
+        iconEl.style.width = '16px';
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'fw-bold';
+        labelEl.textContent = label;
+
+        headerLeft.appendChild(iconEl);
+        headerLeft.appendChild(labelEl);
+
+        const groupBadge = document.createElement('span');
+        groupBadge.className = 'badge bg-primary';
+        groupBadge.textContent = `${perms.length}`;
+
+        header.appendChild(headerLeft);
+        header.appendChild(groupBadge);
+
+        const body = document.createElement('div');
+        body.className = 'card-body py-2 px-3';
+
+        const row = document.createElement('div');
+        row.className = 'row g-1';
 
         perms.forEach(perm => {
+            const col = document.createElement('div');
+            col.className = 'col-sm-6 col-md-4';
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'py-1 d-flex align-items-center';
+
+            const checkIcon = document.createElement('i');
+            checkIcon.className = 'fas fa-check-circle text-success me-2';
+            checkIcon.style.fontSize = '0.85rem';
+
             const actionPart = perm.code.indexOf('.') > -1
                 ? perm.code.substring(perm.code.indexOf('.') + 1)
                 : perm.code;
-            const badge = document.createElement('span');
-            badge.className = 'badge bg-light text-dark border';
-            badge.textContent = actionPart.replace(/[._-]/g, ' ');
-            badges.appendChild(badge);
+
+            const text = document.createElement('span');
+            text.className = 'text-capitalize small';
+            text.textContent = actionPart.replace(/[._-]/g, ' ');
+
+            wrapper.appendChild(checkIcon);
+            wrapper.appendChild(text);
+            col.appendChild(wrapper);
+            row.appendChild(col);
         });
 
-        section.appendChild(header);
-        section.appendChild(badges);
-        container.appendChild(section);
+        body.appendChild(row);
+        card.appendChild(header);
+        card.appendChild(body);
+        container.appendChild(card);
     });
 }

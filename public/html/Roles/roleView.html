@@ -3,38 +3,54 @@
   <div class="modal-content text-gray-800">
 
     <!-- HEADER -->
-    <div class="modal-header">
-      <h5 class="modal-title" id="roleViewTitle" data-i18n="roles.view_title">Role Details</h5>
-      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="modal-header bg-gradient-dark text-white">
+      <h5 class="modal-title" id="roleViewTitle">
+        <i class="fas fa-user-shield me-2"></i><span data-i18n="roles.view_title">Role Details</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
 
     <!-- BODY -->
-    <div class="modal-body">
+    <div class="modal-body px-4">
 
       <!-- Role Info -->
-      <div class="mb-3">
-        <h6 class="text-primary fw-bold mb-1" id="roleViewName">—</h6>
-        <p class="text-muted mb-0" id="roleViewDescription" data-i18n="roles.no_description">No description</p>
+      <div class="border rounded p-3 mb-4 bg-light">
+        <h6 class="text-dark fw-bold mb-3">
+          <i class="fas fa-info-circle me-1"></i> Role Details
+        </h6>
+        <div class="row g-3">
+          <div class="col-md-5">
+            <label class="form-label small text-muted">Role Name</label>
+            <div class="form-control-plaintext fw-bold" id="roleViewName">—</div>
+          </div>
+          <div class="col-md-7">
+            <label class="form-label small text-muted" data-i18n="common.description">Description</label>
+            <div class="form-control-plaintext text-muted" id="roleViewDescription">No description</div>
+          </div>
+        </div>
       </div>
 
-      <hr>
-
-      <!-- Permissions Summary -->
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <h6 class="mb-0" data-i18n="roles.permissions">Permissions</h6>
-        <span class="badge bg-primary" id="roleViewPermCount">0 permissions</span>
-      </div>
-
-      <div id="roleViewPermissions">
-        <span class="text-muted small" data-i18n="common.loading">Loading…</span>
+      <!-- Permissions -->
+      <div class="border rounded p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h6 class="text-dark fw-bold mb-0">
+            <i class="fas fa-lock me-1"></i> Permissions
+          </h6>
+          <span class="badge bg-primary" id="roleViewPermCount">0 permissions</span>
+        </div>
+        <div id="roleViewPermissions" style="max-height: 400px; overflow-y: auto;">
+          <span class="text-muted small" data-i18n="common.loading">Loading…</span>
+        </div>
       </div>
 
     </div>
 
     <!-- FOOTER -->
     <div class="modal-footer">
-      <button class="btn btn-secondary" type="button" data-bs-dismiss="modal" data-i18n="common.close">Close</button>
-      <button class="btn btn-primary" type="button" id="roleViewEditBtn" style="display:none;">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span data-i18n="common.close">Close</span>
+      </button>
+      <button class="btn btn-dark" type="button" id="roleViewEditBtn" style="display:none;">
         <i class="fas fa-edit me-1"></i> <span data-i18n="roles.edit_role">Edit Role</span>
       </button>
     </div>

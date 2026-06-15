@@ -335,10 +335,32 @@ async function fetchUserMembership(user_id) {
             console.error(data.message || 'Failed to fetch users');
             return;			
 		} else{
-			return data.data.user;
+			const user = data.data.user;
+			// Show account status indicator in edit mode
+			showAccountStatusIndicator(user.is_account_active);
+			return user;
 		}
 	} catch (err){
         console.error('fetchUsers failed:', err);		
+	}
+}
+
+function showAccountStatusIndicator(isAccountActive) {
+	const indicator = document.getElementById('accountStatusIndicator');
+	const badge = document.getElementById('accountStatusBadge');
+	const hint = document.getElementById('accountStatusHint');
+	if (!indicator || !badge || !hint) return;
+
+	indicator.classList.remove('d-none');
+
+	if (isAccountActive) {
+		badge.className = 'badge bg-success';
+		badge.textContent = 'Active';
+		hint.textContent = 'This user can log in. The toggle below controls this business only.';
+	} else {
+		badge.className = 'badge bg-danger';
+		badge.textContent = 'Disabled';
+		hint.textContent = 'Account is disabled globally. User cannot log in to any business until re-enabled from the users table.';
 	}
 }
 
