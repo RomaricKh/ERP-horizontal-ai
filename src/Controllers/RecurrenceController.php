@@ -232,8 +232,10 @@ class RecurrenceController extends BaseController
             $today = date('Y-m-d');
 
             foreach ($instances as &$instance) {
-                // Calculate days_overdue
-                if ($instance['status'] === 'pending' && $instance['due_date'] < $today) {
+                // Calculate days_overdue for overdue instances (both already-overdue and pending past due)
+                if ($instance['status'] === 'overdue' && $instance['due_date'] < $today) {
+                    $instance['days_overdue'] = (int) ((strtotime($today) - strtotime($instance['due_date'])) / 86400);
+                } elseif ($instance['status'] === 'pending' && $instance['due_date'] < $today) {
                     $instance['status'] = 'overdue';
                     $instance['days_overdue'] = (int) ((strtotime($today) - strtotime($instance['due_date'])) / 86400);
                 } else {
@@ -397,7 +399,7 @@ class RecurrenceController extends BaseController
 
     /**
      * GET /api/recurring-instances/advance-payments/{id}
-     * Get a single bulk advance payment by ID.
+     * Get a single bulk advance payment by ID, including all linked instances.
      */
     public function getAdvancePayment(int $id): void
     {
@@ -409,6 +411,13 @@ class RecurrenceController extends BaseController
                 $this->notFound('Advance payment not found');
                 return;
             }
+
+            // Include all instances linked to this bulk advance payment
+            $db = \App\Config\Database::getConnection();
+            $instanceRepo = new \App\Repository\RecurrenceInstanceRepository($db);
+            $linkedInstances = $instanceRepo->findByBulkAdvancePaymentId($id);
+
+            $payment['instances'] = $linkedInstances;
 
             $this->json(true, ['advance_payment' => $payment]);
         } catch (\Throwable $e) {

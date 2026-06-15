@@ -643,7 +643,7 @@ CREATE TABLE IF NOT EXISTS `payment_slips` (
 CREATE TABLE IF NOT EXISTS `payment_allocations` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `payment_slip_id` int NOT NULL,
-  `reference_type` enum('PURCHASE_ORDER','EXPENSE','SALARY','PARTNER_PROFIT') NOT NULL,
+  `reference_type` enum('PURCHASE_ORDER','EXPENSE','SALARY','PARTNER_PROFIT','RECURRING_EXPENSE','RECURRING_SALARY') NOT NULL,
   `reference_id` int NOT NULL,
   `amount_fc` decimal(12,2) NOT NULL,
   `amount_bc` decimal(12,2) NOT NULL,
@@ -1105,7 +1105,7 @@ CREATE TABLE IF NOT EXISTS `notification_preferences` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
   `business_id` int NOT NULL,
-  `type` enum('PO_STATUS_CHANGE','INVOICE_DUE','STOCK_LOW','PAYMENT_RECEIVED','USER_MESSAGE','SYSTEM_ALERT') NOT NULL,
+  `type` enum('PO_STATUS_CHANGE','INVOICE_DUE','STOCK_LOW','PAYMENT_RECEIVED','USER_MESSAGE','SYSTEM_ALERT','EXPENSE_DUE','SALARY_DUE','EXPENSE_OVERDUE','SALARY_OVERDUE') NOT NULL,
   `notification_type_id` int DEFAULT NULL,
   `enabled` tinyint(1) NOT NULL DEFAULT '1',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

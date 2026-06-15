@@ -1,0 +1,73 @@
+<!-- Audit History Modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-secondary text-white">
+      <h5 class="modal-title">
+        <i class="fas fa-history me-2"></i><span id="auditHistoryTitle">Audit History</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+
+      <!-- Entity Info -->
+      <div class="border rounded p-3 mb-4 bg-light">
+        <div class="row">
+          <div class="col-md-4">
+            <small class="text-muted d-block">Entity Type</small>
+            <span class="fw-bold" id="auditEntityType">—</span>
+          </div>
+          <div class="col-md-4">
+            <small class="text-muted d-block">Entity ID</small>
+            <span class="fw-bold" id="auditEntityId">—</span>
+          </div>
+          <div class="col-md-4">
+            <small class="text-muted d-block">Entity Name</small>
+            <span class="fw-bold" id="auditEntityName">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading spinner -->
+      <div id="auditHistoryLoading" class="text-center py-4">
+        <div class="spinner-border text-secondary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="text-muted mt-2">Loading audit history...</p>
+      </div>
+
+      <!-- Empty state -->
+      <div id="auditHistoryEmpty" class="text-center py-4 d-none">
+        <i class="fas fa-clipboard-list fa-2x text-muted mb-3"></i>
+        <p class="text-muted">No audit entries found for this entity.</p>
+      </div>
+
+      <!-- Audit entries table -->
+      <div id="auditHistoryContent" class="d-none">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover" id="auditHistoryTable">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 160px;">Timestamp</th>
+                <th style="width: 150px;">Action</th>
+                <th style="width: 100px;">User</th>
+                <th>Previous State</th>
+                <th>New State</th>
+              </tr>
+            </thead>
+            <tbody id="auditHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i>Close
+      </button>
+    </div>
+
+  </div>
+</div>

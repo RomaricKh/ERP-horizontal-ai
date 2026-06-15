@@ -11,6 +11,7 @@ use App\Repository\ExpenseRepository;
 use App\Repository\PeopleRepository;
 use App\Repository\AccountRepository;
 use App\Repository\PaymentRepository;
+use App\Repository\PaymentAllocationRepository;
 use App\Support\AuthContext;
 use PDO;
 
@@ -26,6 +27,7 @@ class RecurrenceService
     private PeopleRepository $peopleRepo;
     private AccountRepository $accountRepo;
     private PaymentRepository $paymentRepo;
+    private PaymentAllocationRepository $paymentAllocationRepo;
     private ExchangeRateService $exchangeRateService;
     private ScheduleGeneratorService $generatorService;
     private NotificationService $notificationService;
@@ -46,6 +48,7 @@ class RecurrenceService
         $this->peopleRepo = new PeopleRepository($db);
         $this->accountRepo = new AccountRepository($db);
         $this->paymentRepo = new PaymentRepository($db);
+        $this->paymentAllocationRepo = new PaymentAllocationRepository($db);
         $this->exchangeRateService = new ExchangeRateService($db);
         $this->generatorService = new ScheduleGeneratorService();
         $this->notificationService = new NotificationService($db);
@@ -483,25 +486,36 @@ class RecurrenceService
             (int) $instance['recurrence_schedule_id']
         );
 
-        // Determine reference type based on entity type
-        $referenceType = $instance['entity_type'] === 'SALARY'
-            ? 'recurring_salary'
-            : 'recurring_expense';
+        // Determine allocation reference type based on entity type
+        $allocationReferenceType = $instance['entity_type'] === 'SALARY'
+            ? 'RECURRING_SALARY'
+            : 'RECURRING_EXPENSE';
 
         // Generate a unique payment number
-        $paymentNumber = $this->generatePaymentNumber($referenceType);
+        $paymentNumber = $this->generatePaymentNumber(
+            $instance['entity_type'] === 'SALARY' ? 'recurring_salary' : 'recurring_expense'
+        );
+
+        // Resolve payee_id from the source entity
+        $schedule = $this->scheduleRepo->findById((int) $instance['recurrence_schedule_id']);
+        if ($instance['entity_type'] === 'SALARY') {
+            // For salary: entity_id IS the payee_id
+            $payeeId = (int) $schedule['entity_id'];
+        } else {
+            // For expense: look up the source expense's payee_id
+            $sourceExpense = $this->expenseRepo->findById((int) $schedule['entity_id'], $ctx->business_id);
+            $payeeId = $sourceExpense ? (int) $sourceExpense['payee_id'] : null;
+        }
 
         $today = date('Y-m-d');
 
         $this->db->beginTransaction();
         try {
-            // Create Payment_Record
+            // Create Payment Slip (header)
             $paymentRecordId = $this->paymentRepo->create([
                 'business_id'    => $ctx->business_id,
                 'account_id'     => $accountId,
-                'payee_id'       => null,
-                'reference_type' => $referenceType,
-                'reference_id'   => $instanceId,
+                'payee_id'       => $payeeId,
                 'payment_number' => $paymentNumber,
                 'payment_date'   => $today,
                 'currency'       => $currency,
@@ -512,6 +526,14 @@ class RecurrenceService
                 'notes'          => "Recurring payment: {$entityName}",
                 'created_by'     => $ctx->user_id,
             ]);
+
+            // Create payment allocation (detail row linking slip to instance)
+            $this->paymentAllocationRepo->createBatch($paymentRecordId, [[
+                'reference_type' => $allocationReferenceType,
+                'reference_id'   => $instanceId,
+                'amount_fc'      => $actualAmount,
+                'amount_bc'      => $amountBc,
+            ]]);
 
             // Deduct from source account balance (negative delta)
             $this->accountRepo->updateBalance($accountId, -$amountBc, $this->db, -$actualAmount);
@@ -689,15 +711,26 @@ class RecurrenceService
         // Generate a unique payment number
         $paymentNumber = $this->generatePaymentNumber($referenceType);
 
+        // Resolve payee_id from the source entity
+        $schedule = $this->scheduleRepo->findById((int) $instance['recurrence_schedule_id']);
+        if ($instance['entity_type'] === 'SALARY') {
+            // For salary: entity_id IS the payee_id directly
+            $payeeId = (int) $schedule['entity_id'];
+        } else {
+            // For expense: query payee_id from the expenses table
+            $stmt = $this->db->prepare('SELECT payee_id FROM expenses WHERE id = :id');
+            $stmt->execute(['id' => (int) $schedule['entity_id']]);
+            $payeeId = $stmt->fetchColumn() ?: null;
+            $payeeId = $payeeId !== null ? (int) $payeeId : null;
+        }
+
         $this->db->beginTransaction();
         try {
-            // Create Payment_Record
+            // Create Payment Slip (header — no reference_type/reference_id on slips)
             $paymentRecordId = $this->paymentRepo->create([
                 'business_id'    => $ctx->business_id,
                 'account_id'     => $accountId,
-                'payee_id'       => null,
-                'reference_type' => $referenceType,
-                'reference_id'   => $instanceId,
+                'payee_id'       => $payeeId,
                 'payment_number' => $paymentNumber,
                 'payment_date'   => $today,
                 'currency'       => $currency,
@@ -708,6 +741,17 @@ class RecurrenceService
                 'notes'          => "Early payment: {$entityName} (due {$instance['due_date']})",
                 'created_by'     => $ctx->user_id,
             ]);
+
+            // Create payment allocation (detail row linking slip to instance)
+            $allocationReferenceType = $instance['entity_type'] === 'SALARY'
+                ? 'RECURRING_SALARY'
+                : 'RECURRING_EXPENSE';
+            $this->paymentAllocationRepo->createBatch($paymentRecordId, [[
+                'reference_type' => $allocationReferenceType,
+                'reference_id'   => $instanceId,
+                'amount_fc'      => $actualAmount,
+                'amount_bc'      => $amountBc,
+            ]]);
 
             // Deduct from source account balance (negative delta)
             $this->accountRepo->updateBalance($accountId, -$amountBc, $this->db, -$actualAmount);
@@ -907,10 +951,22 @@ class RecurrenceService
             $scheduleId
         );
 
-        // Determine reference type
+        // Determine reference type for payment number generation
         $referenceType = $schedule['entity_type'] === 'SALARY'
             ? 'recurring_salary'
             : 'recurring_expense';
+
+        // Resolve payee_id for the payment slip
+        if ($schedule['entity_type'] === 'SALARY') {
+            // For salary schedules, entity_id IS the payee_id
+            $payeeId = (int) $schedule['entity_id'];
+        } else {
+            // For expense schedules, look up the payee_id from the source expense
+            $stmt = $this->db->prepare("SELECT payee_id FROM expenses WHERE id = :id");
+            $stmt->execute(['id' => (int) $schedule['entity_id']]);
+            $payeeId = $stmt->fetchColumn();
+            $payeeId = $payeeId ? (int) $payeeId : null;
+        }
 
         // Generate payment number
         $paymentNumber = $this->generatePaymentNumber($referenceType);
@@ -921,9 +977,7 @@ class RecurrenceService
             $paymentRecordId = $this->paymentRepo->create([
                 'business_id'    => $ctx->business_id,
                 'account_id'     => $accountId,
-                'payee_id'       => null,
-                'reference_type' => $referenceType,
-                'reference_id'   => $scheduleId,
+                'payee_id'       => $payeeId,
                 'payment_number' => $paymentNumber,
                 'payment_date'   => $today,
                 'currency'       => $currency,
@@ -949,6 +1003,17 @@ class RecurrenceService
                 'payment_record_id'      => $paymentRecordId,
                 'created_by'             => $ctx->user_id,
             ]);
+
+            // 3b. Create payment allocation (single allocation for the entire bulk payment)
+            $allocationReferenceType = $schedule['entity_type'] === 'SALARY'
+                ? 'RECURRING_SALARY'
+                : 'RECURRING_EXPENSE';
+            $this->paymentAllocationRepo->createBatch($paymentRecordId, [[
+                'reference_type' => $allocationReferenceType,
+                'reference_id'   => $bapId,
+                'amount_fc'      => $totalAmount,
+                'amount_bc'      => $totalAmountBc,
+            ]]);
 
             // 4. For each future due date: create or find instance, mark as paid
             $instanceIds = [];
@@ -1299,6 +1364,8 @@ class RecurrenceService
 
     /**
      * Find all overdue instances and send daily reminder notifications for each.
+     * Uses EXPENSE_OVERDUE / SALARY_OVERDUE notification types.
+     * Includes entity name, due date, amount, and days_overdue in the notification body.
      */
     public function sendOverdueReminders(): void
     {
@@ -1314,7 +1381,7 @@ class RecurrenceService
             $today = new \DateTimeImmutable('today');
             $daysOverdue = (int) $today->diff($dueDate)->days;
 
-            $notificationType = $instance['entity_type'] === 'SALARY' ? 'SALARY_DUE' : 'EXPENSE_DUE';
+            $notificationType = $instance['entity_type'] === 'SALARY' ? 'SALARY_OVERDUE' : 'EXPENSE_OVERDUE';
             $title = $instance['entity_type'] === 'SALARY'
                 ? 'Overdue Salary Reminder'
                 : 'Overdue Expense Reminder';
@@ -1456,6 +1523,9 @@ class RecurrenceService
                 // Restore balance (positive delta to reverse the original deduction)
                 $this->accountRepo->updateBalance($accountId, $amountBc, $this->db, $amountFc);
 
+                // Delete payment allocations before deleting the payment record
+                $this->paymentAllocationRepo->deleteBySlip($paymentRecordId);
+
                 // Delete the payment record
                 $this->paymentRepo->delete($paymentRecordId, $ctx->business_id);
             }
@@ -1571,6 +1641,9 @@ class RecurrenceService
 
                 // Restore balance (positive delta to reverse the original deduction)
                 $this->accountRepo->updateBalance($accountId, $amountBc, $this->db, $amountFc);
+
+                // Delete payment allocations before deleting the payment record
+                $this->paymentAllocationRepo->deleteBySlip($paymentRecordId);
 
                 // Delete the payment record
                 $this->paymentRepo->delete($paymentRecordId, $ctx->business_id);
@@ -1777,8 +1850,9 @@ class RecurrenceService
 
     /**
      * Resolve the human-readable entity name for a recurrence instance.
-     * For expense_category: returns the category name.
-     * For salary: returns the employee/person name.
+     * For EXPENSE: queries the expenses table with JOINs to payee and category,
+     *   returns "Payee Name — Category Name" or "Expense #ID" as fallback.
+     * For SALARY: resolves through payee to get the employee/person name.
      */
     private function resolveEntityName(string $entityType, int $scheduleId): string
     {
@@ -1790,16 +1864,37 @@ class RecurrenceService
         $entityId = (int) $schedule['entity_id'];
 
         if ($entityType === 'EXPENSE') {
-            $tenantId = AuthContext::tenantId();
-            $category = $this->expenseRepo->findCategoryById($entityId, $tenantId);
-            return $category ? ($category['name'] ?? 'Unknown Category') : 'Unknown Category';
+            $stmt = $this->db->prepare("
+                SELECT p.name AS payee_name, ec.name AS category_name
+                FROM expenses e
+                LEFT JOIN payees py ON py.id = e.payee_id
+                LEFT JOIN people p ON p.id = py.people_id
+                LEFT JOIN expense_categories ec ON ec.id = e.expense_category_id
+                WHERE e.id = :entity_id
+                LIMIT 1
+            ");
+            $stmt->execute(['entity_id' => $entityId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($result) {
+                $parts = array_filter([$result['payee_name'], $result['category_name']]);
+                return !empty($parts) ? implode(' — ', $parts) : "Expense #{$entityId}";
+            }
+            return "Expense #{$entityId}";
         }
 
         if ($entityType === 'SALARY') {
-            // entity_id for salary is the people_id
-            $tenantId = AuthContext::tenantId();
-            $person = $this->peopleRepo->findById($entityId, $tenantId);
-            return $person ? ($person['name'] ?? 'Unknown Employee') : 'Unknown Employee';
+            // entity_id for salary is the payee_id, resolve through payee to get person name
+            $stmt = $this->db->prepare("
+                SELECT p.name
+                FROM payees py
+                JOIN people p ON p.id = py.people_id
+                WHERE py.id = :payee_id
+                LIMIT 1
+            ");
+            $stmt->execute(['payee_id' => $entityId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $result ? ($result['name'] ?? 'Unknown Employee') : 'Unknown Employee';
         }
 
         return 'Unknown';

@@ -15,6 +15,8 @@ require_once __DIR__ . '/../../../bootstrap.php';
 use App\Config\Database;
 use App\Services\ScheduleGeneratorService;
 use App\Services\RecurrenceService;
+use App\Support\AuthContext;
+use PDO;
 
 header('Content-Type: application/json');
 
@@ -60,6 +62,35 @@ try {
     $recurrenceService = new RecurrenceService($db);
     $overdueCount = $recurrenceService->markOverdueInstances();
 
+    // Task 3: Send overdue reminders for all businesses
+    // (iterates all distinct businesses with overdue instances)
+    $overdueReminderCount = 0;
+    $businessIds = getDistinctBusinessIdsWithInstances($db);
+    foreach ($businessIds as $businessId) {
+        setBusinessContext($businessId);
+        $recurrenceService->sendOverdueReminders();
+        $overdueReminderCount++;
+    }
+
+    // Task 4: Send due notifications for pending instances due within 3 days
+    // (iterates all businesses, only sends if notification_sent = 0)
+    $dueNotificationCount = 0;
+    foreach ($businessIds as $businessId) {
+        setBusinessContext($businessId);
+        $recurrenceService->sendDueNotifications();
+        $dueNotificationCount++;
+    }
+
+    // Task 5: Expense recognition for active prepaid assets
+    // (iterates all businesses with active prepaid assets)
+    $recognizedEntries = [];
+    $businessIdsWithAssets = getDistinctBusinessIdsWithPrepaidAssets($db);
+    foreach ($businessIdsWithAssets as $businessId) {
+        setBusinessContext($businessId);
+        $entries = $recurrenceService->performExpenseRecognition();
+        $recognizedEntries = array_merge($recognizedEntries, $entries);
+    }
+
     http_response_code(200);
     echo json_encode([
         'success' => true,
@@ -68,6 +99,9 @@ try {
             'generated' => $generateResult['total_generated'],
             'businesses_affected' => count($generateResult['businesses']),
             'marked_overdue' => $overdueCount,
+            'overdue_reminders_businesses' => $overdueReminderCount,
+            'due_notifications_businesses' => $dueNotificationCount,
+            'expense_recognitions' => count($recognizedEntries),
             'run_date' => $today,
         ],
     ]);
@@ -77,4 +111,47 @@ try {
         'success' => false,
         'message' => 'Cron job failed: ' . $e->getMessage(),
     ]);
+}
+
+// ─── Helper functions ────────────────────────────────────────────────────────
+
+/**
+ * Set a synthetic AuthContext for a given business (cron usage).
+ * Creates a minimal context object with the business_id set.
+ */
+function setBusinessContext(int $businessId): void
+{
+    AuthContext::set((object) [
+        'user_id'     => 0,   // system/cron user
+        'tenant_id'   => 0,
+        'business_id' => $businessId,
+    ]);
+}
+
+/**
+ * Get all distinct business_ids from recurrence_instances table.
+ * Used to iterate businesses for notifications.
+ */
+function getDistinctBusinessIdsWithInstances(PDO $db): array
+{
+    $stmt = $db->query("
+        SELECT DISTINCT business_id
+        FROM recurrence_instances
+        WHERE status IN ('pending', 'overdue')
+    ");
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/**
+ * Get all distinct business_ids from prepaid_assets table that have active assets.
+ * Used to iterate businesses for expense recognition.
+ */
+function getDistinctBusinessIdsWithPrepaidAssets(PDO $db): array
+{
+    $stmt = $db->query("
+        SELECT DISTINCT business_id
+        FROM prepaid_assets
+        WHERE status = 'active'
+    ");
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }

@@ -20,6 +20,10 @@ class NotificationService {
         'PAYMENT_RECEIVED',
         'USER_MESSAGE',
         'SYSTEM_ALERT',
+        'EXPENSE_DUE',
+        'SALARY_DUE',
+        'EXPENSE_OVERDUE',
+        'SALARY_OVERDUE',
     ];
 
     public function __construct(PDO $db) {

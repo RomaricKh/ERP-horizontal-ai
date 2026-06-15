@@ -29,6 +29,35 @@
     </div>
 </div>
 
+<!-- Advance-Paid Periods Remaining -->
+<div id="advancePaidSummary" class="card border-left-info shadow mb-4 d-none">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+            <i class="fas fa-fast-forward me-1"></i>
+            <span data-i18n="recurring_expenses.advance_paid_heading">Advance-Paid Periods</span>
+        </h6>
+    </div>
+    <div class="card-body p-0">
+        <div id="advancePaidList" class="list-group list-group-flush"></div>
+    </div>
+</div>
+
+<!-- Bulk Advance Payment Group View -->
+<div id="advanceGroupSection" class="card border-left-info shadow mb-4 d-none">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-info">
+            <i class="fas fa-layer-group me-1"></i>
+            <span id="advanceGroupTitle">Advance Payment Group</span>
+        </h6>
+        <button class="btn btn-sm btn-outline-secondary" id="closeAdvanceGroup">
+            <i class="fas fa-times"></i> Close
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div id="advanceGroupList" class="list-group list-group-flush"></div>
+    </div>
+</div>
+
 <!-- Recurring Expenses DataTable -->
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">

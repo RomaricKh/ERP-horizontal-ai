@@ -19,6 +19,8 @@ class RecurrenceInstanceRepository
      *
      * Expected keys: recurrence_schedule_id, entity_type, due_date,
      *                scheduled_amount, currency, period_start, period_end
+     * Optional keys: actual_amount, status, paid_date, notification_sent,
+     *                payment_record_id, is_advance_payment, bulk_advance_payment_id
      */
     public function create(array $data): int
     {
@@ -28,12 +30,14 @@ class RecurrenceInstanceRepository
             INSERT INTO recurrence_instances
               (recurrence_schedule_id, entity_type, business_id, due_date,
                scheduled_amount, actual_amount, currency, status, paid_date,
-               notification_sent, payment_record_id, period_start, period_end,
+               notification_sent, is_advance_payment, bulk_advance_payment_id,
+               payment_record_id, period_start, period_end,
                created_at, updated_at)
             VALUES
               (:recurrence_schedule_id, :entity_type, :business_id, :due_date,
                :scheduled_amount, :actual_amount, :currency, :status, :paid_date,
-               :notification_sent, :payment_record_id, :period_start, :period_end,
+               :notification_sent, :is_advance_payment, :bulk_advance_payment_id,
+               :payment_record_id, :period_start, :period_end,
                NOW(), NOW())
         ");
         $stmt->execute([
@@ -47,6 +51,8 @@ class RecurrenceInstanceRepository
             'status'                  => $data['status'] ?? 'pending',
             'paid_date'               => $data['paid_date'] ?? null,
             'notification_sent'       => $data['notification_sent'] ?? 0,
+            'is_advance_payment'      => $data['is_advance_payment'] ?? 0,
+            'bulk_advance_payment_id' => $data['bulk_advance_payment_id'] ?? null,
             'payment_record_id'       => $data['payment_record_id'] ?? null,
             'period_start'            => $data['period_start'] ?? null,
             'period_end'              => $data['period_end'] ?? null,
@@ -65,7 +71,8 @@ class RecurrenceInstanceRepository
         $stmt = $this->db->prepare("
             SELECT id, recurrence_schedule_id, entity_type, business_id, due_date,
                    scheduled_amount, actual_amount, currency, status, paid_date,
-                   notification_sent, payment_record_id, period_start, period_end,
+                   notification_sent, is_advance_payment, bulk_advance_payment_id,
+                   payment_record_id, period_start, period_end,
                    created_at, updated_at
             FROM recurrence_instances
             WHERE id          = :id
@@ -90,7 +97,8 @@ class RecurrenceInstanceRepository
         $sql = "
             SELECT id, recurrence_schedule_id, entity_type, business_id, due_date,
                    scheduled_amount, actual_amount, currency, status, paid_date,
-                   notification_sent, payment_record_id, period_start, period_end,
+                   notification_sent, is_advance_payment, bulk_advance_payment_id,
+                   payment_record_id, period_start, period_end,
                    created_at, updated_at
             FROM recurrence_instances
             WHERE recurrence_schedule_id = :schedule_id
@@ -127,8 +135,8 @@ class RecurrenceInstanceRepository
     /**
      * Find instances for the current business with optional filters.
      *
-     * @param array $filters Supported keys: status, date_from, date_to,
-     *                       entity_type, recurrence_schedule_id
+     * @param array $filters Supported keys: status, entity_type, recurrence_schedule_id,
+     *                       due_date_from (or date_from), due_date_to (or date_to)
      */
     public function findByBusinessFiltered(array $filters = []): array
     {
@@ -137,7 +145,8 @@ class RecurrenceInstanceRepository
         $sql = "
             SELECT id, recurrence_schedule_id, entity_type, business_id, due_date,
                    scheduled_amount, actual_amount, currency, status, paid_date,
-                   notification_sent, payment_record_id, period_start, period_end,
+                   notification_sent, is_advance_payment, bulk_advance_payment_id,
+                   payment_record_id, period_start, period_end,
                    created_at, updated_at
             FROM recurrence_instances
             WHERE business_id = :business_id
@@ -149,14 +158,18 @@ class RecurrenceInstanceRepository
             $params['status'] = $filters['status'];
         }
 
-        if (!empty($filters['date_from'])) {
+        // Support both due_date_from and date_from (due_date_from takes precedence)
+        $dateFrom = $filters['due_date_from'] ?? ($filters['date_from'] ?? null);
+        if (!empty($dateFrom)) {
             $sql .= " AND due_date >= :date_from";
-            $params['date_from'] = $filters['date_from'];
+            $params['date_from'] = $dateFrom;
         }
 
-        if (!empty($filters['date_to'])) {
+        // Support both due_date_to and date_to (due_date_to takes precedence)
+        $dateTo = $filters['due_date_to'] ?? ($filters['date_to'] ?? null);
+        if (!empty($dateTo)) {
             $sql .= " AND due_date <= :date_to";
-            $params['date_to'] = $filters['date_to'];
+            $params['date_to'] = $dateTo;
         }
 
         if (!empty($filters['entity_type'])) {
@@ -192,7 +205,7 @@ class RecurrenceInstanceRepository
 
         $allowedFields = [
             'status', 'scheduled_amount', 'actual_amount', 'paid_date', 'payment_record_id',
-            'notification_sent',
+            'notification_sent', 'is_advance_payment', 'bulk_advance_payment_id',
         ];
 
         foreach ($allowedFields as $field) {
@@ -233,7 +246,8 @@ class RecurrenceInstanceRepository
         $stmt = $this->db->prepare("
             SELECT id, recurrence_schedule_id, entity_type, business_id, due_date,
                    scheduled_amount, actual_amount, currency, status, paid_date,
-                   notification_sent, payment_record_id, period_start, period_end,
+                   notification_sent, is_advance_payment, bulk_advance_payment_id,
+                   payment_record_id, period_start, period_end,
                    created_at, updated_at
             FROM recurrence_instances
             WHERE business_id       = :business_id
@@ -262,7 +276,8 @@ class RecurrenceInstanceRepository
         $stmt = $this->db->prepare("
             SELECT id, recurrence_schedule_id, entity_type, business_id, due_date,
                    scheduled_amount, actual_amount, currency, status, paid_date,
-                   notification_sent, payment_record_id, period_start, period_end,
+                   notification_sent, is_advance_payment, bulk_advance_payment_id,
+                   payment_record_id, period_start, period_end,
                    created_at, updated_at
             FROM recurrence_instances
             WHERE business_id = :business_id
@@ -271,6 +286,33 @@ class RecurrenceInstanceRepository
             ORDER BY due_date ASC
         ");
         $stmt->execute(['business_id' => $businessId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Find all instances linked to a specific bulk advance payment.
+     * Scoped to the current business.
+     */
+    public function findByBulkAdvancePaymentId(int $bapId): array
+    {
+        $businessId = AuthContext::businessId();
+
+        $stmt = $this->db->prepare("
+            SELECT id, recurrence_schedule_id, entity_type, business_id, due_date,
+                   scheduled_amount, actual_amount, currency, status, paid_date,
+                   notification_sent, is_advance_payment, bulk_advance_payment_id,
+                   payment_record_id, period_start, period_end,
+                   created_at, updated_at
+            FROM recurrence_instances
+            WHERE bulk_advance_payment_id = :bap_id
+              AND business_id            = :business_id
+            ORDER BY due_date ASC
+        ");
+        $stmt->execute([
+            'bap_id'      => $bapId,
+            'business_id' => $businessId,
+        ]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

@@ -10,6 +10,8 @@ let modalRoot;
 let unregister;
 let cleanupRateAutoFetch;
 let currentSalaryId = null;
+let currentPayeeId = null;
+let hasExistingRecurrence = false;
 
 const F = {
     title:        () => document.getElementById('salaryModalTitle'),
@@ -24,9 +26,25 @@ const F = {
     notes:        () => document.getElementById('inputSalaryNotes'),
 };
 
+// Recurrence field accessors
+const RF = {
+    section:      () => document.getElementById('salaryRecurrenceSection'),
+    toggle:       () => document.getElementById('inputSalaryRecurrenceToggle'),
+    fields:       () => document.getElementById('salaryRecurrenceFields'),
+    frequency:    () => document.getElementById('inputRecurrenceFrequency'),
+    startDate:    () => document.getElementById('inputRecurrenceStartDate'),
+    endDate:      () => document.getElementById('inputRecurrenceEndDate'),
+    grossAmountFc:() => document.getElementById('inputRecurrenceGrossAmountFc'),
+    taxFc:        () => document.getElementById('inputRecurrenceTaxFc'),
+    currency:     () => document.getElementById('inputRecurrenceCurrency'),
+    exchangeRate: () => document.getElementById('inputRecurrenceExchangeRate'),
+};
+
 export async function mount({ modalRoot: root, data }) {
     modalRoot       = root;
     currentSalaryId = data?.salary_id ?? null;
+    currentPayeeId  = data?.payee_id ?? null;
+    hasExistingRecurrence = false;
 
     F.title().textContent = currentSalaryId ? 'Edit Salary' : 'Add Salary';
 
@@ -43,6 +61,52 @@ export async function mount({ modalRoot: root, data }) {
 
     // Auto-fetch exchange rate when currency changes
     cleanupRateAutoFetch = attachRateAutoFetch(F.currency(), F.exchangeRate());
+
+    // --- Recurrence Configuration ---
+    // Show recurrence section (it's hidden by default in HTML until JS activates it)
+    const recSection = RF.section();
+    if (recSection) recSection.style.display = '';
+
+    // Recurrence toggle handler
+    const recurrenceToggle = RF.toggle();
+    const recurrenceFields = RF.fields();
+    if (recurrenceToggle) {
+        recurrenceToggle.addEventListener('change', async () => {
+            if (recurrenceToggle.checked) {
+                recurrenceFields.style.display = '';
+                // Pre-populate recurrence fields from current salary values if not already set
+                prepopulateRecurrenceFields();
+            } else {
+                // If editing and has an existing recurrence, prompt and DELETE
+                if (hasExistingRecurrence && currentPayeeId) {
+                    const confirmed = confirm('Disable recurring salary schedule for this employee? All future instances will be cancelled.');
+                    if (confirmed) {
+                        try {
+                            await apiFetch(`/api/salaries/employees/${currentPayeeId}/recurrence`, { method: 'DELETE' });
+                            hasExistingRecurrence = false;
+                        } catch (err) {
+                            console.warn('Failed to delete salary recurrence:', err);
+                        }
+                    } else {
+                        // User cancelled — re-check the toggle
+                        recurrenceToggle.checked = true;
+                        return;
+                    }
+                }
+                recurrenceFields.style.display = 'none';
+            }
+        });
+    }
+
+    // If editing, track payee_id from the loaded record and load existing recurrence
+    if (currentSalaryId && currentPayeeId) {
+        await loadExistingRecurrence(currentPayeeId);
+    }
+
+    // Track employee select changes to update currentPayeeId
+    F.employee().addEventListener('change', () => {
+        currentPayeeId = F.employee().value || null;
+    });
 
     unregister = registerPageActions({
         'salaries.save': async () => {
@@ -66,6 +130,13 @@ export async function mount({ modalRoot: root, data }) {
                 const res  = await apiFetch(url, { method, body: JSON.stringify(payload) });
                 const json = await res.json();
                 if (!res.ok || !json.success) throw new Error(json.message || 'Operation failed');
+
+                // Handle recurrence save after salary is saved
+                const payeeId = payload.payee_id || currentPayeeId;
+                if (payeeId) {
+                    await handleRecurrenceSave(payeeId);
+                }
+
                 bootstrap.Modal.getInstance(modalRoot).hide();
                 document.dispatchEvent(new CustomEvent('salaries.updated'));
             } catch (err) {
@@ -82,6 +153,8 @@ export function unmount() {
     unregister?.();
     unregister = null;
     currentSalaryId = null;
+    currentPayeeId = null;
+    hasExistingRecurrence = false;
 }
 
 async function fetchAndFill(salaryId) {
@@ -100,6 +173,9 @@ async function fetchAndFill(salaryId) {
         F.grossAmountFc().value= record.gross_amount_fc ?? '';
         F.taxFc().value        = record.tax_fc          ?? '';
         F.notes().value        = record.notes           ?? '';
+
+        // Track payee_id from the loaded record
+        currentPayeeId = record.payee_id || null;
 
         recalcNet();
     } catch (err) {
@@ -137,6 +213,26 @@ function validateForm() {
         markInvalid(F.grossAmountFc(), 'Gross amount is required');
         valid = false;
     }
+
+    // Recurrence date validation: end_date >= start_date
+    const recurrenceToggle = RF.toggle();
+    if (recurrenceToggle && recurrenceToggle.checked) {
+        const startDate = RF.startDate()?.value;
+        const endDate = RF.endDate()?.value;
+        if (endDate && startDate && endDate < startDate) {
+            markInvalid(RF.endDate(), 'End date must be on or after start date');
+            valid = false;
+        }
+        if (!RF.frequency()?.value) {
+            markInvalid(RF.frequency(), 'Frequency is required');
+            valid = false;
+        }
+        if (!startDate) {
+            markInvalid(RF.startDate(), 'Start date is required');
+            valid = false;
+        }
+    }
+
     return valid;
 }
 
@@ -167,4 +263,109 @@ function showFormError(message) {
         footer?.prepend(el);
     }
     el.textContent = message;
+}
+
+/**
+ * Pre-populate recurrence fields from the current salary form values.
+ * Requirement 9.7: pre-populate with current salary record's values.
+ * Requirement 9.5: default start_date to today if not provided.
+ */
+function prepopulateRecurrenceFields() {
+    const grossEl = RF.grossAmountFc();
+    const taxEl = RF.taxFc();
+    const currEl = RF.currency();
+    const rateEl = RF.exchangeRate();
+    const startEl = RF.startDate();
+
+    // Only pre-populate if the field is currently empty (avoid overwriting existing schedule data)
+    if (grossEl && !grossEl.value) {
+        grossEl.value = F.grossAmountFc().value || '';
+    }
+    if (taxEl && !taxEl.value) {
+        taxEl.value = F.taxFc().value || '';
+    }
+    if (currEl && !currEl.value) {
+        currEl.value = F.currency().value || '';
+    }
+    if (rateEl && !rateEl.value) {
+        rateEl.value = F.exchangeRate().value || '';
+    }
+    // Requirement 9.5: default start_date to today
+    if (startEl && !startEl.value) {
+        startEl.value = new Date().toISOString().split('T')[0];
+    }
+}
+
+/**
+ * Load existing recurrence schedule for the given payee_id.
+ * On edit, pre-populate the toggle as checked and fill in schedule data.
+ */
+async function loadExistingRecurrence(payeeId) {
+    try {
+        const res = await apiFetch(`/api/salaries/employees/${payeeId}/recurrence`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && json.data) {
+            const recurrence = json.data;
+            hasExistingRecurrence = true;
+
+            // Enable the toggle and show fields
+            const toggle = RF.toggle();
+            const fields = RF.fields();
+            if (toggle) toggle.checked = true;
+            if (fields) fields.style.display = '';
+
+            // Populate recurrence fields from the schedule
+            if (RF.frequency()) RF.frequency().value = recurrence.frequency || '';
+            if (RF.startDate()) RF.startDate().value = recurrence.start_date || '';
+            if (RF.endDate()) RF.endDate().value = recurrence.end_date || '';
+            if (RF.grossAmountFc()) RF.grossAmountFc().value = recurrence.default_amount || '';
+            if (RF.currency()) RF.currency().value = recurrence.default_currency || '';
+            if (RF.exchangeRate()) RF.exchangeRate().value = recurrence.exchange_rate || '';
+            // Tax field is stored in metadata or default to current salary tax
+            if (RF.taxFc()) RF.taxFc().value = recurrence.tax_fc || recurrence.metadata?.tax_fc || '';
+        }
+    } catch (err) {
+        // Silently ignore — recurrence may not exist for this employee
+    }
+}
+
+/**
+ * Save or update the recurrence schedule for the employee after salary save.
+ * POST /api/salaries/employees/{payee_id}/recurrence
+ */
+async function handleRecurrenceSave(payeeId) {
+    const toggle = RF.toggle();
+    if (!toggle) return;
+
+    if (toggle.checked) {
+        const frequency = RF.frequency()?.value;
+        const startDate = RF.startDate()?.value;
+        const endDate = RF.endDate()?.value;
+
+        if (!frequency || !startDate) return; // Skip if required fields not filled
+
+        const recPayload = {
+            frequency,
+            start_date: startDate,
+            end_date: endDate || null,
+            default_amount: parseFloat(RF.grossAmountFc()?.value) || parseFloat(F.grossAmountFc().value) || 0,
+            default_currency: RF.currency()?.value || F.currency().value,
+            exchange_rate: parseFloat(RF.exchangeRate()?.value) || parseFloat(F.exchangeRate().value) || 1,
+            tax_fc: parseFloat(RF.taxFc()?.value) || parseFloat(F.taxFc().value) || 0,
+        };
+
+        try {
+            const res = await apiFetch(`/api/salaries/employees/${payeeId}/recurrence`, {
+                method: 'POST',
+                body: JSON.stringify(recPayload)
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                console.warn('Salary recurrence save failed:', json.message);
+            }
+        } catch (err) {
+            console.warn('Salary recurrence save error:', err);
+        }
+    }
 }

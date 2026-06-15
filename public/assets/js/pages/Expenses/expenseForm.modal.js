@@ -48,6 +48,16 @@ export async function mount({ modalRoot: root, data }) {
     F.amountFc().addEventListener('input', recalcBc);
     F.exchangeRate().addEventListener('input', recalcBc);
 
+    // Sync recurrence start_date with expense_date when user changes expense_date
+    F.date().addEventListener('change', () => {
+        const recStartDate = document.getElementById('inputExpRecurrenceStartDate');
+        const recurrenceToggle = document.getElementById('inputExpenseRecurrenceToggle');
+        // Only auto-sync if recurrence fields aren't already populated (not editing existing schedule)
+        if (recStartDate && !recurrenceToggle?.checked) {
+            recStartDate.value = F.date().value || new Date().toISOString().split('T')[0];
+        }
+    });
+
     // Auto-fetch exchange rate when currency changes
     cleanupRateAutoFetch = attachRateAutoFetch(F.currency(), F.exchangeRate());
 
@@ -55,15 +65,35 @@ export async function mount({ modalRoot: root, data }) {
     const recurrenceToggle = document.getElementById('inputExpenseRecurrenceToggle');
     const recurrenceFields = document.getElementById('expenseRecurrenceFields');
     if (recurrenceToggle) {
-        recurrenceToggle.addEventListener('change', () => {
-            recurrenceFields.style.display = recurrenceToggle.checked ? '' : 'none';
+        recurrenceToggle.addEventListener('change', async () => {
+            if (recurrenceToggle.checked) {
+                recurrenceFields.style.display = '';
+            } else {
+                // If editing an existing expense that had recurrence, prompt and DELETE
+                if (currentExpenseId) {
+                    const confirmed = confirm('Disable recurring schedule for this expense?');
+                    if (confirmed) {
+                        try {
+                            await apiFetch(`/api/expenses/${currentExpenseId}/recurrence`, { method: 'DELETE' });
+                        } catch (err) {
+                            console.warn('Failed to delete recurrence:', err);
+                        }
+                    } else {
+                        // User cancelled — re-check the toggle
+                        recurrenceToggle.checked = true;
+                        return;
+                    }
+                }
+                recurrenceFields.style.display = 'none';
+            }
         });
     }
 
-    // Default recurrence start date to today
+    // Default recurrence start date to expense_date (fallback to today)
     const recStartDate = document.getElementById('inputExpRecurrenceStartDate');
     if (recStartDate && !recStartDate.value) {
-        recStartDate.value = new Date().toISOString().split('T')[0];
+        const expenseDate = F.date().value;
+        recStartDate.value = expenseDate || new Date().toISOString().split('T')[0];
     }
 
     // If editing, load existing recurrence for this expense
@@ -285,6 +315,18 @@ function validateForm() {
         markInvalid(F.amountFc(), 'Amount is required');
         valid = false;
     }
+
+    // Recurrence date validation: end_date >= start_date
+    const recurrenceToggle = document.getElementById('inputExpenseRecurrenceToggle');
+    if (recurrenceToggle && recurrenceToggle.checked) {
+        const startDate = document.getElementById('inputExpRecurrenceStartDate')?.value;
+        const endDate = document.getElementById('inputExpRecurrenceEndDate')?.value;
+        if (endDate && startDate && endDate < startDate) {
+            markInvalid(document.getElementById('inputExpRecurrenceEndDate'), 'End date must be on or after start date');
+            valid = false;
+        }
+    }
+
     return valid;
 }
 

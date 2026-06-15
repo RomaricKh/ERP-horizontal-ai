@@ -1,0 +1,135 @@
+<div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-dark text-white">
+      <h5 class="modal-title" id="salaryPaymentModalTitle">
+        <i class="fas fa-money-bill-wave me-2"></i><span>Mark Salary Paid</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="salaryPaymentForm" novalidate>
+
+        <!-- Instance Info (read-only summary) -->
+        <div class="border rounded p-3 mb-4 bg-light">
+          <h6 class="text-primary fw-bold mb-3">
+            <i class="fas fa-user me-1"></i> Salary Instance Details
+          </h6>
+          <div class="row g-2">
+            <div class="col-md-4">
+              <small class="text-muted d-block">Employee</small>
+              <strong id="instanceEmployeeName">—</strong>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted d-block">Due Date</small>
+              <strong id="instanceDueDate">—</strong>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted d-block">Currency</small>
+              <strong id="instanceCurrency">—</strong>
+            </div>
+          </div>
+          <div class="row g-2 mt-2">
+            <div class="col-md-4">
+              <small class="text-muted d-block">Scheduled Gross</small>
+              <strong id="instanceScheduledGross">—</strong>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted d-block">Scheduled Tax</small>
+              <strong id="instanceScheduledTax">—</strong>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted d-block">Scheduled Net</small>
+              <strong id="instanceScheduledNet">—</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Editable Payment Fields -->
+        <div class="border rounded p-3 mb-4">
+          <h6 class="text-primary fw-bold mb-3">
+            <i class="fas fa-edit me-1"></i> Payment Amounts (editable)
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalPayGrossAmount">Gross Amount <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-coins"></i></span>
+                <input class="form-control" id="inputSalPayGrossAmount" type="number"
+                       step="0.01" min="0" placeholder="0.00" required>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalPayTaxAmount">Tax Amount</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-percent"></i></span>
+                <input class="form-control" id="inputSalPayTaxAmount" type="number"
+                       step="0.01" min="0" placeholder="0.00">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalPayNetAmount">Net Amount</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-equals"></i></span>
+                <input class="form-control bg-light" id="inputSalPayNetAmount" type="text"
+                       readonly placeholder="Auto-calculated" tabindex="-1">
+              </div>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalPayExchangeRate">Exchange Rate <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputSalPayExchangeRate" type="number"
+                     step="0.000001" min="0" placeholder="1.000000" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputSalPayAmountBc">Net Amount (BC)</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-calculator"></i></span>
+                <input class="form-control bg-light" id="inputSalPayAmountBc" type="text"
+                       readonly placeholder="Auto-calculated" tabindex="-1">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Account & Method -->
+        <div class="border rounded p-3 mb-4">
+          <h6 class="text-primary fw-bold mb-3">
+            <i class="fas fa-university me-1"></i> Payment Source
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="inputSalPayAccount">Source Account <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputSalPayAccount" required>
+                <option value="">— Select account —</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="inputSalPayMethod">Payment Method <span class="text-danger">*</span></label>
+              <select class="form-select" id="inputSalPayMethod" required>
+                <option value="">— Select —</option>
+                <option value="CASH">Cash</option>
+                <option value="BANK">Bank Transfer</option>
+                <option value="CHECK">Check</option>
+                <option value="TRANSFER">Transfer</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i>Cancel
+      </button>
+      <button class="btn btn-success" type="button" data-action="salary-payment.confirm">
+        <i class="fas fa-check me-1"></i><span id="confirmBtnText">Confirm Payment</span>
+      </button>
+    </div>
+
+  </div>
+</div>

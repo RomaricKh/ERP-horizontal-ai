@@ -62,8 +62,10 @@ class RecurrenceScheduleRepository
     public function create(array $data): int
     {
         $stmt = $this->db->prepare("
-            INSERT INTO recurrence_schedules (entity_type, entity_id, business_id, frequency, default_amount, default_currency, start_date, end_date, is_active)
-            VALUES (:entity_type, :entity_id, :business_id, :frequency, :default_amount, :default_currency, :start_date, :end_date, 1)
+            INSERT INTO recurrence_schedules
+              (entity_type, entity_id, business_id, frequency, default_amount, default_currency, start_date, end_date, is_active, created_at, updated_at)
+            VALUES
+              (:entity_type, :entity_id, :business_id, :frequency, :default_amount, :default_currency, :start_date, :end_date, 1, NOW(), NOW())
         ");
         $stmt->execute([
             'entity_type' => $data['entity_type'],
@@ -83,10 +85,14 @@ class RecurrenceScheduleRepository
         $sets = [];
         $params = ['id' => $id];
         foreach ($data as $key => $value) {
-            $sets[] = "$key = :$key";
+            $sets[] = "`$key` = :$key";
             $params[$key] = $value;
         }
         if (empty($sets)) return;
+
+        // Explicitly set updated_at for clarity (also auto-set by MySQL ON UPDATE)
+        $sets[] = "updated_at = NOW()";
+
         $sql = "UPDATE recurrence_schedules SET " . implode(', ', $sets) . " WHERE id = :id";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -94,7 +100,7 @@ class RecurrenceScheduleRepository
 
     public function deactivate(int $id): void
     {
-        $stmt = $this->db->prepare("UPDATE recurrence_schedules SET is_active = 0 WHERE id = :id");
+        $stmt = $this->db->prepare("UPDATE recurrence_schedules SET is_active = 0, updated_at = NOW() WHERE id = :id");
         $stmt->execute(['id' => $id]);
     }
 }

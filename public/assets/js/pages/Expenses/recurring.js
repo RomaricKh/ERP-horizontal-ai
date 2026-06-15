@@ -22,12 +22,22 @@ let allInstances = [];
 
 export async function mount() {
     await fetchInstances();
+    await fetchAdvancePaidSummary();
 
-    instancesUpdatedHandler = async () => { await fetchInstances(); };
+    instancesUpdatedHandler = async () => {
+        await fetchInstances();
+        await fetchAdvancePaidSummary();
+    };
     document.addEventListener('recurring-expenses.updated', instancesUpdatedHandler);
     document.addEventListener('payments.updated', instancesUpdatedHandler);
 
     unregister = registerPageActions({
+
+        'recurring-expenses.view-advance-group': async ({ el }) => {
+            const bapId = el.dataset.bapId;
+            if (!bapId) return;
+            await showAdvancePaymentGroup(bapId);
+        },
 
         'recurring-expenses.mark-paid': async ({ el }) => {
             const tr = el.closest('tr');
@@ -121,6 +131,33 @@ export async function mount() {
                 data: { entity_type: 'EXPENSE' },
                 options: { backdrop: false, keyboard: true, focus: true }
             });
+        },
+
+        'recurring-expenses.view-history': async ({ el }) => {
+            const tr = el.closest('tr');
+            const rowData = recurringDataTable.row(tr).data();
+            const id = rowData[0];
+            if (!id) return;
+
+            const instance = allInstances.find(i => String(i.id) === String(id));
+            if (!instance) return;
+
+            // Determine entity_type and entity_id for the audit log query
+            const isSchedule = instance.is_schedule === true;
+            const entityType = isSchedule ? 'schedule' : 'instance';
+            const entityId = isSchedule ? String(id).replace('schedule_', '') : id;
+
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/Expenses/auditHistoryModal.html',
+                controller: '../pages/Expenses/auditHistory.modal.js',
+                data: {
+                    entity_type: entityType,
+                    entity_id: entityId,
+                    entity_name: instance.entity_name ?? ''
+                },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
         }
     });
 }
@@ -163,6 +200,15 @@ export async function render(pageContainer) {
             renderTable(filterInstances(allInstances));
         });
     });
+
+    // Bind close button for advance group section
+    const closeAdvanceGroupBtn = container.querySelector('#closeAdvanceGroup');
+    if (closeAdvanceGroupBtn) {
+        closeAdvanceGroupBtn.addEventListener('click', () => {
+            const section = container.querySelector('#advanceGroupSection');
+            if (section) section.classList.add('d-none');
+        });
+    }
 }
 
 async function fetchInstances() {
@@ -328,30 +374,186 @@ function buildStatusBadge(instance) {
 }
 
 function buildActions(instance, canEdit) {
-    if (!canEdit) return '';
-
     let actions = '';
 
-    if (instance.status === 'pending') {
-        actions += `<button data-action="recurring-expenses.mark-paid" class="btn btn-success btn-circle btn-sm me-1" title="Mark Paid">
-                        <i class="fas fa-check"></i></button>`;
-        actions += `<button data-action="recurring-expenses.skip" class="btn btn-secondary btn-circle btn-sm me-1" title="Skip">
-                        <i class="fas fa-forward"></i></button>`;
+    if (canEdit) {
+        if (instance.status === 'pending') {
+            actions += `<button data-action="recurring-expenses.mark-paid" class="btn btn-success btn-circle btn-sm me-1" title="Mark Paid">
+                            <i class="fas fa-check"></i></button>`;
+            actions += `<button data-action="recurring-expenses.skip" class="btn btn-secondary btn-circle btn-sm me-1" title="Skip">
+                            <i class="fas fa-forward"></i></button>`;
 
-        // Show "Pay Early" for future pending instances
-        const today = new Date().toISOString().split('T')[0];
-        if (instance.due_date > today) {
-            actions += `<button data-action="recurring-expenses.pay-early" class="btn btn-info btn-circle btn-sm me-1" title="Pay Early">
-                            <i class="fas fa-clock"></i></button>`;
+            // Show "Pay Early" for future pending instances
+            const today = new Date().toISOString().split('T')[0];
+            if (instance.due_date > today) {
+                actions += `<button data-action="recurring-expenses.pay-early" class="btn btn-info btn-circle btn-sm me-1" title="Pay Early">
+                                <i class="fas fa-clock"></i></button>`;
+            }
+        }
+
+        if (instance.status === 'overdue') {
+            actions += `<button data-action="recurring-expenses.mark-paid" class="btn btn-success btn-circle btn-sm me-1" title="Mark Paid">
+                            <i class="fas fa-check"></i></button>`;
+            actions += `<button data-action="recurring-expenses.skip" class="btn btn-secondary btn-circle btn-sm me-1" title="Skip">
+                            <i class="fas fa-forward"></i></button>`;
+        }
+
+        // Show "View Group" button for advance-paid instances that belong to a bulk advance payment
+        if (instance.is_advance_payment && instance.bulk_advance_payment_id) {
+            actions += `<button data-action="recurring-expenses.view-advance-group" data-bap-id="${instance.bulk_advance_payment_id}" class="btn btn-info btn-circle btn-sm me-1" title="View Advance Group">
+                            <i class="fas fa-layer-group"></i></button>`;
         }
     }
 
-    if (instance.status === 'overdue') {
-        actions += `<button data-action="recurring-expenses.mark-paid" class="btn btn-success btn-circle btn-sm me-1" title="Mark Paid">
-                        <i class="fas fa-check"></i></button>`;
-        actions += `<button data-action="recurring-expenses.skip" class="btn btn-secondary btn-circle btn-sm me-1" title="Skip">
-                        <i class="fas fa-forward"></i></button>`;
-    }
+    // Audit history button — available to anyone with view permission
+    actions += `<button data-action="recurring-expenses.view-history" class="btn btn-outline-secondary btn-circle btn-sm me-1" title="View Audit History">
+                    <i class="fas fa-history"></i></button>`;
 
     return actions;
+}
+
+
+// ─── Advance Payment Features ──────────────────────────────────────────────────
+
+/**
+ * Fetch and render the "Advance-Paid Periods Remaining" summary section.
+ * Shows the count of future advance-paid instances per active schedule.
+ * Requirement 17.5
+ */
+async function fetchAdvancePaidSummary() {
+    const summarySection = container?.querySelector('#advancePaidSummary');
+    const summaryList = container?.querySelector('#advancePaidList');
+    if (!summarySection || !summaryList) return;
+
+    try {
+        const res = await apiFetch('/api/recurring-instances/advance-payments?entity_type=EXPENSE');
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            summarySection.classList.add('d-none');
+            return;
+        }
+
+        const advancePayments = data.data?.advance_payments ?? [];
+        if (advancePayments.length === 0) {
+            summarySection.classList.add('d-none');
+            return;
+        }
+
+        // Count advance-paid periods remaining (future instances already paid) per schedule
+        const today = new Date().toISOString().split('T')[0];
+        const futureAdvancePaid = allInstances.filter(i =>
+            i.is_advance_payment && i.status === 'paid' && i.due_date > today
+        );
+
+        // Group by recurrence_schedule_id
+        const scheduleMap = {};
+        futureAdvancePaid.forEach(instance => {
+            const schedId = instance.recurrence_schedule_id;
+            if (!scheduleMap[schedId]) {
+                scheduleMap[schedId] = {
+                    name: instance.entity_name || `Schedule #${schedId}`,
+                    currency: instance.currency,
+                    count: 0,
+                    amount_per_period: instance.scheduled_amount
+                };
+            }
+            scheduleMap[schedId].count++;
+        });
+
+        const entries = Object.entries(scheduleMap);
+        if (entries.length === 0) {
+            summarySection.classList.add('d-none');
+            return;
+        }
+
+        summarySection.classList.remove('d-none');
+        summaryList.innerHTML = entries.map(([schedId, info]) => `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-fast-forward fa-sm text-info me-2"></i>
+                    <strong>${escHtml(info.name)}</strong>
+                    <span class="text-muted ms-2">${getFormatter().formatNumber(info.amount_per_period, 2)} ${escHtml(info.currency)} / period</span>
+                </div>
+                <span class="badge bg-info rounded-pill" title="Advance-paid periods remaining">
+                    ${info.count} period${info.count !== 1 ? 's' : ''} remaining
+                </span>
+            </div>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to fetch advance-paid summary:', err);
+        summarySection.classList.add('d-none');
+    }
+}
+
+/**
+ * Fetch and display all instances linked to a bulk advance payment group.
+ * Requirement 17.2
+ */
+async function showAdvancePaymentGroup(bapId) {
+    const groupSection = container?.querySelector('#advanceGroupSection');
+    const groupTitle = container?.querySelector('#advanceGroupTitle');
+    const groupList = container?.querySelector('#advanceGroupList');
+    if (!groupSection || !groupList) return;
+
+    try {
+        const res = await apiFetch(`/api/recurring-instances/advance-payments/${bapId}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            await alert({ title: 'Error', alertText: data.message || 'Failed to load advance payment group' });
+            return;
+        }
+
+        const payment = data.data?.advance_payment;
+        if (!payment) {
+            await alert({ title: 'Error', alertText: 'Advance payment not found' });
+            return;
+        }
+
+        const instances = payment.instances ?? [];
+
+        // Update title
+        if (groupTitle) {
+            groupTitle.textContent = `Advance Payment Group — ${getFormatter().formatNumber(payment.total_amount, 2)} ${escHtml(payment.currency)} (${payment.periods_count} periods)`;
+        }
+
+        // Render linked instances
+        groupList.innerHTML = instances.map(instance => {
+            const statusBadge = buildStatusBadge(instance);
+            const amount = instance.scheduled_amount != null
+                ? getFormatter().formatNumber(instance.scheduled_amount, 2)
+                : '0.00';
+            return `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-calendar-day fa-sm text-info me-2"></i>
+                        <strong>${escHtml(instance.entity_name ?? 'Instance')}</strong>
+                        <span class="text-muted ms-2">${getFormatter().formatDate(instance.due_date)}</span>
+                        <span class="ms-2">${amount} ${escHtml(instance.currency ?? '')}</span>
+                    </div>
+                    <div>
+                        ${statusBadge}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add summary footer
+        groupList.innerHTML += `
+            <div class="list-group-item bg-light text-muted small">
+                <i class="fas fa-info-circle me-1"></i>
+                Paid on ${getFormatter().formatDate(payment.payment_date)} — Total: ${getFormatter().formatNumber(payment.total_amount, 2)} ${escHtml(payment.currency)}
+            </div>
+        `;
+
+        // Show the section
+        groupSection.classList.remove('d-none');
+
+        // Scroll to the section
+        groupSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) {
+        console.error('Failed to load advance payment group:', err);
+        await alert({ title: 'Error', alertText: 'Failed to load advance payment group details.' });
+    }
 }

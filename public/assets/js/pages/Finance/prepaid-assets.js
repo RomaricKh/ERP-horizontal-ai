@@ -85,9 +85,9 @@ function renderTable(assets) {
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 6, className: 'text-center', orderable: false, searchable: false }
+                { targets: 7, className: 'text-center', orderable: false, searchable: false }
             ],
-            order: [[5, 'desc']]
+            order: [[6, 'desc']]
         });
     }
 
@@ -99,13 +99,13 @@ function renderTable(assets) {
         const totalAmount = asset.total_amount != null
             ? getFormatter().formatNumber(asset.total_amount, 2)
             : '0.00';
-        const periodsDisplay = `${asset.periods_recognized ?? 0} / ${asset.periods_total ?? 0}`;
 
         prepaidAssetsDataTable.row.add([
             asset.id,
             totalAmount,
             escHtml(asset.currency ?? ''),
-            periodsDisplay,
+            asset.periods_total ?? 0,
+            asset.periods_recognized ?? 0,
             statusBadge,
             getFormatter().formatDate(asset.created_at ?? ''),
             actions
@@ -120,15 +120,17 @@ function buildStatusBadge(asset) {
     const statusMap = {
         active:           { class: 'bg-primary', label: 'Active' },
         fully_amortized:  { class: 'bg-success', label: 'Fully Amortized' },
-        reversed:         { class: 'bg-danger', label: 'Reversed' }
+        reversed:         { class: 'bg-secondary', label: 'Reversed' }
     };
     const info = statusMap[asset.status] ?? { class: 'bg-light text-dark', label: asset.status };
     return `<span class="badge ${info.class}">${info.label}</span>`;
 }
 
 function buildActions(asset) {
-    return `<button data-action="prepaid-assets.view-detail" class="btn btn-info btn-circle btn-sm" title="View Detail">
-                <i class="fas fa-eye"></i></button>`;
+    return `<a href="#/prepaid-assets/detail?id=${asset.id}" class="btn btn-info btn-circle btn-sm me-1" title="View Full Detail">
+                <i class="fas fa-eye"></i></a>` +
+           `<button data-action="prepaid-assets.view-detail" class="btn btn-outline-info btn-circle btn-sm" title="Quick View">
+                <i class="fas fa-search"></i></button>`;
 }
 
 async function showAssetDetail(id) {
