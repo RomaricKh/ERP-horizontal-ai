@@ -47,6 +47,7 @@ export const routes = [
     {path: '#/tenant/businesses', auth: true, tenantOwner: true, load: () => import('../pages/Tenant/businesses.js')},
     {path: '#/tenant/business-types', auth: true, tenantOwner: true, load: () => import('../pages/Tenant/business-types.js')},
     {path: '#/tenant/owners', auth: true, tenantOwner: true, load: () => import('../pages/Tenant/owners.js')},
+    {path: '#/tenant/users', auth: true, tenantOwner: true, load: () => import('../pages/Tenant/users.js')},
     {path: '#/tenant/reports', auth: true, tenantOwner: true, load: () => import('../pages/Tenant/reports.js')}
 ];
 

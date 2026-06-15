@@ -13,6 +13,7 @@ export const MENU_CONFIG = [
             { id: 'goToTenantBusinesses',     label: 'Businesses',        i18nKey: 'nav.tenant_businesses',      icon: 'fas fa-fw fa-store',          hash: '#/tenant/businesses',      tenantOwner: true },
             { id: 'goToTenantBusinessTypes',  label: 'Business Types',    i18nKey: 'nav.tenant_business_types',  icon: 'fas fa-fw fa-tags',           hash: '#/tenant/business-types',  tenantOwner: true },
             { id: 'goToTenantOwners',         label: 'Owners',            i18nKey: 'nav.tenant_owners',          icon: 'fas fa-fw fa-user-shield',    hash: '#/tenant/owners',          tenantOwner: true },
+            { id: 'goToTenantUsers',          label: 'Users',             i18nKey: 'nav.tenant_users',           icon: 'fas fa-fw fa-users',          hash: '#/tenant/users',           tenantOwner: true },
             { id: 'goToTenantReports',        label: 'Reports',           i18nKey: 'nav.tenant_reports',         icon: 'fas fa-fw fa-file-alt',       hash: '#/tenant/reports',         tenantOwner: true }
         ]
     },
