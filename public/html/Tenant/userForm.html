@@ -1,88 +1,138 @@
-<div class="modal-dialog modal-lg">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h5 class="modal-title">Add User to Tenant</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-            <div id="tenantLookupFeedback" class="form-text text-muted mb-2"></div>
+<!-- Tenant User form modal -->
+<div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-primary text-white">
+      <h5 class="modal-title" id="tenantModalTitle">
+        <i class="fas fa-user-plus me-2"></i><span>Add User to Tenant</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="tenantUserForm" novalidate>
+        <div class="row">
+
+          <!-- LEFT: Identity & Security -->
+          <div class="col-md-7">
+            <div class="border rounded p-3 mb-4 bg-light">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-id-card me-1"></i> Identity
+              </h6>
+
+              <!-- Lookup Fields -->
+              <div class="row g-3 mb-3" id="tenantLookupFields">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="tenantInputEmail">Email <span class="text-danger">*</span></label>
+                  <input class="form-control" id="tenantInputEmail" type="email" placeholder="Enter email address">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="tenantInputUsername">Username <span class="text-danger">*</span></label>
+                  <input class="form-control" id="tenantInputUsername" type="text" placeholder="Enter username">
+                </div>
+                <div class="col-12">
+                  <div class="form-text" id="tenantLookupFeedback"></div>
+                </div>
+              </div>
+
+              <!-- Name -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="tenantInputFirstName">First Name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="tenantInputFirstName" type="text" placeholder="Enter first name">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="tenantInputLastName">Last Name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="tenantInputLastName" type="text" placeholder="Enter last name">
+                </div>
+              </div>
+            </div>
+
+            <!-- Password Section -->
+            <div class="border rounded p-3 mb-4" id="tenantPasswordSection">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-key me-1"></i> Password
+              </h6>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="tenantInputPassword">Password <span class="text-danger">*</span></label>
+                  <input class="form-control" id="tenantInputPassword" type="password" placeholder="Enter password">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="tenantInputConfirmPass">Confirm <span class="text-danger">*</span></label>
+                  <input class="form-control" id="tenantInputConfirmPass" type="password" placeholder="Confirm password">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: Business Assignments -->
+          <div class="col-md-5">
+
+            <!-- Tenant Owner shortcut -->
+            <div class="border rounded p-3 mb-4">
+              <div class="form-check form-switch">
+                <input class="form-check-input" id="tenantOwnerCheck" type="checkbox">
+                <label class="form-check-label fw-semibold" for="tenantOwnerCheck">
+                  <i class="fas fa-user-shield me-1 text-warning"></i> Make Tenant Owner
+                </label>
+              </div>
+              <small class="form-text text-muted d-block mt-1">Tenant Owners manage all businesses directly. Business assignments are optional.</small>
+            </div>
 
             <!-- Tenant Owner Alert (hidden by default) -->
-            <div id="tenantOwnerAlert" class="alert alert-info d-none" role="alert">
-                <i class="fas fa-info-circle me-1"></i>
-                This user is a tenant owner and manages all businesses directly. Business-level roles cannot be assigned.
+            <div id="tenantOwnerAlert" class="alert alert-info py-2 d-none" role="alert">
+              <i class="fas fa-info-circle me-1"></i>
+              This user is already a tenant owner.
             </div>
 
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="tenantInputEmail" class="form-label">Email</label>
-                    <input type="email" class="form-control" id="tenantInputEmail" placeholder="user@example.com">
+            <!-- Business Assignments Section -->
+            <div class="border rounded p-3 mb-4" id="businessAccessSection">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="fas fa-briefcase me-1"></i> Business Assignments
+              </h6>
+
+              <!-- Assignment builder row -->
+              <div class="row g-2 mb-3 align-items-end">
+                <div class="col-5">
+                  <label class="form-label small text-muted" for="tenantBusinessSelect">Business</label>
+                  <select class="form-select form-select-sm" id="tenantBusinessSelect">
+                    <option value="">— Select —</option>
+                  </select>
                 </div>
-                <div class="col-md-6">
-                    <label for="tenantInputUsername" class="form-label">Username</label>
-                    <input type="text" class="form-control" id="tenantInputUsername" placeholder="username">
+                <div class="col-5">
+                  <label class="form-label small text-muted" for="tenantRoleSelect">Role</label>
+                  <select class="form-select form-select-sm" id="tenantRoleSelect" disabled>
+                    <option value="">— Select business first —</option>
+                  </select>
                 </div>
+                <div class="col-2">
+                  <button class="btn btn-primary btn-sm w-100" type="button" id="addAssignmentBtn" title="Add assignment" disabled>
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Assignments list -->
+              <div id="assignmentsList">
+                <p class="text-muted small mb-0" id="noAssignmentsMsg">No business assignments yet.</p>
+              </div>
             </div>
 
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="tenantInputFirstName" class="form-label">First Name</label>
-                    <input type="text" class="form-control" id="tenantInputFirstName">
-                </div>
-                <div class="col-md-6">
-                    <label for="tenantInputLastName" class="form-label">Last Name</label>
-                    <input type="text" class="form-control" id="tenantInputLastName">
-                </div>
-            </div>
+          </div>
 
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="tenantInputPassword" class="form-label">Password</label>
-                    <input type="password" class="form-control" id="tenantInputPassword">
-                </div>
-                <div class="col-md-6">
-                    <label for="tenantInputConfirmPass" class="form-label">Confirm Password</label>
-                    <input type="password" class="form-control" id="tenantInputConfirmPass">
-                </div>
-            </div>
-
-            <hr>
-
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="tenantOwnerCheck">
-                <label class="form-check-label" for="tenantOwnerCheck">
-                    Make this user a Tenant Owner
-                </label>
-            </div>
-
-            <!-- Business Access Section (hidden when user is already a tenant owner) -->
-            <div id="businessAccessSection">
-                <h6 class="text-muted mb-2">Business Access</h6>
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label for="tenantBusinessSelect" class="form-label">Business</label>
-                        <select class="form-select" id="tenantBusinessSelect">
-                            <option value="">— Select a business —</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="tenantRoleSelect" class="form-label">Role</label>
-                        <select class="form-select" id="tenantRoleSelect" disabled>
-                            <option value="">— Select a business first —</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="tenantIsActiveCheck" checked>
-                    <label class="form-check-label" for="tenantIsActiveCheck">Active</label>
-                </div>
-            </div>
         </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" id="tenantUserSaveBtn" data-action="tenant.users.save">
-                <i class="fas fa-save me-1"></i> Save
-            </button>
-        </div>
+      </form>
     </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i><span>Cancel</span>
+      </button>
+      <button class="btn btn-primary" type="button" id="tenantUserSaveBtn" data-action="tenant.users.save">
+        <i class="fas fa-save me-1"></i><span>Save</span>
+      </button>
+    </div>
+
+  </div>
 </div>

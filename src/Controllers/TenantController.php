@@ -908,6 +908,13 @@ class TenantController extends BaseController
     {
         try {
             $tenantId = AuthContext::tenantId();
+            $ctx = AuthContext::get();
+
+            // Prevent self-removal
+            if ($ctx->user_id === $userId) {
+                $this->json(false, null, 'You cannot revoke your own Tenant Owner privileges', 403);
+                return;
+            }
 
             $this->roleService->removeTenantOwnerRole($userId, $tenantId);
 

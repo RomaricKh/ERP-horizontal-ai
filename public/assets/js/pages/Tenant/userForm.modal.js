@@ -4,75 +4,40 @@ import { apiFetch } from '../../Auth/apiFetch.js';
 
 let modalRoot;
 let unregister;
+let existingUserId = null;
+let assignments = []; // [{business_id, business_name, role_id, role_name}]
+let businessesCache = []; // [{id, name}]
+let rolesCache = {}; // { businessId: [{id, name}] }
 
 const FIELDS = {
-    email: () => document.getElementById('tenantInputEmail'),
-    username: () => document.getElementById('tenantInputUsername'),
-    firstName: () => document.getElementById('tenantInputFirstName'),
-    lastName: () => document.getElementById('tenantInputLastName'),
-    password: () => document.getElementById('tenantInputPassword'),
+    email:           () => document.getElementById('tenantInputEmail'),
+    username:        () => document.getElementById('tenantInputUsername'),
+    firstName:       () => document.getElementById('tenantInputFirstName'),
+    lastName:        () => document.getElementById('tenantInputLastName'),
+    password:        () => document.getElementById('tenantInputPassword'),
     confirmPassword: () => document.getElementById('tenantInputConfirmPass'),
-    tenantOwner: () => document.getElementById('tenantOwnerCheck'),
+    tenantOwner:     () => document.getElementById('tenantOwnerCheck'),
     businessSection: () => document.getElementById('businessAccessSection'),
-    business: () => document.getElementById('tenantBusinessSelect'),
-    role: () => document.getElementById('tenantRoleSelect'),
-    isActive: () => document.getElementById('tenantIsActiveCheck'),
-    saveBtn: () => document.getElementById('tenantUserSaveBtn')
+    business:        () => document.getElementById('tenantBusinessSelect'),
+    role:            () => document.getElementById('tenantRoleSelect'),
+    addBtn:          () => document.getElementById('addAssignmentBtn'),
+    assignmentsList: () => document.getElementById('assignmentsList'),
+    noMsg:           () => document.getElementById('noAssignmentsMsg'),
+    passwordSection: () => document.getElementById('tenantPasswordSection'),
+    saveBtn:         () => document.getElementById('tenantUserSaveBtn')
 };
-
-let existingUserId = null;
 
 export async function mount({ modalRoot: root, data }) {
     modalRoot = root;
     existingUserId = null;
+    assignments = [];
+    rolesCache = {};
 
     await fetchBusinesses();
     setupListeners();
 
     unregister = registerPageActions({
-        'tenant.users.save': async () => {
-            if (!validateForm()) return;
-
-            const isTenantOwner = FIELDS.tenantOwner().checked;
-
-            const payload = {
-                email: FIELDS.email().value.trim(),
-                username: FIELDS.username().value.trim(),
-                first_name: FIELDS.firstName().value.trim(),
-                last_name: FIELDS.lastName().value.trim(),
-                password: FIELDS.password().value,
-                make_tenant_owner: isTenantOwner,
-                assignments: []
-            };
-
-            // Include business assignment if a business is selected
-            const bizVal = FIELDS.business().value;
-            const roleVal = FIELDS.role().value;
-            if (bizVal && roleVal) {
-                payload.assignments.push({
-                    business_id: parseInt(bizVal, 10),
-                    role_id: parseInt(roleVal, 10)
-                });
-            }
-
-            try {
-                const res = await apiFetch('/api/tenant/users', {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                });
-                const json = await res.json();
-
-                if (!res.ok || !json.success) {
-                    throw new Error(json.message || 'Failed to create user');
-                }
-
-                bootstrap.Modal.getInstance(modalRoot).hide();
-                document.dispatchEvent(new CustomEvent('tenant.users.updated'));
-            } catch (err) {
-                console.error(err);
-                showFormError(err.message || 'Unable to create user');
-            }
-        }
+        'tenant.users.save': handleSave
     });
 }
 
@@ -80,6 +45,52 @@ export function unmount() {
     unregister?.();
     unregister = null;
     existingUserId = null;
+    assignments = [];
+    rolesCache = {};
+    businessesCache = [];
+}
+
+// ─── Save ────────────────────────────────────────────────────────────────────
+
+async function handleSave() {
+    if (!validateForm()) return;
+
+    const isTenantOwner = FIELDS.tenantOwner().checked;
+
+    const payload = {
+        email: FIELDS.email().value.trim(),
+        username: FIELDS.username().value.trim(),
+        first_name: FIELDS.firstName().value.trim(),
+        last_name: FIELDS.lastName().value.trim(),
+        make_tenant_owner: isTenantOwner,
+        assignments: assignments.map(a => ({
+            business_id: a.business_id,
+            role_id: a.role_id
+        }))
+    };
+
+    // Only include password for new users
+    if (!existingUserId) {
+        payload.password = FIELDS.password().value;
+    }
+
+    try {
+        const res = await apiFetch('/api/tenant/users', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+
+        if (!res.ok || !json.success) {
+            throw new Error(json.message || 'Failed to create user');
+        }
+
+        bootstrap.Modal.getInstance(modalRoot).hide();
+        document.dispatchEvent(new CustomEvent('tenant.users.updated'));
+    } catch (err) {
+        console.error(err);
+        showFormError(err.message || 'Unable to save user');
+    }
 }
 
 // ─── Data fetching ───────────────────────────────────────────────────────────
@@ -94,12 +105,11 @@ async function fetchBusinesses() {
         const select = FIELDS.business();
         if (!select) return;
 
-        while (select.options.length > 1) {
-            select.remove(1);
-        }
+        businessesCache = data.data?.data || data.data?.businesses || [];
 
-        const businesses = data.data?.data || data.data?.businesses || [];
-        businesses.forEach(biz => {
+        while (select.options.length > 1) select.remove(1);
+
+        businessesCache.forEach(biz => {
             const option = document.createElement('option');
             option.value = biz.id;
             option.textContent = biz.name;
@@ -111,10 +121,16 @@ async function fetchBusinesses() {
 }
 
 async function fetchRolesForBusiness(businessId) {
+    // Use cache if available
+    if (rolesCache[businessId]) {
+        populateRoleSelect(rolesCache[businessId]);
+        return;
+    }
+
     const roleSelect = FIELDS.role();
     if (!roleSelect) return;
 
-    roleSelect.innerHTML = '<option value="">Loading roles…</option>';
+    roleSelect.innerHTML = '<option value="">Loading…</option>';
     roleSelect.disabled = true;
 
     try {
@@ -122,54 +138,49 @@ async function fetchRolesForBusiness(businessId) {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-            roleSelect.innerHTML = '<option value="">— No roles available —</option>';
+            roleSelect.innerHTML = '<option value="">— No roles —</option>';
             return;
         }
 
-        roleSelect.innerHTML = '<option value="">— Select a role —</option>';
-
         const roles = data.data?.roles || {};
-        const businessRoles = roles.business_roles || [];
-        const templateRoles = roles.template_roles || [];
+        const allRoles = [
+            ...(roles.business_roles || []).map(r => ({ ...r, template: false })),
+            ...(roles.template_roles || []).map(r => ({ ...r, template: true }))
+        ];
 
-        businessRoles.forEach(role => {
-            const option = document.createElement('option');
-            option.value = role.id;
-            option.textContent = role.name;
-            roleSelect.appendChild(option);
-        });
-
-        if (templateRoles.length > 0) {
-            const optgroup = document.createElement('optgroup');
-            optgroup.label = 'Template Roles';
-            templateRoles.forEach(role => {
-                const option = document.createElement('option');
-                option.value = role.id;
-                option.textContent = role.name;
-                optgroup.appendChild(option);
-            });
-            roleSelect.appendChild(optgroup);
-        }
-
-        roleSelect.disabled = false;
+        rolesCache[businessId] = allRoles;
+        populateRoleSelect(allRoles);
     } catch (err) {
         console.error('fetchRolesForBusiness failed:', err);
-        roleSelect.innerHTML = '<option value="">— Failed to load roles —</option>';
+        const roleSelect = FIELDS.role();
+        if (roleSelect) roleSelect.innerHTML = '<option value="">— Failed —</option>';
     }
+}
+
+function populateRoleSelect(roles) {
+    const roleSelect = FIELDS.role();
+    if (!roleSelect) return;
+
+    roleSelect.innerHTML = '<option value="">— Select a role —</option>';
+
+    roles.forEach(role => {
+        const option = document.createElement('option');
+        option.value = role.id;
+        option.textContent = role.template ? `${role.name} (template)` : role.name;
+        roleSelect.appendChild(option);
+    });
+
+    roleSelect.disabled = false;
+    updateAddBtnState();
 }
 
 // ─── Event listeners ─────────────────────────────────────────────────────────
 
 function setupListeners() {
-    const businessSelect = FIELDS.business();
-    if (businessSelect) {
-        businessSelect.addEventListener('change', onBusinessChange);
-    }
-
-    const tenantOwnerCheck = FIELDS.tenantOwner();
-    if (tenantOwnerCheck) {
-        tenantOwnerCheck.addEventListener('change', onTenantOwnerToggle);
-    }
+    FIELDS.business()?.addEventListener('change', onBusinessChange);
+    FIELDS.role()?.addEventListener('change', updateAddBtnState);
+    FIELDS.addBtn()?.addEventListener('click', onAddAssignment);
+    FIELDS.tenantOwner()?.addEventListener('change', onTenantOwnerToggle);
 
     const email = FIELDS.email();
     const username = FIELDS.username();
@@ -185,28 +196,103 @@ function setupListeners() {
     });
 }
 
-function onTenantOwnerToggle() {
-    const checked = FIELDS.tenantOwner().checked;
-    const section = FIELDS.businessSection();
-    if (section) {
-        section.style.opacity = checked ? '0.5' : '1';
-    }
-    // When tenant owner is checked, business/role become optional
-    // but still visible in case they want to also assign a business role
-}
-
 function onBusinessChange() {
     const businessId = FIELDS.business().value;
     const roleSelect = FIELDS.role();
 
     if (!businessId) {
-        roleSelect.innerHTML = '<option value="">— Select a business first —</option>';
+        roleSelect.innerHTML = '<option value="">— Select business first —</option>';
         roleSelect.disabled = true;
+        updateAddBtnState();
         return;
     }
 
     fetchRolesForBusiness(businessId);
 }
+
+function updateAddBtnState() {
+    const btn = FIELDS.addBtn();
+    if (!btn) return;
+    btn.disabled = !FIELDS.business()?.value || !FIELDS.role()?.value;
+}
+
+function onAddAssignment() {
+    const bizSelect = FIELDS.business();
+    const roleSelect = FIELDS.role();
+    const businessId = parseInt(bizSelect.value, 10);
+    const roleId = parseInt(roleSelect.value, 10);
+
+    if (!businessId || !roleId) return;
+
+    // Prevent duplicate business
+    if (assignments.some(a => a.business_id === businessId)) {
+        showFormError('This business is already assigned.');
+        return;
+    }
+
+    const businessName = bizSelect.options[bizSelect.selectedIndex].text;
+    const roleName = roleSelect.options[roleSelect.selectedIndex].text;
+
+    assignments.push({ business_id: businessId, business_name: businessName, role_id: roleId, role_name: roleName });
+    renderAssignments();
+
+    // Reset selectors
+    bizSelect.value = '';
+    roleSelect.innerHTML = '<option value="">— Select business first —</option>';
+    roleSelect.disabled = true;
+    updateAddBtnState();
+}
+
+function onRemoveAssignment(index) {
+    assignments.splice(index, 1);
+    renderAssignments();
+}
+
+function renderAssignments() {
+    const container = FIELDS.assignmentsList();
+    const noMsg = FIELDS.noMsg();
+    if (!container) return;
+
+    // Clear existing assignment badges (keep the noMsg element)
+    container.querySelectorAll('.assignment-row').forEach(el => el.remove());
+
+    if (assignments.length === 0) {
+        if (noMsg) noMsg.style.display = '';
+        return;
+    }
+
+    if (noMsg) noMsg.style.display = 'none';
+
+    assignments.forEach((a, idx) => {
+        const row = document.createElement('div');
+        row.className = 'assignment-row d-flex align-items-center justify-content-between border rounded p-2 mb-2 bg-white';
+
+        row.innerHTML = `
+            <div>
+                <span class="fw-semibold small">${escHtml(a.business_name)}</span>
+                <span class="text-muted small ms-1">→</span>
+                <span class="badge bg-light text-dark border ms-1">${escHtml(a.role_name)}</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" title="Remove">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        row.querySelector('button').addEventListener('click', () => onRemoveAssignment(idx));
+        container.appendChild(row);
+    });
+}
+
+function onTenantOwnerToggle() {
+    const checked = FIELDS.tenantOwner().checked;
+    const section = FIELDS.businessSection();
+    if (section) {
+        section.style.opacity = checked ? '0.5' : '1';
+        section.style.pointerEvents = checked ? 'none' : '';
+    }
+}
+
+// ─── User lookup ─────────────────────────────────────────────────────────────
 
 async function handleLookup() {
     const email = FIELDS.email().value.trim();
@@ -233,14 +319,20 @@ async function handleLookup() {
             FIELDS.email().value = user.email || '';
             FIELDS.username().value = user.username || '';
 
-            setDisabled([FIELDS.firstName(), FIELDS.lastName(), FIELDS.password(), FIELDS.confirmPassword()], true);
-            setLookupFeedback('Existing user found. Assign them to a business.', 'success');
+            setDisabled([FIELDS.firstName(), FIELDS.lastName()], true);
+            // Hide password section for existing users
+            const pwSection = FIELDS.passwordSection();
+            if (pwSection) pwSection.style.display = 'none';
 
-            // Check if user is a tenant owner — hide business role form if so
+            setLookupFeedback('Existing user found. Assign them to businesses.', 'success');
+
+            // Check if user is already a tenant owner
             await checkTenantOwnerStatus(user.user_id);
         } else {
             existingUserId = null;
-            setDisabled([FIELDS.firstName(), FIELDS.lastName(), FIELDS.password(), FIELDS.confirmPassword()], false);
+            setDisabled([FIELDS.firstName(), FIELDS.lastName()], false);
+            const pwSection = FIELDS.passwordSection();
+            if (pwSection) pwSection.style.display = '';
             setLookupFeedback('No existing user found. A new user will be created.', 'info');
             showBusinessSection(true);
         }
@@ -257,17 +349,18 @@ async function checkTenantOwnerStatus(userId) {
         const data = await res.json();
         if (!data.success) return;
 
-        const user = data.data;
+        const user = data.data?.user || data.data;
         const isTenantOwner = (user.is_tenant_owner === true) ||
             (user.assignments || []).some(a => a.role_type === 'TENANT_OWNER');
 
         if (isTenantOwner) {
             showBusinessSection(false);
+            FIELDS.tenantOwner().checked = true;
+            FIELDS.tenantOwner().disabled = true;
         } else {
             showBusinessSection(true);
         }
     } catch (err) {
-        // If we can't determine tenant owner status, keep the section visible
         showBusinessSection(true);
     }
 }
@@ -296,8 +389,6 @@ function validateForm() {
     const lastName = FIELDS.lastName();
     const password = FIELDS.password();
     const confirmPassword = FIELDS.confirmPassword();
-    const business = FIELDS.business();
-    const role = FIELDS.role();
     const isTenantOwner = FIELDS.tenantOwner().checked;
 
     if (!email.value.trim()) {
@@ -309,16 +400,10 @@ function validateForm() {
         valid = false;
     }
 
-    // Business & role required only if NOT making tenant owner
-    if (!isTenantOwner) {
-        if (!business.value) {
-            markInvalid(business, 'Business is required');
-            valid = false;
-        }
-        if (!role.value) {
-            markInvalid(role, 'Role is required');
-            valid = false;
-        }
+    // At least one assignment OR tenant owner required
+    if (!isTenantOwner && assignments.length === 0) {
+        showFormError('Add at least one business assignment or make the user a Tenant Owner.');
+        valid = false;
     }
 
     // New user fields
@@ -394,4 +479,10 @@ function showFormError(message) {
         footer?.prepend(el);
     }
     el.textContent = message;
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s ?? '';
+    return d.innerHTML;
 }

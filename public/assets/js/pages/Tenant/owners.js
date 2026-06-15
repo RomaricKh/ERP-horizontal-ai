@@ -2,6 +2,7 @@
 
 import { registerPageActions } from '../Core/pageActions.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
+import { getUser } from '../../Auth/auth.js';
 import { createDataTable } from '../../templates/datatables.design.js';
 import { MODAL_SCOPE, openModal, closeModalsInContainer, confirm, alert } from '../../components/modals.js';
 
@@ -38,6 +39,13 @@ export async function mount() {
             const rowData = dataTable.row(tr).data();
             const userId = rowData[0];
             const name = rowData[2];
+
+            // Prevent self-removal
+            const currentUser = getUser();
+            if (currentUser && currentUser.user_id === userId) {
+                await alert({ title: 'Cannot Revoke', alertText: 'You cannot remove your own Tenant Owner privileges.' });
+                return;
+            }
 
             const confirmed = await confirm({
                 title: 'Revoke Tenant Owner',
