@@ -138,13 +138,14 @@ function renderBalances(openingBalance, closingBalance, transactions) {
         closingEl.className = `h5 mb-0 font-weight-bold ${val < 0 ? 'text-danger' : 'text-gray-800'}`;
     }
 
-    // Calculate total debits from transactions
+    // Calculate total movements from transactions
     if (debitsEl) {
-        let totalDebits = 0;
+        let totalMovements = 0;
         transactions.forEach(txn => {
-            totalDebits += parseFloat(txn.debit_amount) || 0;
+            totalMovements += parseFloat(txn.debit_amount) || 0;
+            totalMovements += parseFloat(txn.credit_amount) || 0;
         });
-        debitsEl.textContent = fmt.formatNumber(totalDebits, 2);
+        debitsEl.textContent = fmt.formatNumber(totalMovements, 2);
     }
 }
 

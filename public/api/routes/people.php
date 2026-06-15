@@ -43,6 +43,11 @@ $router->get('/people/{id}/statement',
     ['people.view']
 );
 
+$router->get('/people/{id}/statement/export',
+    fn($id) => (new \App\Controllers\PayeeStatementController())->export((int)$id),
+    ['people.view']
+);
+
 /* ========= CUSTOMER ITEMS ========= */
 
 $router->get('/people/{id}/customer-items',

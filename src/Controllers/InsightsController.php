@@ -59,7 +59,7 @@ class InsightsController extends BaseController {
 
             $this->json(true, ['items' => $items]);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to fetch supplier insights');
+            $this->serverError('Failed to fetch supplier insights: ' . $e->getMessage());
         }
     }
 
@@ -119,7 +119,7 @@ class InsightsController extends BaseController {
 
             $this->json(true, ['items' => $items]);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to fetch customer insights');
+            $this->serverError('Failed to fetch customer insights: ' . $e->getMessage());
         }
     }
 
@@ -233,12 +233,13 @@ class InsightsController extends BaseController {
 
             // Get items assigned to this customer (items.customer_id = people.id) with stock and batch info
             $stmt = $db->prepare("
-                SELECT i.id, i.name,
+                SELECT i.id, i.name, i.cost_price, i.sale_price, it.name AS item_type,
                        COALESCE(s.quantity, 0) AS stock_quantity,
                        (SELECT COUNT(*) FROM item_batches ib WHERE ib.item_id = i.id AND ib.business_id = :bid2 AND ib.status = 'active') AS batch_count,
                        (SELECT MIN(ib2.expiry_date) FROM item_batches ib2 WHERE ib2.item_id = i.id AND ib2.business_id = :bid3 AND ib2.status = 'active' AND ib2.expiry_date IS NOT NULL) AS nearest_expiry
                 FROM items i
                 LEFT JOIN stock s ON s.item_id = i.id AND s.business_id = :bid4
+                LEFT JOIN item_types it ON it.id = i.item_type_id
                 WHERE i.customer_id = :people_id AND i.business_id = :bid1
                 ORDER BY i.name
             ");

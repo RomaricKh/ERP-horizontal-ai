@@ -52,7 +52,7 @@ function renderTable(items) {
     if (!itemsTable) {
         itemsTable = createDataTable('#customerItemsTable', {
             columnDefs: [
-                { targets: [1, 2], className: 'text-end' },
+                { targets: [2, 3, 4, 5], className: 'text-end' },
                 { targets: '_all', className: 'text-nowrap' }
             ],
             order: [[0, 'asc']]
@@ -69,6 +69,9 @@ function renderTable(items) {
 
         itemsTable.row.add([
             escHtml(item.name || '—'),
+            escHtml(item.item_type || '—'),
+            item.cost_price != null ? fmt.formatNumber(item.cost_price, 2) : '—',
+            item.sale_price != null ? fmt.formatNumber(item.sale_price, 2) : '—',
             fmt.formatNumber(item.stock_quantity || 0, 2),
             String(item.batch_count || 0),
             expiryDisplay

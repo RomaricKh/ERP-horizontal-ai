@@ -66,19 +66,117 @@ class PayeeStatementController extends BaseController {
         }
     }
 
+    /**
+     * GET /people/{payeeId}/statement/export?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+     * Export statement as CSV download.
+     */
+    public function export(int $payeeId): void {
+        try {
+            $ctx = $this->auth();
+            $db = Database::getConnection();
+            $businessId = $ctx->business_id;
+
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate   = $_GET['end_date']   ?? null;
+
+            if (!$startDate || !$endDate) {
+                $this->json(false, null, 'start_date and end_date are required', 422);
+                return;
+            }
+
+            // Verify payee
+            $stmt = $db->prepare("SELECT id, people_id FROM payees WHERE id = :id AND business_id = :bid LIMIT 1");
+            $stmt->execute(['id' => $payeeId, 'bid' => $businessId]);
+            $payee = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$payee) {
+                $this->json(false, null, 'Payee not found', 404);
+                return;
+            }
+
+            $nameStmt = $db->prepare("SELECT name FROM people WHERE id = :id LIMIT 1");
+            $nameStmt->execute(['id' => $payee['people_id']]);
+            $payeeName = $nameStmt->fetchColumn() ?: 'Unknown';
+
+            $transactions = $this->getTransactions($db, $payeeId, $businessId, $startDate, $endDate);
+            $openingBalance = $this->calculateOpeningBalance($db, $payeeId, $businessId, $startDate);
+
+            // Build running balance
+            $runningBalance = $openingBalance;
+            foreach ($transactions as &$txn) {
+                $debit = (float)($txn['debit_amount'] ?? 0);
+                $credit = (float)($txn['credit_amount'] ?? 0);
+                $runningBalance += $debit - $credit;
+                $txn['running_balance'] = $runningBalance;
+            }
+
+            // Generate CSV
+            $filename = "statement_{$payeeName}_{$startDate}_{$endDate}.csv";
+            $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Cache-Control: no-cache, no-store, must-revalidate');
+
+            $output = fopen('php://output', 'w');
+
+            // Header info
+            fputcsv($output, ['Statement of Account']);
+            fputcsv($output, ['Payee', $payeeName]);
+            fputcsv($output, ['Period', $startDate . ' to ' . $endDate]);
+            fputcsv($output, ['Opening Balance', number_format($openingBalance, 2, '.', '')]);
+            fputcsv($output, []);
+
+            // Column headers
+            fputcsv($output, ['Date', 'Type', 'Reference', 'Description', 'Debit', 'Credit', 'Running Balance', 'Status']);
+
+            // Data rows
+            foreach ($transactions as $txn) {
+                fputcsv($output, [
+                    $txn['date'],
+                    $txn['type'],
+                    $txn['reference_number'] ?? '',
+                    $txn['description'] ?? '',
+                    number_format((float)($txn['debit_amount'] ?? 0), 2, '.', ''),
+                    number_format((float)($txn['credit_amount'] ?? 0), 2, '.', ''),
+                    number_format((float)($txn['running_balance'] ?? 0), 2, '.', ''),
+                    $txn['status'] ?? '',
+                ]);
+            }
+
+            // Footer
+            fputcsv($output, []);
+            fputcsv($output, ['Closing Balance', '', '', '', '', '', number_format($runningBalance, 2, '.', '')]);
+
+            fclose($output);
+            exit;
+
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to export statement: ' . $e->getMessage());
+        }
+    }
+
     private function getTransactions(PDO $db, int $payeeId, int $businessId, string $startDate, string $endDate): array {
         $transactions = [];
 
-        // Purchase Orders (debit = increases what we owe supplier)
+        // Convention:
+        //   Debit  = increases what the payee owes us (or decreases what we owe them)
+        //   Credit = decreases what the payee owes us (or increases what we owe them)
+        //
+        // From OUR perspective looking at the payee's NET balance:
+        //   Sales Invoice → Debit  (they owe us more)
+        //   Collection    → Credit (they paid us, owe us less)
+        //   PO / Expense  → Credit (we owe them more = net goes down)
+        //   Salary        → Credit (we owe them more = net goes down)
+        //   Payment       → Debit  (we paid them, owe them less = net goes up)
+
+        // Purchase Orders (we owe them more → credit)
         $stmt = $db->prepare("
             SELECT po.po_date AS date, 'purchase_order' AS type,
                    po.po_number AS reference_number,
-                   CONCAT('PO to ', p.name) AS description,
-                   po.total_amount_fc AS debit_amount, 0 AS credit_amount,
+                   CONCAT('PO #', po.po_number) AS description,
+                   0 AS debit_amount, po.total_amount_fc AS credit_amount,
                    po.status
             FROM purchase_orders po
-            JOIN payees py ON py.id = po.supplier_id
-            JOIN people p ON p.id = py.people_id
             WHERE po.supplier_id = :payee_id AND po.business_id = :business_id
               AND po.po_date >= :start_date AND po.po_date <= :end_date
               AND po.status != 'CANCELLED'
@@ -86,16 +184,14 @@ class PayeeStatementController extends BaseController {
         $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'start_date' => $startDate, 'end_date' => $endDate]);
         $transactions = array_merge($transactions, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
-        // Sales Invoices (debit = customer owes us)
+        // Sales Invoices (they owe us more → debit)
         $stmt = $db->prepare("
             SELECT si.invoice_date AS date, 'sales_invoice' AS type,
                    si.invoice_number AS reference_number,
-                   CONCAT('Invoice to ', p.name) AS description,
+                   CONCAT('Invoice #', si.invoice_number) AS description,
                    si.total_amount_fc AS debit_amount, 0 AS credit_amount,
                    si.status
             FROM sales_invoices si
-            JOIN payees py ON py.id = si.customer_id
-            JOIN people p ON p.id = py.people_id
             WHERE si.customer_id = :payee_id AND si.business_id = :business_id
               AND si.invoice_date >= :start_date AND si.invoice_date <= :end_date
               AND si.status != 'CANCELLED'
@@ -103,11 +199,11 @@ class PayeeStatementController extends BaseController {
         $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'start_date' => $startDate, 'end_date' => $endDate]);
         $transactions = array_merge($transactions, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
-        // Expenses (debit = we owe the payee)
+        // Expenses (we owe them more → credit)
         $stmt = $db->prepare("
             SELECT e.expense_date AS date, 'expense' AS type,
                    e.reference_number, e.notes AS description,
-                   e.amount_fc AS debit_amount, 0 AS credit_amount,
+                   0 AS debit_amount, e.amount_fc AS credit_amount,
                    'RECORDED' AS status
             FROM expenses e
             WHERE e.payee_id = :payee_id AND e.business_id = :business_id
@@ -116,12 +212,12 @@ class PayeeStatementController extends BaseController {
         $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'start_date' => $startDate, 'end_date' => $endDate]);
         $transactions = array_merge($transactions, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
-        // Salaries (debit = we owe the employee)
+        // Salaries (we owe them more → credit)
         $stmt = $db->prepare("
             SELECT s.period_start AS date, 'salary' AS type,
                    CONCAT('Salary ', s.period_start, ' - ', s.period_end) AS reference_number,
                    'Salary payment' AS description,
-                   s.net_amount_fc AS debit_amount, 0 AS credit_amount,
+                   0 AS debit_amount, s.net_amount_fc AS credit_amount,
                    'RECORDED' AS status
             FROM salaries s
             WHERE s.payee_id = :payee_id AND s.business_id = :business_id
@@ -130,12 +226,12 @@ class PayeeStatementController extends BaseController {
         $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'start_date' => $startDate, 'end_date' => $endDate]);
         $transactions = array_merge($transactions, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
-        // Payment Slips (credit = reduces what we owe)
+        // Payment Slips (we paid them, owe less → debit)
         $stmt = $db->prepare("
             SELECT ps.payment_date AS date, 'payment_slip' AS type,
                    ps.payment_number AS reference_number,
                    ps.notes AS description,
-                   0 AS debit_amount, ps.amount_fc AS credit_amount,
+                   ps.amount_fc AS debit_amount, 0 AS credit_amount,
                    'PAID' AS status
             FROM payment_slips ps
             WHERE ps.payee_id = :payee_id AND ps.business_id = :business_id
@@ -144,7 +240,7 @@ class PayeeStatementController extends BaseController {
         $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'start_date' => $startDate, 'end_date' => $endDate]);
         $transactions = array_merge($transactions, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
-        // Collection Slips (credit = customer paid us)
+        // Collection Slips (they paid us, owe less → credit)
         $stmt = $db->prepare("
             SELECT cs.slip_date AS date, 'collection_slip' AS type,
                    cs.slip_number AS reference_number,
@@ -165,37 +261,40 @@ class PayeeStatementController extends BaseController {
     }
 
     private function calculateOpeningBalance(PDO $db, int $payeeId, int $businessId, string $startDate): float {
+        // Net balance = (what they owe us) - (what we owe them)
+        // Positive = they owe us. Negative = we owe them.
+
         $balance = 0.0;
 
-        // POs before start
-        $stmt = $db->prepare("SELECT COALESCE(SUM(total_amount_fc), 0) FROM purchase_orders WHERE supplier_id = :pid AND business_id = :bid AND po_date < :d AND status != 'CANCELLED'");
-        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
-        $balance += (float)$stmt->fetchColumn();
-
-        // Invoices before start
+        // Sales Invoices before start (they owe us → positive)
         $stmt = $db->prepare("SELECT COALESCE(SUM(total_amount_fc), 0) FROM sales_invoices WHERE customer_id = :pid AND business_id = :bid AND invoice_date < :d AND status != 'CANCELLED'");
         $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
         $balance += (float)$stmt->fetchColumn();
 
-        // Expenses before start
-        $stmt = $db->prepare("SELECT COALESCE(SUM(amount_fc), 0) FROM expenses WHERE payee_id = :pid AND business_id = :bid AND expense_date < :d");
-        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
-        $balance += (float)$stmt->fetchColumn();
-
-        // Salaries before start
-        $stmt = $db->prepare("SELECT COALESCE(SUM(net_amount_fc), 0) FROM salaries WHERE payee_id = :pid AND business_id = :bid AND period_start < :d");
-        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
-        $balance += (float)$stmt->fetchColumn();
-
-        // Payments before start (reduce balance)
-        $stmt = $db->prepare("SELECT COALESCE(SUM(amount_fc), 0) FROM payment_slips WHERE payee_id = :pid AND business_id = :bid AND payment_date < :d");
-        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
-        $balance -= (float)$stmt->fetchColumn();
-
-        // Collections before start (reduce balance)
+        // Collections before start (they paid us → negative)
         $stmt = $db->prepare("SELECT COALESCE(SUM(amount_fc), 0) FROM collection_slips WHERE payee_id = :pid AND business_id = :bid AND slip_date < :d");
         $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
         $balance -= (float)$stmt->fetchColumn();
+
+        // POs before start (we owe them → negative)
+        $stmt = $db->prepare("SELECT COALESCE(SUM(total_amount_fc), 0) FROM purchase_orders WHERE supplier_id = :pid AND business_id = :bid AND po_date < :d AND status != 'CANCELLED'");
+        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
+        $balance -= (float)$stmt->fetchColumn();
+
+        // Expenses before start (we owe them → negative)
+        $stmt = $db->prepare("SELECT COALESCE(SUM(amount_fc), 0) FROM expenses WHERE payee_id = :pid AND business_id = :bid AND expense_date < :d");
+        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
+        $balance -= (float)$stmt->fetchColumn();
+
+        // Salaries before start (we owe them → negative)
+        $stmt = $db->prepare("SELECT COALESCE(SUM(net_amount_fc), 0) FROM salaries WHERE payee_id = :pid AND business_id = :bid AND period_start < :d");
+        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
+        $balance -= (float)$stmt->fetchColumn();
+
+        // Payments before start (we paid them, owe less → positive)
+        $stmt = $db->prepare("SELECT COALESCE(SUM(amount_fc), 0) FROM payment_slips WHERE payee_id = :pid AND business_id = :bid AND payment_date < :d");
+        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
+        $balance += (float)$stmt->fetchColumn();
 
         return $balance;
     }
