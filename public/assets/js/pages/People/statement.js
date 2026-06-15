@@ -176,17 +176,28 @@ function renderTransactions(transactions) {
         const debit = parseFloat(txn.debit_amount) || 0;
         const credit = parseFloat(txn.credit_amount) || 0;
         const balance = parseFloat(txn.running_balance) || 0;
+        const netEffect = debit + credit; // positive = good for us, negative = bad for us
 
         const statusBadge = getStatusBadge(txn.status, txn.type);
+
+        // Color by effect on balance: green = balance goes up, red = balance goes down
+        const effectClass = netEffect >= 0 ? 'text-success' : 'text-danger';
+
+        const debitDisplay = debit !== 0
+            ? `<span class="${effectClass}">${fmt.formatNumber(debit, 2)}</span>`
+            : '—';
+        const creditDisplay = credit !== 0
+            ? `<span class="${effectClass}">${fmt.formatNumber(credit, 2)}</span>`
+            : '—';
 
         statementTable.row.add([
             fmt.formatDate(txn.date),
             formatTransactionType(txn.type),
             txn.reference_number || '—',
             txn.description || '—',
-            debit > 0 ? fmt.formatNumber(debit, 2) : '—',
-            credit > 0 ? fmt.formatNumber(credit, 2) : '—',
-            `<span class="${balance < 0 ? 'text-danger fw-bold' : ''}">${fmt.formatNumber(balance, 2)}</span>`,
+            debitDisplay,
+            creditDisplay,
+            `<span class="${balance < 0 ? 'text-danger fw-bold' : 'text-success fw-bold'}">${fmt.formatNumber(balance, 2)}</span>`,
             statusBadge
         ]);
     });

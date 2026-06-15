@@ -79,42 +79,69 @@ class InsightsController extends BaseController {
             }
 
             // Aggregate sales data from si_details JOIN sales_invoices
+            // Include both item-based and service-based lines
             $stmt = $db->prepare("
-                SELECT i.name AS item_name,
+                SELECT COALESCE(i.name, s.name, 'Unspecified') AS item_name,
                        SUM(sid.quantity) AS total_quantity,
                        AVG(sid.unit_price_fc) AS avg_unit_price,
                        MAX(si.invoice_date) AS last_date,
                        COUNT(DISTINCT si.id) AS document_count
                 FROM si_details sid
                 JOIN sales_invoices si ON si.id = sid.sales_invoice_id
-                JOIN items i ON i.id = sid.item_id
+                LEFT JOIN items i ON i.id = sid.item_id
+                LEFT JOIN services s ON s.id = sid.service_id
                 WHERE si.customer_id = :payee_id
                   AND si.business_id = :business_id
                   AND si.status != 'CANCELLED'
-                  AND sid.item_id IS NOT NULL
-                GROUP BY sid.item_id, i.name
+                GROUP BY COALESCE(sid.item_id, sid.service_id + 1000000), COALESCE(i.name, s.name, 'Unspecified')
                 ORDER BY total_quantity DESC
             ");
             $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
             $items = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            // Get last price for each item
+            // If no detail rows exist, show invoice-level summary
+            if (empty($items)) {
+                $fallbackStmt = $db->prepare("
+                    SELECT CONCAT('Invoice #', si.invoice_number) AS item_name,
+                           1 AS total_quantity,
+                           si.total_amount_fc AS avg_unit_price,
+                           si.invoice_date AS last_date,
+                           1 AS document_count
+                    FROM sales_invoices si
+                    WHERE si.customer_id = :payee_id
+                      AND si.business_id = :business_id
+                      AND si.status != 'CANCELLED'
+                    ORDER BY si.invoice_date DESC
+                ");
+                $fallbackStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+                $items = $fallbackStmt->fetchAll(\PDO::FETCH_ASSOC);
+            }
+
+            // Get last price for each item (skip for fallback invoice-level rows)
             foreach ($items as &$item) {
+                if (isset($item['last_price'])) continue; // fallback rows don't need this
                 $lpStmt = $db->prepare("
                     SELECT sid.unit_price_fc
                     FROM si_details sid
                     JOIN sales_invoices si ON si.id = sid.sales_invoice_id
-                    JOIN items i ON i.id = sid.item_id
                     WHERE si.customer_id = :payee_id
                       AND si.business_id = :business_id
-                      AND i.name = :item_name
                       AND si.status != 'CANCELLED'
-                      AND sid.item_id IS NOT NULL
+                      AND (
+                        (sid.item_id IS NOT NULL AND sid.item_id IN (SELECT id FROM items WHERE name = :item_name))
+                        OR (sid.service_id IS NOT NULL AND sid.service_id IN (SELECT id FROM services WHERE name = :item_name2))
+                      )
                     ORDER BY si.invoice_date DESC
                     LIMIT 1
                 ");
-                $lpStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'item_name' => $item['item_name']]);
-                $item['last_price'] = $lpStmt->fetchColumn() ?: $item['avg_unit_price'];
+                $lpStmt->execute([
+                    'payee_id' => $payeeId,
+                    'business_id' => $businessId,
+                    'item_name' => $item['item_name'],
+                    'item_name2' => $item['item_name']
+                ]);
+                $lastPrice = $lpStmt->fetchColumn();
+                $item['last_price'] = $lastPrice !== false ? $lastPrice : $item['avg_unit_price'];
             }
 
             $this->json(true, ['items' => $items]);
