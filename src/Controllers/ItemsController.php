@@ -146,7 +146,7 @@ class ItemsController extends BaseController {
     // POST /items/{id}/stock
     public function adjustStock(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
             $data = $this->input(['type', 'quantity']);
             $this->service->adjustStock(
                 $id,
@@ -155,6 +155,25 @@ class ItemsController extends BaseController {
                 $data['reference'] ?? null,
                 $data['notes']     ?? null
             );
+
+            // Create batch record if expiry data is provided (IN transactions on expiry-tracked items)
+            if (strtoupper($data['type']) === 'IN' && !empty($data['expiry_date'])) {
+                $db = \App\Config\Database::getConnection();
+                $batchNumber = $data['batch_number'] ?? ('BATCH-' . date('Ymd-His'));
+                $stmt = $db->prepare("
+                    INSERT INTO item_batches (item_id, business_id, batch_number, quantity, manufacturing_date, expiry_date, status, created_at)
+                    VALUES (:item_id, :business_id, :batch_number, :quantity, :mfg_date, :expiry_date, 'active', NOW())
+                ");
+                $stmt->execute([
+                    'item_id'      => $id,
+                    'business_id'  => $ctx->business_id,
+                    'batch_number' => $batchNumber,
+                    'quantity'     => (float) $data['quantity'],
+                    'mfg_date'     => $data['manufacturing_date'] ?? null,
+                    'expiry_date'  => $data['expiry_date'],
+                ]);
+            }
+
             $this->json(true, ['item_id' => $id]);
         } catch (\InvalidArgumentException | \RuntimeException $e) {
             $this->json(false, null, $e->getMessage(), 422);

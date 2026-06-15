@@ -16,6 +16,8 @@ const F = {
     yieldQty:    () => document.getElementById('inputYieldQty'),
     salePrice:   () => document.getElementById('inputRecipeSalePrice'),
     autoMarkup:  () => document.getElementById('inputAutoMarkup'),
+    minStock:    () => document.getElementById('inputRecipeMinStock'),
+    hasExpiry:   () => document.getElementById('inputRecipeHasExpiry'),
     notes:       () => document.getElementById('inputRecipeNotes'),
     tbody:       () => document.getElementById('recipeComponentsBody'),
     batchCost:   () => document.getElementById('recipeBatchCost'),
@@ -39,6 +41,27 @@ export async function mount({ modalRoot: root, data }) {
 
     // Attach input listeners for real-time cost recalculation
     F.yieldQty().addEventListener('input', recalculateCost);
+
+    // Auto-markup: when markup % changes, recalculate sale price from cost per unit
+    F.autoMarkup().addEventListener('input', () => {
+        const markup = parseFloat(F.autoMarkup().value);
+        if (!markup || markup <= 0) return;
+        const costPerUnit = getCurrentCostPerUnit();
+        if (costPerUnit > 0) {
+            const salePrice = costPerUnit * (1 + markup / 100);
+            F.salePrice().value = salePrice.toFixed(2);
+        }
+    });
+
+    // If sale price is manually set and cost exists, auto-calculate markup %
+    F.salePrice().addEventListener('input', () => {
+        const sale = parseFloat(F.salePrice().value);
+        const costPerUnit = getCurrentCostPerUnit();
+        if (sale > 0 && costPerUnit > 0) {
+            const markup = ((sale - costPerUnit) / costPerUnit) * 100;
+            F.autoMarkup().value = markup.toFixed(2);
+        }
+    });
 
     unregister = registerPageActions({
         'recipe.add-component': () => {
@@ -86,6 +109,8 @@ async function fetchAndFill(recipeId) {
         F.yieldQty().value  = recipe.yield_quantity ?? 1;
         F.salePrice().value = recipe.sale_price ?? '';
         F.autoMarkup().value = recipe.markup_percent ?? '';
+        F.minStock().value  = recipe.min_stock ?? '';
+        F.hasExpiry().checked = parseInt(recipe.has_expiry) === 1;
         F.notes().value     = recipe.notes ?? '';
 
         // Populate component rows
@@ -227,6 +252,33 @@ function recalculateCost() {
 
     F.batchCost().textContent  = getFormatter().formatNumber(totalBatchCost, 2);
     F.costPerUnit().textContent = getFormatter().formatNumber(costPerUnit, 2);
+
+    // If auto-markup is set, recalculate sale price automatically
+    const markup = parseFloat(F.autoMarkup().value);
+    if (markup > 0 && costPerUnit > 0) {
+        const salePrice = costPerUnit * (1 + markup / 100);
+        F.salePrice().value = salePrice.toFixed(2);
+    }
+}
+
+function getCurrentCostPerUnit() {
+    const tbody = F.tbody();
+    const rows  = tbody.querySelectorAll('tr');
+    let totalBatchCost = 0;
+
+    rows.forEach(row => {
+        const select   = row.querySelector('.component-item-select');
+        const qtyInput = row.querySelector('.component-qty-input');
+        if (!select || !qtyInput) return;
+        const selectedOption = select.options[select.selectedIndex];
+        if (!selectedOption || !selectedOption.value) return;
+        const cost = parseFloat(selectedOption.dataset.cost) || 0;
+        const qty  = parseFloat(qtyInput.value) || 0;
+        totalBatchCost += cost * qty;
+    });
+
+    const yieldQty = parseFloat(F.yieldQty().value) || 1;
+    return yieldQty > 0 ? totalBatchCost / yieldQty : 0;
 }
 
 // ─── Form validation ────────────────────────────────────────────────────────
@@ -301,6 +353,8 @@ async function saveRecipe() {
         yield_quantity: parseInt(F.yieldQty().value, 10),
         sale_price:     F.salePrice().value !== '' ? parseFloat(F.salePrice().value) : null,
         auto_markup_percent: F.autoMarkup().value !== '' ? parseFloat(F.autoMarkup().value) : null,
+        min_stock:      F.minStock().value !== '' ? parseFloat(F.minStock().value) : null,
+        has_expiry:     F.hasExpiry().checked ? 1 : 0,
         notes:          F.notes().value.trim() || null,
         components:     items
     };

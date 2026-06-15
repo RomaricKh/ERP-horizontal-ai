@@ -62,6 +62,7 @@ class ManufacturingService {
                 'cost'       => $unitCost,
                 'sale'       => $data['sale_price'] ?? null,
                 'notes'      => null,
+                'has_expiry' => isset($data['has_expiry']) ? (int) $data['has_expiry'] : 0,
                 'created_by' => $ctx->user_id,
             ]);
 
@@ -96,6 +97,11 @@ class ManufacturingService {
             // Save auto-markup config if provided
             if (!empty($data['auto_markup_percent'])) {
                 $this->repo->setAutoMarkupConfig($itemId, (float) $data['auto_markup_percent']);
+            }
+
+            // Set min_stock if provided
+            if (isset($data['min_stock']) && $data['min_stock'] !== null) {
+                $this->itemRepo->update($itemId, $ctx->tenant_id, ['min_stock' => (float) $data['min_stock']]);
             }
 
             $this->db->commit();
@@ -173,6 +179,12 @@ class ManufacturingService {
             }
             if (array_key_exists('unit', $data)) {
                 $itemUpdates['unit'] = $data['unit'];
+            }
+            if (array_key_exists('has_expiry', $data)) {
+                $itemUpdates['has_expiry'] = (int) $data['has_expiry'];
+            }
+            if (array_key_exists('min_stock', $data)) {
+                $itemUpdates['min_stock'] = $data['min_stock'];
             }
             if (!empty($itemUpdates)) {
                 $this->itemRepo->update(

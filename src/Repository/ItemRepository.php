@@ -166,7 +166,7 @@ class ItemRepository {
     }
 
     public function update(int $id, int $tenantId, array $data): void {
-        $allowed = ['name','sku','unit','cost_price','sale_price','min_stock','notes','item_type_id','has_expiry','customer_id'];
+        $allowed = ['name','sku','unit','cost_price','sale_price','min_stock','markup_percent','markup_enabled','notes','item_type_id','has_expiry','customer_id'];
         $fields  = [];
         $params  = ['id' => $id, 'tenant' => $tenantId];
 

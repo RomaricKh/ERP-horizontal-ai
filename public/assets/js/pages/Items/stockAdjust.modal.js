@@ -12,12 +12,25 @@ export async function mount({ modalRoot: root, data }) {
     modalRoot     = root;
     currentItemId = data.item_id;
 
+    const hasExpiry = parseInt(data.has_expiry) === 1;
+
     document.getElementById('stockItemName').textContent    = data.item_name    ?? '—';
     document.getElementById('stockCurrentQty').textContent  = getFormatter().formatNumber(data.current_qty ?? 0, 3);
 
-    // Update hint when type changes
+    // Show/hide batch section based on type and expiry tracking
     const typeSelect = document.getElementById('stockTypeSelect');
+    const batchSection = document.getElementById('batchInfoSection');
+
+    const updateBatchVisibility = () => {
+        if (hasExpiry && typeSelect.value === 'IN') {
+            batchSection.classList.remove('d-none');
+        } else {
+            batchSection.classList.add('d-none');
+        }
+    };
+
     typeSelect?.addEventListener('change', () => {
+        updateBatchVisibility();
         const hint = document.getElementById('stockQtyHint');
         if (!hint) return;
         hint.textContent = typeSelect.value === 'ADJ'
@@ -27,16 +40,31 @@ export async function mount({ modalRoot: root, data }) {
                 : 'IN increases stock by this amount.';
     });
 
+    updateBatchVisibility();
+
     unregister = registerPageActions({
         'stock.save': async () => {
             if (!validateForm()) return;
 
+            const type = document.getElementById('stockTypeSelect').value;
             const payload = {
-                type:      document.getElementById('stockTypeSelect').value,
+                type,
                 quantity:  parseFloat(document.getElementById('stockQty').value),
                 reference: document.getElementById('stockReference').value.trim() || null,
                 notes:     document.getElementById('stockNotes').value.trim()     || null,
             };
+
+            // Include batch data for expiry-tracked items with IN transactions
+            if (type === 'IN') {
+                const expiryDate = document.getElementById('stockExpiryDate')?.value;
+                const mfgDate = document.getElementById('stockManufacturingDate')?.value;
+                const batchNumber = document.getElementById('stockBatchNumber')?.value?.trim();
+                if (expiryDate) {
+                    payload.expiry_date = expiryDate;
+                    payload.manufacturing_date = mfgDate || null;
+                    payload.batch_number = batchNumber || null;
+                }
+            }
 
             try {
                 const res  = await apiFetch(`/api/items/${currentItemId}/stock`, {
@@ -76,6 +104,17 @@ function validateForm() {
         markInvalid(qtyEl, 'Quantity must be greater than zero');
         valid = false;
     }
+
+    // If batch section is visible (expiry item + IN), expiry date is required
+    const batchSection = document.getElementById('batchInfoSection');
+    if (batchSection && !batchSection.classList.contains('d-none')) {
+        const expiryEl = document.getElementById('stockExpiryDate');
+        if (!expiryEl?.value) {
+            markInvalid(expiryEl, 'Expiry date is required for batch-tracked items');
+            valid = false;
+        }
+    }
+
     return valid;
 }
 

@@ -84,7 +84,7 @@ class ManufacturingRepository {
                    r.yield_quantity, r.notes, r.is_active, r.created_by,
                    r.created_at, r.updated_at,
                    i.name AS manufactured_item_name,
-                   i.unit, i.sale_price, i.has_expiry,
+                   i.unit, i.sale_price, i.has_expiry, i.min_stock,
                    CASE WHEN i.markup_enabled = 1 THEN i.markup_percent ELSE NULL END AS markup_percent
             FROM recipes r
             JOIN items i ON i.id = r.manufactured_item_id

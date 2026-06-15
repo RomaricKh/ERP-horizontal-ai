@@ -223,7 +223,7 @@ class ItemService {
             }
         }
 
-        $fields = ['name','sku','unit','cost_price','sale_price','min_stock','notes','item_type_id','has_expiry'];
+        $fields = ['name','sku','unit','cost_price','sale_price','min_stock','markup_percent','markup_enabled','notes','item_type_id','has_expiry'];
         $changes = [];
         foreach ($fields as $f) {
             if (array_key_exists($f, $input) && $input[$f] !== $before[$f]) {
@@ -283,6 +283,17 @@ class ItemService {
         if ($costPriceChanged) {
             $manufacturingService = new ManufacturingService($this->db);
             $manufacturingService->recalculateAffectedRecipes($id);
+
+            // Auto-update sale price if markup is enabled on this item
+            $updatedItem = $this->repo->getById($id, $ctx->tenant_id);
+            if ($updatedItem && (int)($updatedItem['markup_enabled'] ?? 0) === 1) {
+                $markupPct = (float)($updatedItem['markup_percent'] ?? 0);
+                $newCost = (float)($changes['cost_price'] ?? $updatedItem['cost_price']);
+                if ($markupPct > 0 && $newCost > 0) {
+                    $newSale = $newCost * (1 + $markupPct / 100);
+                    $this->repo->update($id, $ctx->tenant_id, ['sale_price' => round($newSale, 2)]);
+                }
+            }
         }
     }
 

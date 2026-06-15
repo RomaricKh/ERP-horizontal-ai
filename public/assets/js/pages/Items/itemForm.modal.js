@@ -21,6 +21,7 @@ const F = {
     notes:          () => document.getElementById('inputItemNotes'),
     cost:           () => document.getElementById('inputCostPrice'),
     sale:           () => document.getElementById('inputSalePrice'),
+    markup:         () => document.getElementById('inputMarkup'),
     minStock:       () => document.getElementById('inputMinStock'),
     hasExpiry:      () => document.getElementById('inputHasExpiry'),
 };
@@ -57,6 +58,9 @@ export async function mount({ modalRoot: root, data }) {
     if (currentItemId) {
         await fetchAndFill(currentItemId);
     }
+
+    // Auto-markup calculation
+    setupMarkupCalculation();
 
     unregister = registerPageActions({
         'items.price-history': async () => {
@@ -101,6 +105,8 @@ export async function mount({ modalRoot: root, data }) {
                 notes:         F.notes().value.trim() || null,
                 cost_price:    F.cost().value !== '' ? parseFloat(F.cost().value) : null,
                 sale_price:    F.sale().value !== '' ? parseFloat(F.sale().value) : null,
+                markup_percent: F.markup().value !== '' ? parseFloat(F.markup().value) : null,
+                markup_enabled: F.markup().value !== '' && parseFloat(F.markup().value) > 0 ? 1 : 0,
                 min_stock:     F.minStock().value !== '' ? parseFloat(F.minStock().value) : null,
                 has_expiry:    hasExpiryChecked ? 1 : 0,
                 customer_id:   F.customerSelect().value ? parseInt(F.customerSelect().value, 10) : null,
@@ -205,6 +211,42 @@ function filterCustomerDropdown(searchText) {
     populateCustomerSelect(filtered);
 }
 
+function setupMarkupCalculation() {
+    const cost = F.cost();
+    const sale = F.sale();
+    const markup = F.markup();
+
+    // When cost changes and markup is set → recalculate sale price
+    cost?.addEventListener('input', () => {
+        const costVal = parseFloat(cost.value);
+        const markupVal = parseFloat(markup.value);
+        if (costVal > 0 && markupVal > 0) {
+            sale.value = (costVal * (1 + markupVal / 100)).toFixed(2);
+        } else if (costVal > 0 && parseFloat(sale.value) > 0) {
+            // Recalculate markup from existing sale price
+            markup.value = (((parseFloat(sale.value) - costVal) / costVal) * 100).toFixed(2);
+        }
+    });
+
+    // When sale price changes → recalculate markup %
+    sale?.addEventListener('input', () => {
+        const costVal = parseFloat(cost.value);
+        const saleVal = parseFloat(sale.value);
+        if (costVal > 0 && saleVal > 0) {
+            markup.value = (((saleVal - costVal) / costVal) * 100).toFixed(2);
+        }
+    });
+
+    // When markup changes → recalculate sale price from cost
+    markup?.addEventListener('input', () => {
+        const costVal = parseFloat(cost.value);
+        const markupVal = parseFloat(markup.value);
+        if (costVal > 0 && markupVal > 0) {
+            sale.value = (costVal * (1 + markupVal / 100)).toFixed(2);
+        }
+    });
+}
+
 async function fetchAndFill(itemId) {
     try {
         const res  = await apiFetch(`/api/items/${itemId}`);
@@ -220,6 +262,13 @@ async function fetchAndFill(itemId) {
         F.cost().value        = item.cost_price    ?? '';
         F.sale().value        = item.sale_price    ?? '';
         F.minStock().value    = item.min_stock     ?? '';
+
+        // Calculate markup from existing cost/sale
+        const costVal = parseFloat(item.cost_price);
+        const saleVal = parseFloat(item.sale_price);
+        if (costVal > 0 && saleVal > 0) {
+            F.markup().value = (((saleVal - costVal) / costVal) * 100).toFixed(2);
+        }
 
         // Pre-populate customer dropdown
         if (item.customer_id) {
