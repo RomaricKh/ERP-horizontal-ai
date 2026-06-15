@@ -611,6 +611,17 @@ class ManufacturingService {
             throw new \InvalidArgumentException('Production order has already been reversed');
         }
 
+        // Guard: ensure produced stock hasn't been consumed (sold, used in another production, etc.)
+        $currentStock = $this->itemService->getAvailableStock((int) $order['manufactured_item_id']);
+        $producedQty = (float) $order['production_quantity'];
+        if ($currentStock < $producedQty) {
+            $consumed = $producedQty - $currentStock;
+            throw new \RuntimeException(
+                "Cannot reverse: {$consumed} of the {$producedQty} produced units have already been consumed (sold, used in production, or adjusted). " .
+                "Current stock is {$currentStock}."
+            );
+        }
+
         // Get production order items
         $orderItems = $this->repo->getProductionOrderItems($id);
 

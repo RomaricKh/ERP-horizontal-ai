@@ -2,6 +2,7 @@
 
 import { registerPageActions } from '../Core/pageActions.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
+import { confirm } from '../../components/modals.js';
 import { getFormatter } from '../../i18n/translationClient.js';
 
 let modalRoot;
@@ -353,6 +354,80 @@ async function executeOrder() {
         payload.manufacturing_date = mfgDate || null;
         payload.batch_number = batchNumber || null;
     }
+
+    // Build confirmation summary
+    const recipeItems = selectedRecipeDetails.items || [];
+    const yieldQty = selectedRecipeDetails.yield_quantity || 1;
+    const productionQty = payload.production_quantity;
+    const fmt = getFormatter();
+
+    let componentsHtml = recipeItems.map(item => {
+        const required = ((parseFloat(item.quantity) / yieldQty) * productionQty);
+        return `<tr>
+            <td>${escapeHtml(item.component_item_name)}</td>
+            <td class="text-end">${fmt.formatNumber(required, 4)}</td>
+            <td>${escapeHtml(item.unit || '—')}</td>
+        </tr>`;
+    }).join('');
+
+    const totalCostText = F.totalCost().textContent;
+    const unitCostText = F.unitCost().textContent;
+    const expiryText = payload.expiry_date || 'N/A';
+
+    const confirmHtml = `
+        <div class="text-start">
+            <div class="mb-3 p-3 bg-light rounded border">
+                <div class="row g-2">
+                    <div class="col-6"><strong>Recipe:</strong> ${escapeHtml(selectedRecipeDetails.manufactured_item_name)}</div>
+                    <div class="col-6"><strong>Quantity:</strong> ${fmt.formatNumber(productionQty, 2)} ${escapeHtml(selectedRecipeDetails.unit || 'units')}</div>
+                    <div class="col-6"><strong>Total Cost:</strong> ${totalCostText}</div>
+                    <div class="col-6"><strong>Unit Cost:</strong> ${unitCostText}</div>
+                    ${payload.expiry_date ? `<div class="col-6"><strong>Expiry:</strong> ${expiryText}</div>` : ''}
+                </div>
+            </div>
+            <p class="fw-bold mb-2">Components to consume:</p>
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light"><tr><th>Component</th><th class="text-end">Qty</th><th>Unit</th></tr></thead>
+                <tbody>${componentsHtml}</tbody>
+            </table>
+        </div>
+    `;
+
+    // Show confirmation dialog
+    const confirmed = await confirm({
+        title: 'Confirm Production Order',
+        message: confirmHtml,
+        isHtml: true
+    });
+
+    if (!confirmed) return;
+
+    // Execute
+    try {
+        const res = await apiFetch('/api/manufacturing/orders', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+
+        if (!res.ok || !json.success) {
+            const message = json.message || 'Production order failed';
+            if (json.errors && Array.isArray(json.errors)) {
+                const details = json.errors.map(e => e.message || e).join('\n');
+                showFormError(message + '\n' + details);
+            } else {
+                showFormError(message);
+            }
+            return;
+        }
+
+        bootstrap.Modal.getInstance(modalRoot).hide();
+        document.dispatchEvent(new CustomEvent('items.updated'));
+    } catch (err) {
+        console.error('executeOrder failed:', err);
+        showFormError(err.message || 'Unable to execute production order');
+    }
+}
 
     try {
         const res  = await apiFetch('/api/manufacturing/orders', {

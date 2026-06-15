@@ -111,7 +111,7 @@ async function loadCategories() {
     try {
         const res  = await apiFetch('/api/services/categories');
         const data = await res.json();
-        categories = data.success ? (data.data.service_categories || []) : [];
+        categories = data.success ? (data.data.categories || data.data.service_categories || []) : [];
         renderList();
     } catch (err) { console.error('loadCategories failed:', err); }
 }
@@ -125,19 +125,27 @@ function renderList() {
         return;
     }
 
-    container.innerHTML = categories.map(cat => `
-        <div class="category-row d-flex align-items-center justify-content-between border-bottom py-2">
-            <span class="category-label">${escHtml(cat.name)}</span>
-            <div class="d-flex gap-2">
+    container.innerHTML = categories.map(cat => {
+        const isSystem = parseInt(cat.is_system) === 1;
+        const badge = isSystem ? ' <span class="badge bg-secondary ms-1">System</span>' : '';
+        const actions = isSystem
+            ? '<span class="text-muted small"><i class="fas fa-lock me-1"></i>Protected</span>'
+            : `<div class="d-flex gap-2">
                 <button class="btn btn-sm btn-outline-secondary" data-action="service-categories.edit" data-id="${cat.id}" title="Edit">
                     <i class="fas fa-pencil-alt"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-danger" data-action="service-categories.delete" data-id="${cat.id}" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
+               </div>`;
+
+        return `
+            <div class="category-row d-flex align-items-center justify-content-between border-bottom py-2">
+                <span class="category-label">${escHtml(cat.name)}${badge}</span>
+                ${actions}
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function escHtml(str) {

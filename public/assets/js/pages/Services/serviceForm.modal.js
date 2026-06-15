@@ -72,7 +72,7 @@ async function loadCategories() {
         const sel = F.categorySelect();
         while (sel.options.length > 1) sel.remove(1);
 
-        (data.data.service_categories || []).forEach(cat => {
+        (data.data.categories || data.data.service_categories || []).forEach(cat => {
             const opt = document.createElement('option');
             opt.value       = cat.id;
             opt.textContent = cat.name;

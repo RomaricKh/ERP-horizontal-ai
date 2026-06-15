@@ -66,7 +66,7 @@ $router->delete('/services/categories/{id}',
 $router->get('/services',
     function () {
         $service = new ServiceService(Database::getConnection());
-        $list = $service->list();
+        $list = $service->list(true); // Include inactive for full management view
         echo json_encode(['success' => true, 'data' => ['services' => $list]]);
     },
     ['services.view']

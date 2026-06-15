@@ -13,8 +13,12 @@ export function mount({ modalRoot: root, data }) {
   document.getElementById('modal.title').textContent =
     data.title || 'Confirmation';
 
-  document.getElementById('confirmation.text').textContent =
-    data.message || 'Are you sure?';
+  const msgEl = document.getElementById('confirmation.text');
+  if (data.isHtml) {
+    msgEl.innerHTML = data.message || 'Are you sure?';
+  } else {
+    msgEl.textContent = data.message || 'Are you sure?';
+  }
 
   resolver = data.resolve;
 

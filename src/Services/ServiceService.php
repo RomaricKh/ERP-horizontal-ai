@@ -241,7 +241,7 @@ class ServiceService {
 
         $this->db->beginTransaction();
         try {
-            $id = $this->repo->createCategory([
+            $id = $this->categoryRepo->create([
                 'tenant_id'   => $ctx->tenant_id,
                 'business_id' => $ctx->business_id,
                 'name'        => $trimmed,
@@ -264,7 +264,6 @@ class ServiceService {
             return $id;
         } catch (\PDOException $e) {
             $this->db->rollBack();
-            // Unique constraint violation (duplicate name within business)
             if ($e->getCode() === '23000' && str_contains($e->getMessage(), 'Duplicate entry')) {
                 throw new \RuntimeException('A category with this name already exists');
             }
@@ -282,7 +281,7 @@ class ServiceService {
      */
     public function updateCategory(int $id, string $name): void {
         $ctx     = AuthContext::get();
-        $current = $this->repo->findCategoryById($id, $ctx->business_id, $ctx->tenant_id);
+        $current = $this->categoryRepo->findById($id, $ctx->tenant_id);
         if (!$current) {
             throw new \RuntimeException('Service category not found');
         }
@@ -293,12 +292,12 @@ class ServiceService {
         }
 
         if ($current['name'] === $trimmed) {
-            return; // No change
+            return;
         }
 
         $this->db->beginTransaction();
         try {
-            $this->repo->updateCategory($id, ['name' => $trimmed]);
+            $this->categoryRepo->update($id, $ctx->tenant_id, $trimmed);
 
             $this->audit->log(
                 'UPDATE',
@@ -333,19 +332,19 @@ class ServiceService {
      */
     public function deleteCategory(int $id): void {
         $ctx     = AuthContext::get();
-        $current = $this->repo->findCategoryById($id, $ctx->business_id, $ctx->tenant_id);
+        $current = $this->categoryRepo->findById($id, $ctx->tenant_id);
         if (!$current) {
             throw new \RuntimeException('Service category not found');
         }
 
-        $count = $this->repo->countByCategory($id, $ctx->business_id, $ctx->tenant_id);
+        $count = $this->categoryRepo->countServicesForCategory($id, $ctx->business_id, $ctx->tenant_id);
         if ($count > 0) {
             throw new \RuntimeException('Cannot delete category: it has services assigned');
         }
 
         $this->db->beginTransaction();
         try {
-            $this->repo->deleteCategory($id, $ctx->business_id, $ctx->tenant_id);
+            $this->categoryRepo->delete($id, $ctx->tenant_id, $ctx->business_id);
 
             $this->audit->log(
                 'DELETE',

@@ -72,13 +72,13 @@ export function closeAllModals() {
 }
 
 	
-export function confirm({ title, message }) {
+export function confirm({ title, message, isHtml }) {
   	return new Promise(async (resolve) => {
 		await openModal({
 		  scope: MODAL_SCOPE.GLOBAL,
 		  template: 'html/components/ConfirmationModal.html',
 		  controller: '../components/confirmation.modal.js',
-		  data: { title, message, resolve },
+		  data: { title, message, isHtml, resolve },
 		  options: { backdrop: 'static', keyboard: true, focus: true }
 		});
 	});
