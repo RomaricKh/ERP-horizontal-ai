@@ -4,44 +4,90 @@ import { apiFetch } from '../../Auth/apiFetch.js';
 
 let modalRoot;
 let unregister;
+let tenantId = null;
 
 export async function mount({ modalRoot: root, data }) {
     modalRoot = root;
+    tenantId = data?.tenant_id ?? null;
+
+    const titleEl = modalRoot.querySelector('#tenantModalTitle');
+    if (titleEl) {
+        titleEl.innerHTML = tenantId
+            ? '<i class="fas fa-building me-2"></i>Edit Tenant'
+            : '<i class="fas fa-building me-2"></i>Create Tenant';
+    }
+
+    // If editing, fetch and fill
+    if (tenantId) {
+        await fetchAndFill(tenantId);
+    }
 
     unregister = registerPageActions({
-        'tenants.save': async () => {
-            const name = modalRoot.querySelector('#inputTenantName')?.value?.trim();
-            const description = modalRoot.querySelector('#inputTenantDescription')?.value?.trim() || null;
-
-            if (!name) {
-                markInvalid(modalRoot.querySelector('#inputTenantName'), 'Name is required');
-                return;
-            }
-
-            try {
-                const res = await apiFetch('/api/tenant/tenants', {
-                    method: 'POST',
-                    body: JSON.stringify({ name, description })
-                });
-                const json = await res.json();
-
-                if (!res.ok || !json.success) {
-                    throw new Error(json.message || 'Failed to create tenant');
-                }
-
-                bootstrap.Modal.getInstance(modalRoot).hide();
-                document.dispatchEvent(new CustomEvent('tenants.updated'));
-            } catch (err) {
-                console.error(err);
-                showFormError(err.message || 'Unable to save tenant');
-            }
-        }
+        'tenants.save': handleSave
     });
 }
 
 export function unmount() {
     unregister?.();
     unregister = null;
+    tenantId = null;
+}
+
+async function fetchAndFill(id) {
+    try {
+        const res = await apiFetch('/api/tenant/tenants');
+        const json = await res.json();
+        if (!res.ok || !json.success) return;
+
+        const tenant = (json.data?.tenants || []).find(t => t.id === id);
+        if (!tenant) return;
+
+        const nameInput = modalRoot.querySelector('#inputTenantName');
+        const descInput = modalRoot.querySelector('#inputTenantDescription');
+        if (nameInput) nameInput.value = tenant.name || '';
+        if (descInput) descInput.value = tenant.description || '';
+    } catch (err) {
+        console.error('Failed to fetch tenant:', err);
+    }
+}
+
+async function handleSave() {
+    const nameInput = modalRoot.querySelector('#inputTenantName');
+    const descInput = modalRoot.querySelector('#inputTenantDescription');
+
+    const name = nameInput?.value?.trim();
+    const description = descInput?.value?.trim() || null;
+
+    if (!name) {
+        markInvalid(nameInput, 'Name is required');
+        return;
+    }
+
+    if (name.length < 2 || name.length > 100) {
+        markInvalid(nameInput, 'Name must be between 2 and 100 characters');
+        return;
+    }
+
+    const url = tenantId ? `/api/tenant/tenants/${tenantId}` : '/api/tenant/tenants';
+    const method = tenantId ? 'PUT' : 'POST';
+
+    try {
+        const res = await apiFetch(url, {
+            method,
+            body: JSON.stringify({ name, description })
+        });
+        const json = await res.json();
+
+        if (!res.ok || !json.success) {
+            throw new Error(json.message || 'Failed to save tenant');
+        }
+
+        bootstrap.Modal.getInstance(modalRoot).hide();
+        document.dispatchEvent(new CustomEvent('tenants.updated'));
+    } catch (err) {
+        console.error(err);
+        showFormError(err.message || 'Unable to save tenant');
+    }
 }
 
 function markInvalid(input, message) {

@@ -114,6 +114,70 @@ class TenantController extends BaseController
         }
     }
 
+    /**
+     * PUT /tenant/tenants/{id}
+     * Update a tenant's name and description.
+     */
+    public function updateTenant(int $tenantId): void
+    {
+        try {
+            // Verify the current user owns this tenant
+            $userId = AuthContext::userId();
+            if (!$this->tenantRepository->userOwnsTenant($userId, $tenantId)) {
+                $this->json(false, null, 'Access denied: you do not own this tenant', 403);
+                return;
+            }
+
+            $data = $this->input(['name', 'description']);
+            $name = trim($data['name'] ?? '');
+            $description = isset($data['description']) ? trim($data['description']) : null;
+
+            if (strlen($name) < 2 || strlen($name) > 100) {
+                $this->json(false, null, 'Tenant name must be between 2 and 100 characters', 422);
+                return;
+            }
+
+            if ($description !== null && strlen($description) > 500) {
+                $this->json(false, null, 'Description must not exceed 500 characters', 422);
+                return;
+            }
+
+            $this->tenantRepository->update($tenantId, $name, $description);
+
+            $tenant = $this->tenantRepository->findById($tenantId);
+
+            $this->json(true, ['tenant' => $tenant], 'Tenant updated successfully');
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to update tenant');
+        }
+    }
+
+    /**
+     * PATCH /tenant/tenants/{id}/active
+     * Toggle the is_active flag on a tenant (soft delete / restore).
+     */
+    public function toggleTenantActive(int $tenantId): void
+    {
+        try {
+            $userId = AuthContext::userId();
+            if (!$this->tenantRepository->userOwnsTenant($userId, $tenantId)) {
+                $this->json(false, null, 'Access denied: you do not own this tenant', 403);
+                return;
+            }
+
+            $data = $this->input(['active']);
+            $active = (bool) ($data['active'] ?? false);
+
+            $this->tenantRepository->setActive($tenantId, $active);
+
+            $tenant = $this->tenantRepository->findById($tenantId);
+
+            $this->json(true, ['tenant' => $tenant], $active ? 'Tenant activated' : 'Tenant deactivated');
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to toggle tenant status');
+        }
+    }
+
     // =========================================================================
     // Business Management
     // =========================================================================

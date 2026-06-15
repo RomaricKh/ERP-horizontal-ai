@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS `tenants` (
   `description` varchar(500) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `base_currency` varchar(3) NOT NULL DEFAULT 'USD',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

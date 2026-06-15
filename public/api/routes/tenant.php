@@ -42,6 +42,22 @@ $router->post('/tenant/tenants',
     }
 );
 
+// PUT /tenant/tenants/{id}
+$router->put('/tenant/tenants/{id}',
+    function ($id) use ($tenantGuard) {
+        if (!$tenantGuard()) return;
+        (new TenantController())->updateTenant((int) $id);
+    }
+);
+
+// PATCH /tenant/tenants/{id}/active
+$router->patch('/tenant/tenants/{id}/active',
+    function ($id) use ($tenantGuard) {
+        if (!$tenantGuard()) return;
+        (new TenantController())->toggleTenantActive((int) $id);
+    }
+);
+
 /* ========= BUSINESS MANAGEMENT ========= */
 
 // GET /tenant/businesses

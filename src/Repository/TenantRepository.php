@@ -9,6 +9,7 @@ interface TenantRepositoryInterface
     public function findAllByOwnerUserId(int $userId): array;
     public function findById(int $id): ?array;
     public function create(string $name, ?string $description): int;
+    public function update(int $id, string $name, ?string $description): void;
     public function userOwnsTenant(int $userId, int $tenantId): bool;
 }
 
@@ -32,6 +33,7 @@ class TenantRepository implements TenantRepositoryInterface
                 t.id,
                 t.name,
                 t.description,
+                t.is_active,
                 t.created_at,
                 (SELECT COUNT(*) FROM businesses b WHERE b.tenant_id = t.id) AS business_count
             FROM tenants t
@@ -49,7 +51,7 @@ class TenantRepository implements TenantRepositoryInterface
     public function findById(int $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT id, name, description
+            SELECT id, name, description, is_active
             FROM tenants
             WHERE id = :id
         ");
@@ -76,6 +78,22 @@ class TenantRepository implements TenantRepositoryInterface
     }
 
     /**
+     * Update an existing tenant's name and description.
+     */
+    public function update(int $id, string $name, ?string $description): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE tenants SET name = :name, description = :description
+            WHERE id = :id
+        ");
+        $stmt->execute([
+            'id' => $id,
+            'name' => $name,
+            'description' => $description,
+        ]);
+    }
+
+    /**
      * Check if a user holds the TENANT_OWNER role for the given tenant.
      */
     public function userOwnsTenant(int $userId, int $tenantId): bool
@@ -93,5 +111,19 @@ class TenantRepository implements TenantRepositoryInterface
             'tenant_id' => $tenantId,
         ]);
         return (int) $stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * Set the is_active flag on a tenant.
+     */
+    public function setActive(int $id, bool $active): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE tenants SET is_active = :active WHERE id = :id
+        ");
+        $stmt->execute([
+            'id' => $id,
+            'active' => $active ? 1 : 0,
+        ]);
     }
 }

@@ -195,7 +195,34 @@ class BusinessService {
 
         $userCount = $this->businessRepo->countUsersForBusiness($business_id);
         if ($userCount > 0) {
-            throw new \RuntimeException('Cannot delete a business that still has users assigned to it');
+            throw new \RuntimeException('Cannot delete a business that still has users assigned to it. Remove all users first.');
+        }
+
+        // Check for transactional data that would block FK-constrained deletion
+        $checks = [
+            'items'              => "SELECT COUNT(*) FROM items WHERE business_id = :id",
+            'sales_invoices'     => "SELECT COUNT(*) FROM sales_invoices WHERE business_id = :id",
+            'purchase_orders'    => "SELECT COUNT(*) FROM purchase_orders WHERE business_id = :id",
+            'expenses'           => "SELECT COUNT(*) FROM expenses WHERE business_id = :id",
+            'salaries'           => "SELECT COUNT(*) FROM salaries WHERE business_id = :id",
+            'payment_slips'      => "SELECT COUNT(*) FROM payment_slips WHERE business_id = :id",
+            'collection_slips'   => "SELECT COUNT(*) FROM collection_slips WHERE business_id = :id",
+            'business_accounts'  => "SELECT COUNT(*) FROM business_accounts WHERE business_id = :id",
+        ];
+
+        $blockers = [];
+        foreach ($checks as $table => $sql) {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute(['id' => $business_id]);
+            $count = (int) $stmt->fetchColumn();
+            if ($count > 0) {
+                $blockers[] = str_replace('_', ' ', $table) . " ({$count})";
+            }
+        }
+
+        if (!empty($blockers)) {
+            $list = implode(', ', $blockers);
+            throw new \RuntimeException("Cannot delete this business because it contains data: {$list}. Delete or transfer the data first.");
         }
 
         $this->db->beginTransaction();

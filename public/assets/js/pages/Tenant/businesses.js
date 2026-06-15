@@ -61,12 +61,12 @@ export async function mount() {
 
 			const confirmed = await confirm({
 				title: 'Delete business',
-				message: `Delete the business "${name}" and all its data?`
+				message: `This will permanently delete "${name}". This only works if the business has no users, transactions, or other data. Are you sure?`
 			});
 
 			if (confirmed) {
 				try {
-					const res = await apiFetch(`/api/businesses/${business_id}`, {
+					const res = await apiFetch(`/api/tenant/businesses/${business_id}`, {
 						method: 'DELETE'
 					});
 
@@ -74,13 +74,13 @@ export async function mount() {
 
 					if (!res.ok || !data.success) {
 						await alert({
-							title: 'Delete business',
-							alertText: data.message || 'Failed to delete business'
+							title: 'Cannot delete business',
+							alertText: data.message || 'Failed to delete business. The business may still contain data.'
 						});
 					} else {
 						await fetchBusinesses();
 						await alert({
-							title: 'Delete business',
+							title: 'Business deleted',
 							alertText: `The business "${name}" was deleted successfully.`
 						});
 					}
@@ -105,9 +105,13 @@ export async function mount() {
 			const newState = !isCurrentlyActive;
 			const action = newState ? 'activate' : 'deactivate';
 
+			const message = newState
+				? `Activate the business "${name}"? Users will regain access.`
+				: `Deactivate the business "${name}"? Users will lose access but all data is preserved.`;
+
 			const confirmed = await confirm({
-				title: `${newState ? 'Activate' : 'Deactivate'} business`,
-				message: `Are you sure you want to ${action} the business "${name}"?`
+				title: `${newState ? 'Activate' : 'Deactivate'} Business`,
+				message
 			});
 
 			if (confirmed) {
@@ -122,7 +126,7 @@ export async function mount() {
 
 					if (!res.ok || !data.success) {
 						await alert({
-							title: `${newState ? 'Activate' : 'Deactivate'} business`,
+							title: `${newState ? 'Activate' : 'Deactivate'} Business`,
 							alertText: data.message || `Failed to ${action} business`
 						});
 					} else {
@@ -192,6 +196,13 @@ function renderBusinessTable(businesses) {
 
 	businesses.forEach(business => {
 		let actions = '';
+		if (canEdit) {
+			actions += `
+				<button data-action="businesses.edit" title="Edit business"
+					class="btn btn-info btn-circle btn-sm me-1">
+					<i class="fas fa-edit"></i>
+				</button>`;
+		}
 		if (canManage) {
 			const isActive = business.is_active !== undefined ? !!Number(business.is_active) : true;
 			const toggleTitle = isActive ? 'Deactivate business' : 'Activate business';
@@ -202,17 +213,10 @@ function renderBusinessTable(businesses) {
 					<i class="fas ${toggleIcon}"></i>
 				</button>`;
 		}
-		if (canEdit) {
-			actions += `
-				<button data-action="businesses.edit" title="Edit business"
-					class="btn btn-info btn-circle btn-sm me-1">
-					<i class="fas fa-edit"></i>
-				</button>`;
-		}
 		if (canDelete) {
 			actions += `
-				<button data-action="businesses.delete" title="Delete business"
-					class="btn btn-danger btn-circle btn-sm me-1">
+				<button data-action="businesses.delete" title="Permanently delete (empty businesses only)"
+					class="btn btn-outline-danger btn-circle btn-sm">
 					<i class="fas fa-trash"></i>
 				</button>`;
 		}

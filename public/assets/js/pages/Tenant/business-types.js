@@ -90,23 +90,14 @@ export function unmount() {
 
 async function loadBusinessTypes() {
     try {
-        // Load both system types and tenant custom types
-        const [systemRes, customRes] = await Promise.all([
-            apiFetch('/api/tenant/business-types/system'),
-            apiFetch('/api/tenant/business-types')
-        ]);
+        // Only load tenant-owned custom types (system types are just templates for creation)
+        const res = await apiFetch('/api/tenant/business-types');
+        const body = await res.json();
 
-        const systemBody = await systemRes.json();
-        const customBody = await customRes.json();
+        const customTypes = (body.success ? body.data?.business_types : []) || [];
+        customTypes.forEach(t => { t.is_system = false; });
 
-        const systemTypes = (systemBody.success ? systemBody.data?.system_types : []) || [];
-        const customTypes = (customBody.success ? customBody.data?.business_types : []) || [];
-
-        // Mark system types
-        systemTypes.forEach(t => { t.is_system = true; t.is_system_defined = true; });
-        customTypes.forEach(t => { t.is_system = false; t.is_system_defined = false; });
-
-        loadedTypes = [...systemTypes, ...customTypes];
+        loadedTypes = customTypes;
         renderTable(loadedTypes);
     } catch (err) {
         console.error('Tenant business types load error:', err);
@@ -121,7 +112,7 @@ function renderTable(types) {
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 5, className: 'text-center', orderable: false, searchable: false }
+                { targets: 4, className: 'text-center', orderable: false, searchable: false }
             ]
         });
     }
@@ -129,39 +120,22 @@ function renderTable(types) {
     dataTable.clear();
 
     types.forEach(type => {
-        const isSystem = type.is_system || type.is_system_defined;
-        const typeLabel = isSystem
-            ? '<span class="badge bg-secondary">System</span>'
-            : '<span class="badge bg-info">Custom</span>';
-
         const moduleCount = Array.isArray(type.modules) ? type.modules.length : (type.module_count || 0);
 
-        let actions = '';
-        if (isSystem) {
-            actions = `
-                <button class="btn btn-sm btn-outline-primary me-1" disabled title="System types cannot be edited">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" disabled title="System types cannot be deleted">
-                    <i class="fas fa-trash"></i>
-                </button>`;
-        } else {
-            actions = `
-                <button class="btn btn-sm btn-outline-primary me-1" data-action="tenant-business-types.edit"
-                        data-type-id="${type.id}" title="Edit type">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" data-action="tenant-business-types.delete"
-                        data-type-id="${type.id}" title="Delete type">
-                    <i class="fas fa-trash"></i>
-                </button>`;
-        }
+        const actions = `
+            <button class="btn btn-sm btn-outline-primary me-1" data-action="tenant-business-types.edit"
+                    data-type-id="${type.id}" title="Edit type">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" data-action="tenant-business-types.delete"
+                    data-type-id="${type.id}" title="Delete type">
+                <i class="fas fa-trash"></i>
+            </button>`;
 
         dataTable.row.add([
             type.id,
             escHtml(type.name),
             escHtml(type.description || '—'),
-            typeLabel,
             moduleCount,
             actions
         ]);
