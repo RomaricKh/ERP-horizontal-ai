@@ -24,11 +24,19 @@ export async function mount() {
     unregister = registerPageActions({
         'tenant-reports.generate': async () => {
             const reportType = document.getElementById('inputReportType')?.value;
-            const fromDate   = document.getElementById('inputReportFrom')?.value;
-            const toDate     = document.getElementById('inputReportTo')?.value;
+            const startDate  = document.getElementById('inputReportFrom')?.value;
+            const endDate    = document.getElementById('inputReportTo')?.value;
 
             if (!reportType) {
                 await alert({ title: 'Validation', alertText: 'Please select a report type.' });
+                return;
+            }
+            if (!startDate) {
+                await alert({ title: 'Validation', alertText: 'Please select a start date.' });
+                return;
+            }
+            if (!endDate) {
+                await alert({ title: 'Validation', alertText: 'Please select an end date.' });
                 return;
             }
 
@@ -37,8 +45,9 @@ export async function mount() {
                     method: 'POST',
                     body: JSON.stringify({
                         report_type: reportType,
-                        from_date: fromDate || null,
-                        to_date: toDate || null
+                        start_date: startDate,
+                        end_date: endDate,
+                        format: 'pdf'
                     })
                 });
                 const body = await res.json();

@@ -11,23 +11,24 @@
 				<label class="form-label small text-muted" for="inputReportType">Report Type <span class="text-danger">*</span></label>
 				<select class="form-select" id="inputReportType">
 					<option value="">— Select —</option>
-					<option value="profit_loss">Profit &amp; Loss</option>
-					<option value="balance_sheet">Balance Sheet</option>
-					<option value="cash_flow">Cash Flow</option>
-					<option value="aging">AR Aging</option>
-					<option value="activity">Activity Log</option>
+					<option value="profit-and-loss">Profit &amp; Loss</option>
+					<option value="balance-sheet">Balance Sheet</option>
+					<option value="cash-flow">Cash Flow</option>
+					<option value="accounts-receivable-aging">AR Aging</option>
+					<option value="accounts-payable-aging">AP Aging</option>
+					<option value="user-activity-summary">Activity Summary</option>
 				</select>
 			</div>
-			<div class="col-md-3">
-				<label class="form-label small text-muted" for="inputReportFrom">From Date</label>
+			<div class="col-md-2">
+				<label class="form-label small text-muted" for="inputReportFrom">Start Date <span class="text-danger">*</span></label>
 				<input class="form-control" id="inputReportFrom" type="date">
 			</div>
-			<div class="col-md-3">
-				<label class="form-label small text-muted" for="inputReportTo">To Date</label>
+			<div class="col-md-2">
+				<label class="form-label small text-muted" for="inputReportTo">End Date <span class="text-danger">*</span></label>
 				<input class="form-control" id="inputReportTo" type="date">
 			</div>
-			<div class="col-md-3">
-				<button class="btn btn-primary" data-action="tenant-reports.generate">
+			<div class="col-md-2">
+				<button class="btn btn-primary w-100" data-action="tenant-reports.generate">
 					<i class="fas fa-file-alt me-1"></i>Generate
 				</button>
 			</div>

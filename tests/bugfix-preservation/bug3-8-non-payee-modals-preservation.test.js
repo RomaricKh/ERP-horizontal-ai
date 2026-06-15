@@ -20,7 +20,7 @@ describe('Bugs 3–8 Preservation — Non-payee modals and form submission work 
 
   // Modals that do NOT use payeeSelect.js
   const nonPayeeModals = [
-    { file: 'public/assets/js/pages/Business/businessForm.modal.js', name: 'Business form' },
+    { file: 'public/assets/js/pages/Tenant/businessForm.modal.js', name: 'Business form' },
     { file: 'public/assets/js/pages/Items/itemForm.modal.js', name: 'Item form' },
     { file: 'public/assets/js/pages/Items/itemTypes.modal.js', name: 'Item Types' },
   ];

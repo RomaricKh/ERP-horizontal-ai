@@ -20,16 +20,16 @@ describe('Bug 9+13 Preservation — Reference pages follow card-header pattern',
   // Reference pages that ALREADY follow the card-header pattern
   const referencePages = [
     {
-      file: 'public/html/Business/businesses.html',
+      file: 'public/html/Tenant/businesses.html',
       name: 'Businesses',
       expectedAction: 'businesses.create',
-      expectedTitle: 'Your businesses',
+      expectedTitle: 'Manage Businesses',
     },
     {
       file: 'public/html/Users/users.html',
       name: 'Users',
       expectedAction: 'users.create',
-      expectedTitle: 'ERP Users',
+      expectedTitle: 'Manage Users',
     },
   ];
 
@@ -75,7 +75,7 @@ describe('Bug 9+13 Preservation — Reference pages follow card-header pattern',
 
   // Verify data-action attributes exist on all pages that have action buttons
   const allPagesWithActions = [
-    { file: 'public/html/Business/businesses.html', actions: ['businesses.create'] },
+    { file: 'public/html/Tenant/businesses.html', actions: ['businesses.create'] },
     { file: 'public/html/Users/users.html', actions: ['users.create'] },
     { file: 'public/html/Finance/accounts.html', actions: ['accounts.create'] },
     { file: 'public/html/Finance/exchangeRates.html', actions: ['exchange-rates.create'] },
@@ -117,7 +117,7 @@ describe('Bug 9+13 Preservation — Reference pages follow card-header pattern',
 
   it('property: for all pages with data-action attributes, the JS handler files exist', () => {
     const jsHandlerFiles = [
-      'public/assets/js/pages/Business/businesses.js',
+      'public/assets/js/pages/Tenant/businesses.js',
       'public/assets/js/pages/Users/users.js',
       'public/assets/js/pages/Finance/accounts.js',
       'public/assets/js/pages/Finance/exchangeRates.js',

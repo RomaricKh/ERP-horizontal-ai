@@ -212,7 +212,7 @@ class TenantController extends BaseController
             $tenantId = AuthContext::tenantId();
             $actingUserId = AuthContext::userId();
 
-            $data = $this->input(['name', 'business_type_id']);
+            $data = $this->input(['name', 'business_type_id', 'currency', 'legal_name', 'registration_no', 'address', 'phone', 'email']);
 
             $businessId = $this->businessService->createForTenantOwner($tenantId, $actingUserId, $data);
 
@@ -250,7 +250,7 @@ class TenantController extends BaseController
         try {
             $actingUserId = AuthContext::userId();
 
-            $data = $this->input(['name', 'currency']);
+            $data = $this->input(['name', 'currency', 'business_type_id', 'legal_name', 'registration_no', 'address', 'phone', 'email']);
 
             $result = $this->businessService->update($businessId, $actingUserId, $data);
 

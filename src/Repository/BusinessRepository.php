@@ -44,7 +44,7 @@ class BusinessRepository {
 	public function getBusinessByID(int $business_id): ?array {
 		$stmt = $this->db->prepare("
 						SELECT 	b.id, b.name, b.legal_name, b.registration_no, 
-								b.address, b.phone, b.email, b.currency
+								b.address, b.phone, b.email, b.currency, b.business_type_id
 						FROM 	businesses b
 						WHERE b.id = :business_id
 		");

@@ -49,7 +49,7 @@ export async function mount({ modalRoot: root, data }) {
                 currency:         FIELDS.currency().value
             };
 
-            const url    = currentBusinessId ? `/api/businesses/${currentBusinessId}` : '/api/businesses';
+            const url    = currentBusinessId ? `/api/tenant/businesses/${currentBusinessId}` : '/api/tenant/businesses';
             const method = currentBusinessId ? 'PUT' : 'POST';
 
             try {
@@ -102,7 +102,7 @@ async function loadBusinessTypes() {
 
 async function fetchAndFillBusiness(businessId) {
     try {
-        const res = await apiFetch(`/api/businesses/${businessId}`, { method: 'GET' });
+        const res = await apiFetch(`/api/tenant/businesses/${businessId}`, { method: 'GET' });
 
         if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 

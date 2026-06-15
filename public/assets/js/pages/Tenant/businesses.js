@@ -169,12 +169,12 @@ export async function render(container) {
 }
 
 async function fetchBusinesses() {
-	const res = await apiFetch('/api/businesses');
+	const res = await apiFetch('/api/tenant/businesses');
 
 	const data = await res.json();
 	if (!data.success) return;
 
-	renderBusinessTable(data.data.businesses);
+	renderBusinessTable(data.data?.data || data.data?.businesses || []);
 }
 
 function renderBusinessTable(businesses) {

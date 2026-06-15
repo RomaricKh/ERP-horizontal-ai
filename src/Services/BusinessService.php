@@ -259,4 +259,85 @@ class BusinessService {
         return $this->businessRepo->getTenantIdForBusiness($business_id);
     }
 
+    /**
+     * Create a business from the Tenant Owner management panel.
+     * Accepts an explicit tenant_id (does not rely on AuthContext::get()->tenant_id).
+     * Auto-creates a default account in the base currency and assigns the SYSTEM_OWNER role.
+     *
+     * @param int   $tenantId      The tenant this business belongs to
+     * @param int   $actingUserId  The user creating the business (will be SYSTEM_OWNER)
+     * @param array $data          {name, business_type_id?, currency?}
+     * @return int  The new business ID
+     */
+    public function createForTenantOwner(int $tenantId, int $actingUserId, array $data): int
+    {
+        if (empty($data['name'])) {
+            throw new \InvalidArgumentException('Business name is required');
+        }
+
+        // Resolve business_type_id
+        $typeId = $data['business_type_id'] ?? null;
+        if ($typeId !== null) {
+            $type = $this->businessTypeRepo->getById((int) $typeId);
+            if (!$type) {
+                throw new \InvalidArgumentException('Invalid business type');
+            }
+        } else {
+            $typeId = $this->businessTypeRepo->getDefault()['id'];
+        }
+
+        $currency = $data['currency'] ?? 'USD';
+
+        $this->db->beginTransaction();
+
+        try {
+            $businessId = $this->businessRepo->create([
+                'tenant_id'        => $tenantId,
+                'name'             => $data['name'],
+                'legal_name'       => $data['legal_name'] ?? null,
+                'registration_no'  => $data['registration_no'] ?? null,
+                'address'          => $data['address'] ?? null,
+                'phone'            => $data['phone'] ?? null,
+                'email'            => $data['email'] ?? null,
+                'currency'         => $currency,
+                'business_type_id' => $typeId,
+            ]);
+
+            // Auto-create a default account in the base currency
+            $accountName = $data['name'] . ' - Main (' . $currency . ')';
+            $this->accountRepo->create([
+                'business_id' => $businessId,
+                'name'        => $accountName,
+                'currency'    => $currency,
+            ]);
+
+            // Auto-create SYSTEM_OWNER role (will be assigned to a user later via user management)
+            $this->roleService->createSystemOwnerRole($businessId, $tenantId);
+
+            $this->audit->log(
+                'BUSINESS',
+                'businesses',
+                $businessId,
+                'CREATE',
+                null,
+                [
+                    'name'             => $data['name'],
+                    'currency'         => $currency,
+                    'business_type_id' => $typeId,
+                ],
+                $actingUserId,
+                $tenantId,
+                $businessId
+            );
+
+            $this->db->commit();
+
+            return $businessId;
+
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
 }

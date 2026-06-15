@@ -135,7 +135,9 @@ class TenantOwnerService
         // Fetch paginated businesses
         $offset = ($page - 1) * $perPage;
         $stmt = $this->db->prepare("
-            SELECT b.id, b.name, b.currency, bt.name AS business_type
+            SELECT b.id, b.name, b.legal_name, b.registration_no,
+                   b.phone, b.email, b.currency, b.is_active,
+                   bt.name AS business_type
             FROM businesses b
             LEFT JOIN business_types bt ON bt.id = b.business_type_id
             WHERE b.tenant_id = :tenant_id
