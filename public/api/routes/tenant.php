@@ -149,6 +149,14 @@ $router->put('/tenant/users/{id}/deactivate',
     }
 );
 
+// PUT /tenant/users/{id}/activate
+$router->put('/tenant/users/{id}/activate',
+    function ($id) use ($tenantGuard) {
+        if (!$tenantGuard()) return;
+        (new TenantController())->reactivateUser((int) $id);
+    }
+);
+
 /* ========= ROLE MANAGEMENT ========= */
 
 // GET /tenant/businesses/{id}/roles — fetch roles for a specific business

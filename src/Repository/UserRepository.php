@@ -18,7 +18,6 @@ class UserRepository {
                 u.username,
                 CONCAT(u.first_name, ' ', u.last_name) AS name,
                 u.email,
-                u.is_active AS is_account_active,
                 r.name AS role_name,
                 b.name AS business_name,
                 ur.is_active
@@ -40,7 +39,6 @@ class UserRepository {
                 u.first_name, 
 				u.last_name,
 				u.email,
-				u.is_active AS is_account_active,
 				ur.role_id,
 				ur.is_active
             FROM users u

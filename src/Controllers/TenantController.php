@@ -516,6 +516,27 @@ class TenantController extends BaseController
         }
     }
 
+    /**
+     * PUT /tenant/users/{id}/activate
+     * Reactivate a user across all businesses in the tenant.
+     */
+    public function reactivateUser(int $userId): void
+    {
+        try {
+            $tenantId = AuthContext::tenantId();
+
+            $this->userService->reactivateAcrossTenant($userId, $tenantId);
+
+            $this->json(true, null, 'User reactivated across all businesses');
+        } catch (\InvalidArgumentException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to reactivate user');
+        }
+    }
+
     // =========================================================================
     // Role Management
     // =========================================================================

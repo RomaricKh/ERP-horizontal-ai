@@ -48,8 +48,3 @@ $router->patch('/users/{id}/status',
     fn($id) => (new UsersController())->toggleStatus((int)$id),
     ['users.edit']
 );
-
-$router->patch('/users/{id}/active',
-    fn($id) => (new UsersController())->toggleActive((int)$id),
-    ['users.edit']
-);

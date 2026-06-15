@@ -103,43 +103,6 @@ export async function mount() {
 			}
 		},
 
-		'users.toggleActive': async ({ el }) => {
-			const table = usersDataTable;
-			const tr = el.closest('tr');
-			const rowData = table.row(tr).data();
-
-			const user_id = rowData[0];
-			const username = rowData[1];
-
-			if (!user_id) return;
-
-			const confirmed = await confirm({
-				title: 'Toggle Account Status',
-				message: `This will enable/disable the entire account for "${username}" across ALL businesses. Continue?`
-			});
-
-			if (confirmed) {
-				try {
-					const res = await apiFetch(`/api/users/${user_id}/active`, {
-						method: 'PATCH'
-					});
-
-					const data = await res.json();
-
-					if (!data.success) {
-						await alert({
-							title: 'Toggle Account',
-							alertText: data.message || 'Failed to toggle account status'
-						});
-					} else {
-						await fetchUsers();
-					}
-				} catch (err) {
-					console.error('toggleActive failed:', err);
-				}
-			}
-		},
-
 		'users.toggleStatus': async ({ el }) => {
 			const table = usersDataTable;
 			const tr = el.closest('tr');
@@ -150,14 +113,13 @@ export async function mount() {
 
 			if (!user_id) return;
 
-			// Determine current business-level status from the button
+			// Determine current business-level status from the button icon
 			const isCurrentlyActive = el.querySelector('.fa-toggle-on') !== null;
 			const newState = isCurrentlyActive ? 0 : 1;
-			const action = isCurrentlyActive ? 'deactivate' : 'activate';
 
 			const confirmed = await confirm({
 				title: 'Toggle Business Access',
-				message: `This will ${action} "${username}" in this business only. Continue?`
+				message: `${isCurrentlyActive ? 'Deactivate' : 'Activate'} "${username}" in this business?`
 			});
 
 			if (confirmed) {
@@ -233,8 +195,8 @@ function renderUsersTable(users) {
 		usersDataTable = createDataTable('#dataTable', {
 			columnDefs: [
 				{ targets: 0, visible: false, searchable: false },
-				{ targets: [1, 2, 3, 4, 5], className: 'text-nowrap' },
-				{ targets: 6, className: 'text-center', width: '160px' },
+				{ targets: '_all', className: 'text-nowrap' },
+				{ targets: 6, className: 'text-center' },
 				{ targets: 7, className: 'text-center', orderable: false, searchable: false }
 			]
 		});
@@ -260,35 +222,20 @@ function renderUsersTable(users) {
 			</button>`;
 	}
 	users.forEach(user => {
-		// Build a unified status column showing both account and business status
+		// Build status column — shows business-level access only
 		let statusHtml = '';
-		if (!user.is_account_active) {
-			// Account disabled — this overrides everything
+		if (!user.is_active) {
 			statusHtml = canEdit
-				? `<button data-action="users.toggleActive" class="btn btn-outline-danger btn-sm d-block w-100 mb-1" title="Account is disabled globally. Click to activate.">
-					<i class="fas fa-ban me-1"></i>Account Disabled
-				   </button>
-				   <small class="text-muted"><i class="fas fa-info-circle me-1"></i>Cannot access any business</small>`
-				: `<span class="badge bg-danger text-white d-block mb-1"><i class="fas fa-ban me-1"></i>Account Disabled</span>
-				   <small class="text-muted">Cannot access any business</small>`;
-		} else if (!user.is_active) {
-			// Account active but inactive in this business
-			statusHtml = canEdit
-				? `<span class="badge bg-success mb-1" title="Account is active globally"><i class="fas fa-user-check me-1"></i>Account Active</span><br>
-				   <button data-action="users.toggleStatus" class="btn btn-outline-warning btn-sm mt-1" title="Inactive in this business. Click to activate.">
-					<i class="fas fa-toggle-off me-1"></i>Inactive here
+				? `<button data-action="users.toggleStatus" class="btn btn-outline-warning btn-sm" title="Inactive in this business. Click to activate.">
+					<i class="fas fa-toggle-off me-1"></i>Inactive
 				   </button>`
-				: `<span class="badge bg-success mb-1"><i class="fas fa-user-check me-1"></i>Account Active</span><br>
-				   <span class="badge bg-warning text-dark mt-1"><i class="fas fa-toggle-off me-1"></i>Inactive here</span>`;
+				: `<span class="badge bg-warning text-dark"><i class="fas fa-toggle-off me-1"></i>Inactive</span>`;
 		} else {
-			// Fully active — both account and business
 			statusHtml = canEdit
-				? `<span class="badge bg-success mb-1" title="Account is active globally"><i class="fas fa-user-check me-1"></i>Account Active</span><br>
-				   <button data-action="users.toggleStatus" class="btn btn-outline-success btn-sm mt-1" title="Active in this business. Click to deactivate.">
-					<i class="fas fa-toggle-on me-1"></i>Active here
+				? `<button data-action="users.toggleStatus" class="btn btn-outline-success btn-sm" title="Active in this business. Click to deactivate.">
+					<i class="fas fa-toggle-on me-1"></i>Active
 				   </button>`
-				: `<span class="badge bg-success mb-1"><i class="fas fa-user-check me-1"></i>Account Active</span><br>
-				   <span class="badge bg-success mt-1"><i class="fas fa-toggle-on me-1"></i>Active here</span>`;
+				: `<span class="badge bg-success"><i class="fas fa-toggle-on me-1"></i>Active</span>`;
 		}
 
 		usersDataTable.row.add([

@@ -792,6 +792,71 @@ class UserService {
     }
 
     /**
+     * Reactivate a user across all businesses in the tenant.
+     * Sets is_active=1 on all user_roles for the user within the tenant's businesses.
+     *
+     * @param int $userId
+     * @param int $tenantId
+     */
+    public function reactivateAcrossTenant(int $userId, int $tenantId): void
+    {
+        // Validate user exists
+        $userStmt = $this->db->prepare("SELECT id FROM users WHERE id = :user_id LIMIT 1");
+        $userStmt->execute(['user_id' => $userId]);
+        if (!$userStmt->fetch()) {
+            throw new InvalidArgumentException("User does not exist");
+        }
+
+        // Get all user_roles for this user in businesses under this tenant
+        $rolesStmt = $this->db->prepare("
+            SELECT ur.id
+            FROM user_roles ur
+            JOIN businesses b ON b.id = ur.business_id
+            WHERE ur.user_id = :user_id AND b.tenant_id = :tenant_id
+        ");
+        $rolesStmt->execute(['user_id' => $userId, 'tenant_id' => $tenantId]);
+        $userRoles = $rolesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($userRoles)) {
+            throw new InvalidArgumentException("User has no roles in this tenant");
+        }
+
+        $this->db->beginTransaction();
+        try {
+            // Set is_active=1 on all user_roles for this user in the tenant
+            $activateStmt = $this->db->prepare("
+                UPDATE user_roles ur
+                JOIN businesses b ON b.id = ur.business_id
+                SET ur.is_active = 1
+                WHERE ur.user_id = :user_id AND b.tenant_id = :tenant_id
+            ");
+            $activateStmt->execute(['user_id' => $userId, 'tenant_id' => $tenantId]);
+
+            // Audit log
+            $ctx = AuthContext::get();
+            $this->audit->log(
+                'UPDATE',
+                'user_roles',
+                $userId,
+                'REACTIVATE_ACROSS_TENANT',
+                ['is_active' => 0],
+                ['is_active' => 1, 'affected_roles' => count($userRoles)],
+                $ctx->user_id ?? null,
+                $tenantId,
+                null,
+                true,
+                true
+            );
+
+            $this->db->commit();
+
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
      * Get a user's full profile across the tenant: all business assignments and last 100 activity log entries.
      *
      * @param int $userId
