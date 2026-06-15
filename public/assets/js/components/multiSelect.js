@@ -1,8 +1,6 @@
 /**
  * Custom multi-select dropdown with inline tag chips.
- * Looks like a form input field that expands into a dropdown.
- * Selected items show as removable tag pills inside the trigger area.
- *
+ * 
  * Usage:
  *   import { createMultiSelect } from '../../components/multiSelect.js';
  *   const ms = createMultiSelect({
@@ -15,197 +13,218 @@
  */
 
 export function createMultiSelect({ container, placeholder = 'Select...', icon = 'fas fa-filter', options = [], onChange }) {
+    // Root wrapper
     const wrapper = document.createElement('div');
-    wrapper.className = 'ms-multiselect position-relative';
-    wrapper.style.minWidth = '200px';
+    wrapper.className = 'ms-multiselect';
+    wrapper.style.cssText = 'position:relative; min-width:240px;';
 
-    // Trigger area (looks like a form input with tags)
+    // Trigger — styled like an input
     const trigger = document.createElement('div');
-    trigger.className = 'ms-trigger form-control form-control-sm d-flex align-items-center flex-wrap gap-1 cursor-pointer';
-    trigger.style.cssText = 'cursor:pointer; min-height:31px; padding:0.2rem 0.5rem; border-color:#d1d3e2; background:#fff;';
+    trigger.className = 'ms-trigger';
     trigger.tabIndex = 0;
+    trigger.style.cssText = `
+        display:flex; align-items:center; flex-wrap:wrap; gap:4px;
+        min-height:33px; padding:4px 30px 4px 10px;
+        border:1px solid #d1d3e2; border-radius:0.35rem;
+        background:#fff; cursor:pointer; position:relative;
+        font-size:0.85rem; transition:border-color 0.15s, box-shadow 0.15s;
+    `;
 
+    // Placeholder text
     const placeholderEl = document.createElement('span');
-    placeholderEl.className = 'ms-placeholder text-muted small d-flex align-items-center gap-1';
-    placeholderEl.innerHTML = `<i class="${icon} small"></i>${esc(placeholder)}`;
+    placeholderEl.className = 'ms-placeholder';
+    placeholderEl.style.cssText = 'color:#858796; white-space:nowrap; user-select:none;';
+    placeholderEl.innerHTML = `<i class="${icon}" style="margin-right:6px; font-size:0.75rem;"></i>${esc(placeholder)}`;
     trigger.appendChild(placeholderEl);
 
+    // Chevron (absolute positioned right)
     const chevron = document.createElement('i');
-    chevron.className = 'fas fa-chevron-down ms-auto text-muted small';
-    chevron.style.fontSize = '0.6rem';
+    chevron.className = 'fas fa-chevron-down';
+    chevron.style.cssText = 'position:absolute; right:10px; top:50%; transform:translateY(-50%); font-size:0.6rem; color:#858796; transition:transform 0.2s;';
     trigger.appendChild(chevron);
 
     // Dropdown panel
     const panel = document.createElement('div');
-    panel.className = 'ms-panel position-absolute start-0 end-0 bg-white border rounded-bottom shadow mt-0';
-    panel.style.cssText = 'z-index:1055; max-height:240px; overflow-y:auto; display:none; border-top:none; border-top-left-radius:0; border-top-right-radius:0;';
+    panel.className = 'ms-panel';
+    panel.style.cssText = `
+        display:none; position:absolute; top:100%; left:0; right:0;
+        background:#fff; border:1px solid #d1d3e2; border-top:none;
+        border-radius:0 0 0.35rem 0.35rem;
+        box-shadow:0 4px 12px rgba(0,0,0,0.1);
+        z-index:1060; max-height:220px; overflow-y:auto;
+    `;
 
-    // Search within dropdown
+    // Search input
     const searchWrap = document.createElement('div');
-    searchWrap.className = 'px-2 pt-2 pb-1 sticky-top bg-white';
+    searchWrap.style.cssText = 'padding:8px 10px 4px; position:sticky; top:0; background:#fff; z-index:1;';
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
-    searchInput.className = 'form-control form-control-sm';
     searchInput.placeholder = 'Search...';
-    searchInput.style.fontSize = '0.8rem';
+    searchInput.style.cssText = `
+        width:100%; padding:5px 8px; border:1px solid #e3e6f0; border-radius:4px;
+        font-size:0.8rem; outline:none;
+    `;
+    searchInput.addEventListener('focus', () => { searchInput.style.borderColor = '#4e73df'; });
+    searchInput.addEventListener('blur', () => { searchInput.style.borderColor = '#e3e6f0'; });
     searchWrap.appendChild(searchInput);
     panel.appendChild(searchWrap);
 
-    // Options container
-    const optionsContainer = document.createElement('div');
-    optionsContainer.className = 'px-1 pb-1';
+    // Options list
+    const optionsList = document.createElement('div');
+    optionsList.style.cssText = 'padding:4px 6px;';
 
     options.forEach(opt => {
         const item = document.createElement('label');
-        item.className = 'ms-option d-flex align-items-center gap-2 px-2 py-1 rounded mb-0';
-        item.style.cssText = 'cursor:pointer; transition:background 0.1s;';
-        item.dataset.label = opt.label.toLowerCase();
-        item.innerHTML = `
-            <input type="checkbox" class="form-check-input m-0" style="width:14px;height:14px;" value="${opt.id}" data-label="${escAttr(opt.label)}">
-            <span class="small">${esc(opt.label)}</span>
+        item.style.cssText = `
+            display:flex; align-items:center; gap:8px;
+            padding:6px 8px; margin:0; border-radius:4px;
+            cursor:pointer; font-size:0.85rem; transition:background 0.1s;
         `;
-        item.addEventListener('mouseenter', () => { item.style.backgroundColor = '#eef2ff'; });
+        item.dataset.search = opt.label.toLowerCase();
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = opt.id;
+        cb.dataset.label = opt.label;
+        cb.style.cssText = 'width:15px; height:15px; flex-shrink:0; cursor:pointer; accent-color:#4e73df;';
+
+        const labelText = document.createElement('span');
+        labelText.textContent = opt.label;
+        labelText.style.cssText = 'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
+
+        item.appendChild(cb);
+        item.appendChild(labelText);
+
+        item.addEventListener('mouseenter', () => { item.style.backgroundColor = '#f8f9fc'; });
         item.addEventListener('mouseleave', () => { item.style.backgroundColor = ''; });
-        optionsContainer.appendChild(item);
+
+        optionsList.appendChild(item);
     });
+    panel.appendChild(optionsList);
 
-    panel.appendChild(optionsContainer);
-
-    // Footer with clear
-    if (options.length > 0) {
-        const footer = document.createElement('div');
-        footer.className = 'border-top px-2 py-1 d-flex justify-content-between align-items-center bg-light';
-        footer.style.cssText = 'position:sticky; bottom:0;';
-        const countEl = document.createElement('span');
-        countEl.className = 'ms-count text-muted small';
-        countEl.textContent = '0 selected';
-        const clearBtn = document.createElement('button');
-        clearBtn.type = 'button';
-        clearBtn.className = 'btn btn-sm btn-link text-decoration-none p-0 text-danger small';
-        clearBtn.textContent = 'Clear';
-        clearBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            panel.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
-            update();
-        });
-        footer.appendChild(countEl);
-        footer.appendChild(clearBtn);
-        panel.appendChild(footer);
-    }
+    // Footer
+    const footer = document.createElement('div');
+    footer.style.cssText = `
+        display:flex; justify-content:space-between; align-items:center;
+        padding:6px 10px; border-top:1px solid #e3e6f0;
+        position:sticky; bottom:0; background:#f8f9fc; font-size:0.75rem;
+    `;
+    const countEl = document.createElement('span');
+    countEl.className = 'ms-count';
+    countEl.style.color = '#858796';
+    countEl.textContent = '0 selected';
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.textContent = 'Clear';
+    clearBtn.style.cssText = 'border:none; background:none; color:#e74a3b; cursor:pointer; font-size:0.75rem; font-weight:600;';
+    clearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        panel.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+        update();
+    });
+    footer.appendChild(countEl);
+    footer.appendChild(clearBtn);
+    panel.appendChild(footer);
 
     wrapper.appendChild(trigger);
     wrapper.appendChild(panel);
     container.appendChild(wrapper);
 
-    // Toggle panel
+    // --- Interactions ---
+
     let isOpen = false;
+
     trigger.addEventListener('click', (e) => {
+        if (e.target.closest('.ms-tag-x')) return; // handled separately
         e.stopPropagation();
-        toggle();
+        isOpen ? close() : open();
     });
 
-    // Search filter
+    searchInput.addEventListener('click', (e) => e.stopPropagation());
     searchInput.addEventListener('input', () => {
         const q = searchInput.value.toLowerCase();
-        optionsContainer.querySelectorAll('.ms-option').forEach(item => {
-            item.style.display = item.dataset.label.includes(q) ? '' : 'none';
+        optionsList.querySelectorAll('label').forEach(item => {
+            item.style.display = item.dataset.search.includes(q) ? '' : 'none';
         });
     });
-    searchInput.addEventListener('click', (e) => e.stopPropagation());
 
-    // Close on outside click
-    const outsideHandler = (e) => {
-        if (!wrapper.contains(e.target)) close();
-    };
+    panel.addEventListener('change', (e) => {
+        if (e.target.type === 'checkbox') { e.stopPropagation(); update(); }
+    });
+    panel.addEventListener('click', (e) => e.stopPropagation());
+
+    const outsideHandler = (e) => { if (!wrapper.contains(e.target)) close(); };
     document.addEventListener('click', outsideHandler);
 
-    // On checkbox change
-    panel.addEventListener('change', (e) => {
-        if (e.target.type === 'checkbox') {
-            e.stopPropagation();
-            update();
-        }
+    // Tag removal
+    trigger.addEventListener('click', (e) => {
+        const x = e.target.closest('.ms-tag-x');
+        if (!x) return;
+        e.stopPropagation();
+        const id = x.dataset.id;
+        const cb = panel.querySelector(`input[value="${id}"]`);
+        if (cb) cb.checked = false;
+        update();
     });
-
-    function toggle() {
-        isOpen ? close() : open();
-    }
 
     function open() {
         isOpen = true;
         panel.style.display = 'block';
+        trigger.style.borderColor = '#4e73df';
+        trigger.style.boxShadow = '0 0 0 0.2rem rgba(78,115,223,.15)';
         trigger.style.borderBottomLeftRadius = '0';
         trigger.style.borderBottomRightRadius = '0';
-        trigger.style.borderColor = '#4e73df';
-        trigger.style.boxShadow = '0 0 0 0.15rem rgba(78,115,223,.25)';
-        chevron.style.transform = 'rotate(180deg)';
+        chevron.style.transform = 'translateY(-50%) rotate(180deg)';
         searchInput.value = '';
         searchInput.dispatchEvent(new Event('input'));
-        setTimeout(() => searchInput.focus(), 50);
+        setTimeout(() => searchInput.focus(), 30);
     }
 
     function close() {
         isOpen = false;
         panel.style.display = 'none';
-        trigger.style.borderBottomLeftRadius = '';
-        trigger.style.borderBottomRightRadius = '';
         trigger.style.borderColor = '#d1d3e2';
-        trigger.style.boxShadow = '';
-        chevron.style.transform = '';
+        trigger.style.boxShadow = 'none';
+        trigger.style.borderBottomLeftRadius = '0.35rem';
+        trigger.style.borderBottomRightRadius = '0.35rem';
+        chevron.style.transform = 'translateY(-50%)';
     }
 
     function update() {
         const checked = [...panel.querySelectorAll('input[type=checkbox]:checked')];
         const selected = checked.map(cb => ({ id: cb.value, label: cb.dataset.label }));
 
-        // Update trigger content
         // Remove old tags
         trigger.querySelectorAll('.ms-tag').forEach(t => t.remove());
 
         if (selected.length === 0) {
             placeholderEl.style.display = '';
-            trigger.style.borderColor = isOpen ? '#4e73df' : '#d1d3e2';
         } else {
             placeholderEl.style.display = 'none';
-            // Insert tags before the chevron
+            // Add tag pills
             selected.forEach(s => {
                 const tag = document.createElement('span');
-                tag.className = 'ms-tag badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 d-flex align-items-center gap-1 py-1 px-2';
-                tag.style.fontSize = '0.75rem';
-                tag.innerHTML = `${esc(s.label)}<i class="fas fa-times ms-tag-remove" data-id="${s.id}" style="cursor:pointer;font-size:0.6rem;opacity:0.6"></i>`;
+                tag.className = 'ms-tag';
+                tag.style.cssText = `
+                    display:inline-flex; align-items:center; gap:4px;
+                    padding:2px 8px; border-radius:12px;
+                    background:#4e73df; color:#fff; font-size:0.72rem;
+                    white-space:nowrap; line-height:1.4;
+                `;
+                tag.innerHTML = `${esc(s.label)}<span class="ms-tag-x" data-id="${s.id}" style="cursor:pointer; opacity:0.7; font-weight:bold; margin-left:2px;">&times;</span>`;
+                // Insert before chevron
                 trigger.insertBefore(tag, chevron);
             });
         }
 
-        // Update footer count
-        const countEl = panel.querySelector('.ms-count');
-        if (countEl) countEl.textContent = `${selected.length} selected`;
-
+        countEl.textContent = `${selected.length} selected`;
         if (onChange) onChange(selected.map(s => s.label));
     }
 
-    // Remove tag on click (without opening dropdown)
-    trigger.addEventListener('click', (e) => {
-        const removeBtn = e.target.closest('.ms-tag-remove');
-        if (!removeBtn) return;
-        e.stopPropagation();
-        const id = removeBtn.dataset.id;
-        const cb = panel.querySelector(`input[value="${id}"]`);
-        if (cb) cb.checked = false;
-        update();
-    });
-
-    // Public API
     return {
         getSelected: () => [...panel.querySelectorAll('input[type=checkbox]:checked')].map(cb => cb.dataset.label),
-        clear: () => {
-            panel.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
-            update();
-        },
-        destroy: () => {
-            document.removeEventListener('click', outsideHandler);
-            wrapper.remove();
-        }
+        clear: () => { panel.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; }); update(); },
+        destroy: () => { document.removeEventListener('click', outsideHandler); wrapper.remove(); }
     };
 }
 
