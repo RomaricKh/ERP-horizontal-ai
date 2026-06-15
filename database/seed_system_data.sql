@@ -184,7 +184,8 @@ INSERT IGNORE INTO `languages` (`code`, `name`, `direction`) VALUES
 -- application or can be imported from a translations export file.
 --
 -- System types for payee_types, item_types, expense_categories,
--- service_categories, and asset_categories are tenant-scoped and are
--- auto-created during the first-installation setup wizard when the first
--- tenant and business are created.
+-- service_categories, and asset_categories are GLOBAL (tenant_id = NULL,
+-- business_id = NULL, is_system = 1). They are visible to all tenants and
+-- businesses, filtered by module_id (FK to modules) for module-gated visibility.
+-- User-defined types are scoped to a specific tenant + business.
 -- ============================================================================

@@ -46,12 +46,14 @@ class SystemTypeRepository {
         $activeModules = $this->moduleService->getActiveModules($businessId);
 
         // Query all types visible to this tenant/business:
-        // - System types (is_system=1) are global (tenant_id may be NULL)
+        // - System types (is_system=1) are global (tenant_id is NULL)
         // - User-defined types are scoped to tenant + business
-        $sql = "SELECT * FROM `{$table}`
-                WHERE (tenant_id = :tenant_id AND (business_id = :business_id OR business_id IS NULL))
-                   OR is_system = 1
-                ORDER BY is_system DESC, name ASC";
+        // JOIN modules to resolve module_id → code for filtering
+        $sql = "SELECT t.*, m.code AS module_code FROM `{$table}` t
+                LEFT JOIN modules m ON m.id = t.module_id
+                WHERE (t.tenant_id = :tenant_id AND (t.business_id = :business_id OR t.business_id IS NULL))
+                   OR t.is_system = 1
+                ORDER BY t.is_system DESC, t.name ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -60,18 +62,19 @@ class SystemTypeRepository {
         ]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Filter: remove system types whose module_code is not active
+        // Filter: remove system types whose module is not active for this business
         return array_values(array_filter($rows, function ($row) use ($activeModules) {
             // Non-system types are always visible
             if (empty($row['is_system'])) {
                 return true;
             }
-            // System types with no module_code are always visible
-            if (empty($row['module_code'])) {
+            // System types with no module_id are always visible
+            if (empty($row['module_id'])) {
                 return true;
             }
-            // System types with module_code are only visible if module is active
-            return in_array($row['module_code'], $activeModules, true);
+            // System types with module_id are only visible if that module is active
+            $moduleCode = $row['module_code'] ?? null;
+            return $moduleCode && in_array($moduleCode, $activeModules, true);
         }));
     }
 

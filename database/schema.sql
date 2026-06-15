@@ -219,18 +219,20 @@ CREATE TABLE IF NOT EXISTS `people` (
 
 CREATE TABLE IF NOT EXISTS `payee_types` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `tenant_id` int NOT NULL,
+  `tenant_id` int DEFAULT NULL,
   `business_id` int DEFAULT NULL,
   `name` varchar(100) NOT NULL,
   `is_system` tinyint(1) NOT NULL DEFAULT '0',
-  `module_code` varchar(50) DEFAULT NULL,
+  `module_id` int DEFAULT NULL,
   `code` varchar(50) DEFAULT NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_payee_types_tenant` (`tenant_id`),
   KEY `fk_payee_types_business` (`business_id`),
+  KEY `fk_payee_types_module` (`module_id`),
   CONSTRAINT `fk_payee_types_business` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `fk_payee_types_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`),
   CONSTRAINT `fk_payee_types_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -267,11 +269,11 @@ CREATE TABLE IF NOT EXISTS `payees` (
 
 CREATE TABLE IF NOT EXISTS `item_types` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `tenant_id` int NOT NULL,
+  `tenant_id` int DEFAULT NULL,
   `business_id` int DEFAULT NULL,
   `name` varchar(100) NOT NULL,
   `is_system` tinyint(1) NOT NULL DEFAULT '0',
-  `module_code` varchar(50) DEFAULT NULL,
+  `module_id` int DEFAULT NULL,
   `code` varchar(50) DEFAULT NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime DEFAULT NULL,
@@ -279,7 +281,9 @@ CREATE TABLE IF NOT EXISTS `item_types` (
   PRIMARY KEY (`id`),
   KEY `fk_item_types_tenant` (`tenant_id`),
   KEY `fk_item_types_business` (`business_id`),
+  KEY `fk_item_types_module` (`module_id`),
   CONSTRAINT `fk_item_types_business` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `fk_item_types_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`),
   CONSTRAINT `fk_item_types_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -712,11 +716,11 @@ CREATE TABLE IF NOT EXISTS `business_accounts` (
 
 CREATE TABLE IF NOT EXISTS `expense_categories` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `tenant_id` int NOT NULL,
+  `tenant_id` int DEFAULT NULL,
   `business_id` int DEFAULT NULL,
   `name` varchar(150) NOT NULL,
   `is_system` tinyint(1) NOT NULL DEFAULT '0',
-  `module_code` varchar(50) DEFAULT NULL,
+  `module_id` int DEFAULT NULL,
   `code` varchar(50) DEFAULT NULL,
   `is_fixed` tinyint(1) DEFAULT '0',
   `created_at` datetime NOT NULL,
@@ -725,7 +729,9 @@ CREATE TABLE IF NOT EXISTS `expense_categories` (
   PRIMARY KEY (`id`),
   KEY `fk_expense_categories_tenant` (`tenant_id`),
   KEY `fk_expense_categories_business` (`business_id`),
+  KEY `fk_expense_categories_module` (`module_id`),
   CONSTRAINT `fk_expense_categories_business` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `fk_expense_categories_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`),
   CONSTRAINT `fk_expense_categories_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -975,21 +981,23 @@ CREATE TABLE IF NOT EXISTS `production_order_items` (
 
 CREATE TABLE IF NOT EXISTS `service_categories` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `tenant_id` int NOT NULL,
-  `business_id` int NOT NULL,
+  `tenant_id` int DEFAULT NULL,
+  `business_id` int DEFAULT NULL,
   `name` varchar(150) NOT NULL,
   `is_system` tinyint(1) NOT NULL DEFAULT '0',
-  `module_code` varchar(50) DEFAULT NULL,
+  `module_id` int DEFAULT NULL,
   `code` varchar(50) DEFAULT NULL,
-  `created_by` int NOT NULL,
+  `created_by` int DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_service_categories_name` (`tenant_id`,`business_id`,`name`),
   KEY `fk_service_categories_tenant` (`tenant_id`),
   KEY `fk_service_categories_business` (`business_id`),
+  KEY `fk_service_categories_module` (`module_id`),
   KEY `fk_service_categories_created_by` (`created_by`),
   CONSTRAINT `fk_service_categories_business` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`),
   CONSTRAINT `fk_service_categories_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`),
+  CONSTRAINT `fk_service_categories_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`),
   CONSTRAINT `fk_service_categories_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -1124,17 +1132,19 @@ CREATE TABLE IF NOT EXISTS `notification_preferences` (
 
 CREATE TABLE IF NOT EXISTS `asset_categories` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `tenant_id` int NOT NULL,
+  `tenant_id` int DEFAULT NULL,
   `business_id` int DEFAULT NULL,
   `code` varchar(50) DEFAULT NULL,
   `name` varchar(150) NOT NULL,
-  `module_code` varchar(50) DEFAULT NULL,
+  `module_id` int DEFAULT NULL,
   `is_system` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_asset_categories_tenant` (`tenant_id`),
-  KEY `idx_asset_categories_business` (`business_id`)
+  KEY `idx_asset_categories_business` (`business_id`),
+  KEY `fk_asset_categories_module` (`module_id`),
+  CONSTRAINT `fk_asset_categories_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `assets` (
