@@ -387,6 +387,27 @@ class ManufacturingService {
                 null
             );
 
+            // If manufactured item tracks expiry, create a batch record
+            $manufacturedItem = $this->db->prepare("SELECT has_expiry FROM items WHERE id = ?");
+            $manufacturedItem->execute([(int) $recipe['manufactured_item_id']]);
+            $hasExpiry = (int) $manufacturedItem->fetchColumn();
+
+            if ($hasExpiry === 1 && !empty($data['expiry_date'])) {
+                $batchNumber = $data['batch_number'] ?? ('PROD-' . date('Ymd-His'));
+                $batchStmt = $this->db->prepare("
+                    INSERT INTO item_batches (item_id, business_id, batch_number, quantity, manufacturing_date, expiry_date, status, created_at)
+                    VALUES (:item_id, :business_id, :batch_number, :quantity, :mfg_date, :expiry_date, 'active', NOW())
+                ");
+                $batchStmt->execute([
+                    'item_id'      => (int) $recipe['manufactured_item_id'],
+                    'business_id'  => $ctx->business_id,
+                    'batch_number' => $batchNumber,
+                    'quantity'     => $productionQuantity,
+                    'mfg_date'    => $data['manufacturing_date'] ?? date('Y-m-d'),
+                    'expiry_date'  => $data['expiry_date'],
+                ]);
+            }
+
             // Insert production order
             $productionDate = $data['production_date'] ?? date('Y-m-d H:i:s');
             $orderId = $this->repo->insertProductionOrder([

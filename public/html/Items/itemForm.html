@@ -91,6 +91,16 @@
                 <i class="fas fa-warehouse me-1"></i> <span data-i18n="items.inventory_heading">Inventory</span>
               </h6>
 
+              <div class="mb-3">
+                <label class="form-label small text-muted" for="inputMinStock" data-i18n="items.min_stock">Min Stock Level</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fas fa-exclamation-triangle"></i></span>
+                  <input class="form-control" id="inputMinStock" type="number"
+                         step="0.01" min="0" placeholder="0.00">
+                </div>
+                <small class="text-muted">Alert when stock falls below this level</small>
+              </div>
+
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" role="switch"
                        id="inputHasExpiry" name="has_expiry">

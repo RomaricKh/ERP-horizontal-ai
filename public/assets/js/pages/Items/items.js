@@ -7,12 +7,14 @@ import { createDataTable } from '../../templates/datatables.design.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
 import { getFormatter } from '../../i18n/translationClient.js';
 import { isModuleActive } from '../../services/ModuleService.js';
+import { createMultiSelect } from '../../components/multiSelect.js';
 
 let items_container;
 let unregister;
 let itemsUpdatedHandler;
 let itemsDataTable = null;
 let itemsCache = [];
+let typeFilterSelect = null;
 
 export async function mount() {
     await fetchItems();
@@ -246,6 +248,8 @@ export function unmount() {
     }
     unregister?.();
     unregister = null;
+    typeFilterSelect?.destroy();
+    typeFilterSelect = null;
     itemsDataTable?.destroy();
     itemsDataTable = null;
     itemsCache = [];
@@ -293,6 +297,9 @@ function renderTable(items) {
                 { targets: 9, className: 'text-center', orderable: false, searchable: false }
             ]
         });
+
+        // Build type filter next to search
+        buildTypeFilter();
     }
 
     itemsDataTable.clear();
@@ -304,56 +311,68 @@ function renderTable(items) {
     const canEditMfg = hasPermission('manufacturing.edit') && isModuleActive('manufacturing');
 
     items.forEach(item => {
-        let actions = '';
+        let actionItems = [];
 
-        // Cost change flag indicator
+        if (canEdit) {
+            actionItems.push({ action: 'items.edit', icon: 'fa-edit text-info', label: 'Edit' });
+        }
+        if (hasPermission('items.view')) {
+            actionItems.push({ action: 'items.price-history', icon: 'fa-history text-secondary', label: 'Price History' });
+        }
+        if (canProduce && item.type_name === 'Manufactured') {
+            actionItems.push({ action: 'items.produce', icon: 'fa-industry text-primary', label: 'Produce' });
+        }
+        if (canAdjust) {
+            actionItems.push({ action: 'items.stock-adjust', icon: 'fa-boxes text-success', label: 'Adjust Stock' });
+        }
+        if (parseInt(item.has_expiry) === 1) {
+            actionItems.push({ action: 'items.view-batches', icon: 'fa-clock text-warning', label: 'View Batches' });
+        }
+        if (parseInt(item.has_cost_change_flag) === 1 && canEditMfg) {
+            actionItems.push({ action: 'items.dismiss-cost-flag', icon: 'fa-check text-warning', label: 'Dismiss Cost Flag' });
+        }
+        if (canDelete) {
+            actionItems.push({ action: 'items.delete', icon: 'fa-ban text-danger', label: 'Deactivate', divider: true });
+        }
+
+        // Render actions with overflow
+        let actions = '';
         if (parseInt(item.has_cost_change_flag) === 1) {
             const oldCost = item.flag_old_cost != null ? getFormatter().formatNumber(item.flag_old_cost, 2) : '?';
             const newCost = item.flag_new_cost != null ? getFormatter().formatNumber(item.flag_new_cost, 2) : '?';
-            actions += `<span class="badge badge-warning text-dark me-1" 
-                            title="Cost changed: ${oldCost} → ${newCost}" 
-                            style="cursor: pointer;">
-                            <i class="fas fa-exclamation-triangle"></i> Cost Δ
-                        </span>`;
-            if (canEditMfg) {
-                actions += `<button data-action="items.dismiss-cost-flag" class="btn btn-outline-warning btn-sm me-1" title="Dismiss cost change flag">
-                                <i class="fas fa-check"></i></button>`;
-            }
+            actions += `<span class="badge bg-warning text-dark me-1" title="Cost changed: ${oldCost} → ${newCost}">
+                            <i class="fas fa-exclamation-triangle"></i></span>`;
         }
 
-        if (canEdit) {
-            actions += `<button data-action="items.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
-                            <i class="fas fa-edit"></i></button>`;
-        }
-        if (hasPermission('items.view')) {
-            actions += `<button data-action="items.price-history" class="btn btn-secondary btn-circle btn-sm me-1" title="Price History">
-                            <i class="fas fa-history"></i></button>`;
-        }
-        if (canProduce && item.type_name === 'Manufactured') {
-            actions += `<button data-action="items.produce" class="btn btn-primary btn-circle btn-sm me-1" title="Produce">
-                            <i class="fas fa-industry"></i></button>`;
-        }
-        if (canAdjust) {
-            actions += `<button data-action="items.stock-adjust" class="btn btn-success btn-circle btn-sm me-1" title="Adjust stock">
-                            <i class="fas fa-boxes"></i></button>`;
-        }
-        if (parseInt(item.has_expiry) === 1) {
-            actions += `<button data-action="items.view-batches" class="btn btn-warning btn-circle btn-sm me-1" title="View batches">
-                            <i class="fas fa-clock"></i></button>`;
-        }
-        if (canDelete) {
-            actions += `<button data-action="items.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Deactivate">
-                            <i class="fas fa-ban"></i></button>`;
+        if (actionItems.length <= 3) {
+            actions += actionItems.map(a => `<button data-action="${a.action}" class="btn btn-light btn-circle btn-sm me-1" title="${escHtml(a.label)}"><i class="fas ${a.icon}"></i></button>`).join('');
+        } else {
+            const inline = actionItems.slice(0, 2);
+            const overflow = actionItems.slice(2);
+            actions += inline.map(a => `<button data-action="${a.action}" class="btn btn-light btn-circle btn-sm me-1" title="${escHtml(a.label)}"><i class="fas ${a.icon}"></i></button>`).join('');
+            actions += `<div class="dropdown d-inline-block">
+                <button class="btn btn-light btn-circle btn-sm" data-bs-toggle="dropdown" title="More"><i class="fas fa-ellipsis-v"></i></button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    ${overflow.map(a => `${a.divider ? '<li><hr class="dropdown-divider"></li>' : ''}<li><button class="dropdown-item small" data-action="${a.action}"><i class="fas ${a.icon} me-2"></i>${escHtml(a.label)}</button></li>`).join('')}
+                </ul>
+            </div>`;
         }
 
+        // Stock display with health indicator
         const qty = parseFloat(item.stock_qty ?? 0);
-        const qtyBadge = qty <= 0
-            ? `<span class="badge badge-danger text-white">${getFormatter().formatNumber(qty, 3)}</span>`
-            : `<span class="badge badge-success text-white">${getFormatter().formatNumber(qty, 3)}</span>`;
+        const minStock = item.min_stock ? parseFloat(item.min_stock) : null;
+        let stockDisplay;
+        if (qty <= 0) {
+            stockDisplay = `<span class="badge bg-danger">${getFormatter().formatNumber(qty, 3)}</span>`;
+        } else if (minStock && qty <= minStock) {
+            stockDisplay = `<span class="badge bg-warning text-dark" title="Below min stock (${getFormatter().formatNumber(minStock, 2)})">${getFormatter().formatNumber(qty, 3)} ⚠</span>`;
+        } else {
+            stockDisplay = `<span class="badge bg-success">${getFormatter().formatNumber(qty, 3)}</span>`;
+        }
 
         const customerBadge = item.customer_id && item.customer_name
-            ? `<span class="badge bg-info text-white">${item.customer_name}</span>`
-            : `<span class="badge bg-secondary text-white">Global</span>`;
+            ? `<span class="badge bg-info text-white">${escHtml(item.customer_name)}</span>`
+            : '';
 
         itemsDataTable.row.add([
             item.id,
@@ -363,31 +382,56 @@ function renderTable(items) {
             item.unit  || '—',
             item.cost_price  != null ? getFormatter().formatNumber(item.cost_price, 2)  : '—',
             item.sale_price  != null ? getFormatter().formatNumber(item.sale_price, 2)  : '—',
-            qty,   // raw for sorting
+            stockDisplay,
             customerBadge,
             actions
         ]);
     });
 
-    // Override stock column display after draw
-    // Note: column 0 (ID) is hidden, so visible <td> indices are shifted by -1
-    // Data index 7 (Stock) → visible td index 6
-    itemsDataTable.on('draw', function() {
-        itemsDataTable.rows().every(function() {
-            const data = this.data();
-            const qty  = parseFloat(data[7] ?? 0);
-            const node = this.node();
-            if (node) {
-                const cells = node.querySelectorAll('td');
-                if (cells[6]) {
-                    cells[6].innerHTML = qty <= 0
-                        ? `<span class="badge badge-danger text-white">${getFormatter().formatNumber(qty, 3)}</span>`
-                        : `<span class="badge badge-success text-white">${getFormatter().formatNumber(qty, 3)}</span>`;
-                }
-            }
-        });
-    });
-
     itemsDataTable.draw(false);
     itemsDataTable.columns.adjust();
+}
+
+async function buildTypeFilter() {
+    let types = [];
+    try {
+        const res = await apiFetch('/api/items/types');
+        const json = await res.json();
+        if (json.success) types = json.data?.item_types || [];
+    } catch (err) { console.error('Failed to load item types:', err); }
+
+    if (types.length === 0) return;
+
+    const dtSearch = items_container.querySelector('.dt-search') || items_container.querySelector('.dataTables_filter');
+    if (!dtSearch) return;
+
+    const filterHost = document.createElement('div');
+    filterHost.style.minWidth = '220px';
+    const searchParent = dtSearch.parentElement;
+    searchParent.style.display = 'flex';
+    searchParent.style.alignItems = 'flex-start';
+    searchParent.style.gap = '1rem';
+    searchParent.style.flexWrap = 'wrap';
+    searchParent.insertBefore(filterHost, dtSearch);
+
+    typeFilterSelect = createMultiSelect({
+        container: filterHost,
+        placeholder: 'Filter by Type',
+        icon: 'fas fa-tags',
+        options: types.map(t => ({ id: t.id, label: t.name })),
+        onChange: (selectedLabels) => {
+            if (selectedLabels.length === 0) {
+                itemsDataTable.column(3).search('').draw();
+            } else {
+                const regex = selectedLabels.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                itemsDataTable.column(3).search(regex, true, false).draw();
+            }
+        }
+    });
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s ?? '';
+    return d.innerHTML;
 }

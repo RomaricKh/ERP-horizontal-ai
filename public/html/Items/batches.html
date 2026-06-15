@@ -1,18 +1,25 @@
 <!-- Batches modal -->
-<div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+<div class="modal-dialog modal-dialog-scrollable modal-xl" role="document">
   <div class="modal-content text-gray-800">
-    <div class="modal-header">
-      <h5 class="modal-title">Batch Tracking — <span id="batchesItemName">—</span></h5>
-      <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+
+    <div class="modal-header bg-gradient-warning text-white">
+      <h5 class="modal-title">
+        <i class="fas fa-clock me-2"></i>Batch Tracking — <span id="batchesItemName">—</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
-    <div class="modal-body">
+
+    <div class="modal-body px-4 py-4">
+      <!-- Summary row -->
+      <div id="batchesSummary" class="mb-3 p-3 bg-light rounded border d-flex flex-wrap gap-4">
+      </div>
       <div class="table-responsive">
-        <table class="table table-bordered table-hover table-sm"
+        <table class="table table-bordered table-hover"
                id="batchesTable" width="100%" cellspacing="0">
-          <thead>
+          <thead class="table-light">
             <tr>
               <th>Batch #</th>
-              <th>Quantity</th>
+              <th class="text-end">Quantity</th>
               <th>Expiry Date</th>
               <th>Status</th>
               <th>Created</th>
@@ -22,8 +29,12 @@
         </table>
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
+
+    <div class="modal-footer bg-light">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i>Close
+      </button>
     </div>
+
   </div>
 </div>

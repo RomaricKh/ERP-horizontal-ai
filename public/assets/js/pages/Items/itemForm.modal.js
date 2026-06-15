@@ -21,6 +21,7 @@ const F = {
     notes:          () => document.getElementById('inputItemNotes'),
     cost:           () => document.getElementById('inputCostPrice'),
     sale:           () => document.getElementById('inputSalePrice'),
+    minStock:       () => document.getElementById('inputMinStock'),
     hasExpiry:      () => document.getElementById('inputHasExpiry'),
 };
 
@@ -100,6 +101,7 @@ export async function mount({ modalRoot: root, data }) {
                 notes:         F.notes().value.trim() || null,
                 cost_price:    F.cost().value !== '' ? parseFloat(F.cost().value) : null,
                 sale_price:    F.sale().value !== '' ? parseFloat(F.sale().value) : null,
+                min_stock:     F.minStock().value !== '' ? parseFloat(F.minStock().value) : null,
                 has_expiry:    hasExpiryChecked ? 1 : 0,
                 customer_id:   F.customerSelect().value ? parseInt(F.customerSelect().value, 10) : null,
             };
@@ -217,6 +219,7 @@ async function fetchAndFill(itemId) {
         F.notes().value       = item.notes         ?? '';
         F.cost().value        = item.cost_price    ?? '';
         F.sale().value        = item.sale_price    ?? '';
+        F.minStock().value    = item.min_stock     ?? '';
 
         // Pre-populate customer dropdown
         if (item.customer_id) {

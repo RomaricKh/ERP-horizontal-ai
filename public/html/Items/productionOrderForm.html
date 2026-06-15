@@ -32,6 +32,22 @@
               </div>
             </div>
           </div>
+
+          <!-- Expiry section (shown when manufactured item has expiry tracking) -->
+          <div class="row g-3 mt-2 d-none" id="productionExpirySection">
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputProductionExpiry">Expiry Date <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputProductionExpiry" type="date">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputProductionMfgDate">Manufacturing Date</label>
+              <input class="form-control" id="inputProductionMfgDate" type="date">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted" for="inputProductionBatch">Batch #</label>
+              <input class="form-control" id="inputProductionBatch" type="text" placeholder="Auto-generated">
+            </div>
+          </div>
         </form>
       </div>
 

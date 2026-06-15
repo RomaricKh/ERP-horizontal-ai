@@ -83,6 +83,7 @@ async function onRecipeChange() {
         selectedRecipeDetails = null;
         showPlaceholder();
         resetCostDisplay();
+        hideExpirySection();
         return;
     }
 
@@ -93,17 +94,36 @@ async function onRecipeChange() {
             selectedRecipeDetails = null;
             showPlaceholder();
             resetCostDisplay();
+            hideExpirySection();
             return;
         }
 
         selectedRecipeDetails = json.data.recipe;
         renderMaterialRequirements();
+
+        // Show expiry section if the manufactured item has expiry tracking
+        if (parseInt(selectedRecipeDetails.has_expiry) === 1) {
+            showExpirySection();
+        } else {
+            hideExpirySection();
+        }
     } catch (err) {
         console.error('onRecipeChange failed:', err);
         selectedRecipeDetails = null;
         showPlaceholder();
         resetCostDisplay();
+        hideExpirySection();
     }
+}
+
+function showExpirySection() {
+    const section = document.getElementById('productionExpirySection');
+    if (section) section.classList.remove('d-none');
+}
+
+function hideExpirySection() {
+    const section = document.getElementById('productionExpirySection');
+    if (section) section.classList.add('d-none');
 }
 
 // ─── Quantity change handler ────────────────────────────────────────────────
@@ -190,6 +210,22 @@ async function executeOrder() {
         recipe_id: parseInt(F.recipeSelect().value, 10),
         production_quantity: parseFloat(F.productionQty().value)
     };
+
+    // Include batch/expiry data if manufactured item tracks expiry
+    if (selectedRecipeDetails && parseInt(selectedRecipeDetails.has_expiry) === 1) {
+        const expiryDate = document.getElementById('inputProductionExpiry')?.value;
+        const mfgDate = document.getElementById('inputProductionMfgDate')?.value;
+        const batchNumber = document.getElementById('inputProductionBatch')?.value?.trim();
+
+        if (!expiryDate) {
+            showFormError('Expiry date is required for this item');
+            return;
+        }
+
+        payload.expiry_date = expiryDate;
+        payload.manufacturing_date = mfgDate || null;
+        payload.batch_number = batchNumber || null;
+    }
 
     try {
         const res  = await apiFetch('/api/manufacturing/orders', {
