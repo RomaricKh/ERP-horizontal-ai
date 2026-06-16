@@ -345,14 +345,20 @@ async function handleRecurrenceSave(payeeId) {
 
         if (!frequency || !startDate) return; // Skip if required fields not filled
 
+        // default_amount should be NET (gross - tax) since SettlementEngine targets net_amount_bc
+        const grossAmount = parseFloat(RF.grossAmountFc()?.value) || parseFloat(F.grossAmountFc().value) || 0;
+        const taxAmount = parseFloat(RF.taxFc()?.value) || parseFloat(F.taxFc().value) || 0;
+        const netAmount = grossAmount - taxAmount;
+
         const recPayload = {
             frequency,
             start_date: startDate,
             end_date: endDate || null,
-            default_amount: parseFloat(RF.grossAmountFc()?.value) || parseFloat(F.grossAmountFc().value) || 0,
+            default_amount: netAmount,
             default_currency: RF.currency()?.value || F.currency().value,
             exchange_rate: parseFloat(RF.exchangeRate()?.value) || parseFloat(F.exchangeRate().value) || 1,
-            tax_fc: parseFloat(RF.taxFc()?.value) || parseFloat(F.taxFc().value) || 0,
+            gross_amount_fc: grossAmount,
+            tax_fc: taxAmount,
         };
 
         try {

@@ -1,6 +1,13 @@
 <!-- Page Heading -->
 <h1 class="h3 mb-2 text-gray-800" data-i18n="salaries.title">Salaries</h1>
 
+<!-- Employee Filter -->
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div id="employeeFilterContainer"></div>
+    </div>
+</div>
+
 <!-- Salaries DataTable -->
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
@@ -9,6 +16,10 @@
             <a href="#/salaries/recurring" class="btn btn-outline-info btn-sm" title="View recurring salary instances">
                 <i class="fas fa-sync me-1"></i>Recurring
             </a>
+            <button class="btn btn-outline-success btn-sm"
+                    data-action="salaries.generate-payroll" title="Generate batch payroll for all employees">
+                <i class="fas fa-users me-1"></i>Generate Payroll
+            </button>
             <button class="btn btn-primary btn-icon-split btn-sm"
                     data-action="salaries.create" title="Record a new salary">
                 <span class="text" data-i18n="salaries.add_btn">Add Salary</span>
@@ -26,10 +37,9 @@
                         <th data-i18n="salaries.employee">Employee</th>
                         <th data-i18n="salaries.period">Period</th>
                         <th data-i18n="common.currency">Currency</th>
-                        <th data-i18n="salaries.gross_fc">Gross FC</th>
-                        <th data-i18n="salaries.tax_fc">Tax FC</th>
                         <th data-i18n="salaries.net_fc">Net FC</th>
                         <th data-i18n="salaries.net_bc">Net BC</th>
+                        <th>Status</th>
                         <th data-i18n="common.actions">Actions</th>
                     </tr>
                 </thead>
@@ -38,3 +48,6 @@
         </div>
     </div>
 </div>
+
+<!-- Generate Payroll Modal Template (inline for simplicity) -->
+<div id="payrollModalArea"></div>

@@ -81,4 +81,54 @@ class SalariesController extends BaseController {
             $this->serverError('Failed to delete salary record');
         }
     }
+
+    // POST /salaries/generate-payroll
+    public function generatePayroll(): void {
+        try {
+            $this->auth();
+            $data = $this->input(['period_start', 'period_end', 'payee_ids']);
+            $summary = $this->service->generatePayroll($data);
+            $this->json(true, $summary);
+        } catch (\InvalidArgumentException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to generate payroll: ' . $e->getMessage());
+        }
+    }
+
+    // GET /salaries/{id}/payslip
+    public function payslip(int $id): void {
+        try {
+            $this->auth();
+            $salary = $this->service->getById($id);
+
+            // Get business info
+            $db = Database::getConnection();
+            $ctx = \App\Support\AuthContext::get();
+            $bizStmt = $db->prepare("SELECT name, legal_name, address, phone, email FROM businesses WHERE id = :id");
+            $bizStmt->execute(['id' => $ctx->business_id]);
+            $business = $bizStmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+            // Render the payslip HTML
+            $html = \App\Templates\PayslipPdf::render($salary, $business);
+
+            // Generate PDF using DOMPDF
+            $dompdf = new \Dompdf\Dompdf();
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+
+            $filename = 'payslip-' . ($salary['employee_name'] ?? 'unknown') . '-' . $salary['period_start'] . '.pdf';
+            $filename = preg_replace('/[^a-zA-Z0-9_\-.]/', '_', $filename);
+
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: inline; filename="' . $filename . '"');
+            echo $dompdf->output();
+            exit;
+        } catch (\RuntimeException $e) {
+            $this->notFound();
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to generate payslip: ' . $e->getMessage());
+        }
+    }
 }

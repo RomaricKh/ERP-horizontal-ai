@@ -33,7 +33,11 @@ class SalaryRepository {
                 s.net_amount_bc,
                 s.notes,
                 s.created_at,
-                s.updated_at
+                s.updated_at,
+                COALESCE(
+                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'SALARY' AND pa.reference_id = s.id),
+                    0
+                ) AS paid_amount_bc
             FROM salaries s
             LEFT JOIN payees py
                 ON py.id = s.payee_id
@@ -68,7 +72,11 @@ class SalaryRepository {
                 s.net_amount_bc,
                 s.notes,
                 s.created_at,
-                s.updated_at
+                s.updated_at,
+                COALESCE(
+                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'SALARY' AND pa.reference_id = s.id),
+                    0
+                ) AS paid_amount_bc
             FROM salaries s
             LEFT JOIN payees py
                 ON py.id = s.payee_id

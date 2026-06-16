@@ -1,0 +1,71 @@
+<!-- Batch Payroll Generation Modal -->
+<div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-success text-white">
+      <h5 class="modal-title" id="payrollModalTitle">
+        <i class="fas fa-users me-2"></i><span>Generate Monthly Payroll</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+      <form id="payrollForm" novalidate>
+
+        <!-- Period Selection -->
+        <div class="border rounded p-3 mb-4 bg-light">
+          <h6 class="text-success fw-bold mb-3">
+            <i class="fas fa-calendar-alt me-1"></i> Payroll Period
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="inputPayrollPeriodStart">Period Start <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputPayrollPeriodStart" type="date" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted" for="inputPayrollPeriodEnd">Period End <span class="text-danger">*</span></label>
+              <input class="form-control" id="inputPayrollPeriodEnd" type="date" required>
+            </div>
+          </div>
+          <p class="text-muted small mt-2 mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            This will create salary records for all employees with active recurring schedules who don't already have a salary for this period.
+          </p>
+        </div>
+
+        <!-- Employee Selection (optional) -->
+        <div class="border rounded p-3 mb-4">
+          <h6 class="text-success fw-bold mb-3">
+            <i class="fas fa-user-check me-1"></i> Employee Selection <span class="text-muted fw-normal">(optional)</span>
+          </h6>
+          <div id="payrollEmployeeSelectContainer"></div>
+          <p class="text-muted small mt-2 mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            Leave empty to generate for all employees. Select specific employees to limit the batch.
+          </p>
+        </div>
+
+        <!-- Preview Section (filled after generation) -->
+        <div id="payrollPreview" class="d-none">
+          <div class="border rounded p-3 mb-4">
+            <h6 class="text-success fw-bold mb-3">
+              <i class="fas fa-check-circle me-1"></i> Generation Results
+            </h6>
+            <div id="payrollResults"></div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i>Close
+      </button>
+      <button class="btn btn-success" type="button" data-action="payroll.generate" id="payrollGenerateBtn">
+        <i class="fas fa-play me-1"></i><span>Generate Payroll</span>
+      </button>
+    </div>
+
+  </div>
+</div>

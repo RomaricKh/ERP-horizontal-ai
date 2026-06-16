@@ -66,6 +66,12 @@ class SalaryService {
 
         $this->validateData($data);
 
+        // Period overlap validation
+        $payeeId = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
+        if ($payeeId) {
+            $this->checkPeriodOverlap($payeeId, $ctx->business_id, $data['period_start'], $data['period_end']);
+        }
+
         // Resolve exchange rate: use provided value or fall back to latest from exchange_rates table
         $providedRate = (!isset($data['exchange_rate']) || $data['exchange_rate'] === '' || $data['exchange_rate'] === null)
             ? null
@@ -143,6 +149,12 @@ class SalaryService {
 
         $this->validateData($data);
 
+        // Period overlap validation (exclude current record)
+        $newPayeeIdCheck = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
+        if ($newPayeeIdCheck) {
+            $this->checkPeriodOverlap($newPayeeIdCheck, $ctx->business_id, $data['period_start'], $data['period_end'], $id);
+        }
+
         // Resolve exchange rate: use provided value or fall back to latest from exchange_rates table
         $providedRate = (!isset($data['exchange_rate']) || $data['exchange_rate'] === '' || $data['exchange_rate'] === null)
             ? null
@@ -216,8 +228,9 @@ class SalaryService {
 
     /**
      * Delete a salary record.
+     * Guards: reject if payment allocations exist for this salary.
      *
-     * @throws \RuntimeException if not found
+     * @throws \RuntimeException if not found or has allocations
      */
     public function delete(int $id): void {
         $ctx    = AuthContext::get();
@@ -225,6 +238,19 @@ class SalaryService {
 
         if (!$before) {
             throw new \RuntimeException('Salary record not found');
+        }
+
+        // Guard: reject deletion if payment allocations exist
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(amount_bc), 0)
+            FROM payment_allocations
+            WHERE reference_type = 'SALARY'
+              AND reference_id = :id
+        ");
+        $stmt->execute(['id' => $id]);
+        $paidAmount = (float) $stmt->fetchColumn();
+        if ($paidAmount > 0) {
+            throw new \RuntimeException('Cannot delete salary with existing payment allocations. Remove related payments first.');
         }
 
         $this->db->beginTransaction();
@@ -256,9 +282,209 @@ class SalaryService {
         }
     }
 
+    /**
+     * Generate batch payroll for all employees with active recurring schedules.
+     * Creates salary records for a given period for all employees that don't already
+     * have a salary record overlapping that period.
+     *
+     * @param array $data Required: period_start, period_end. Optional: payee_ids (array of specific employee payee IDs)
+     * @return array Summary: ['created' => int, 'skipped' => int, 'details' => [...]]
+     * @throws \InvalidArgumentException
+     */
+    public function generatePayroll(array $data): array {
+        $ctx = AuthContext::get();
+
+        if (empty($data['period_start'] ?? '')) {
+            throw new \InvalidArgumentException('Period start is required');
+        }
+        if (empty($data['period_end'] ?? '')) {
+            throw new \InvalidArgumentException('Period end is required');
+        }
+        if ($data['period_end'] < $data['period_start']) {
+            throw new \InvalidArgumentException('Period end must not be before period start');
+        }
+
+        $periodStart = $data['period_start'];
+        $periodEnd   = $data['period_end'];
+
+        // Get all employees in this business (people with type 'Employee')
+        $stmt = $this->db->prepare("
+            SELECT py.id AS payee_id, p.name AS employee_name,
+                   rs.default_amount, rs.default_currency, rs.frequency, rs.entity_id AS schedule_entity_id
+            FROM payees py
+            JOIN people p ON p.id = py.people_id
+            JOIN people_types pt ON pt.people_id = p.id
+            JOIN payee_types ptype ON ptype.id = pt.payee_type_id
+            LEFT JOIN recurrence_schedules rs ON rs.entity_type = 'SALARY'
+                AND rs.entity_id = py.id AND rs.is_active = 1 AND rs.business_id = :business_id
+            WHERE py.business_id = :biz_id
+              AND ptype.name = 'Employee'
+        ");
+        $stmt->execute([
+            'business_id' => $ctx->business_id,
+            'biz_id'      => $ctx->business_id,
+        ]);
+        $employees = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Filter by specific payee IDs if provided
+        $targetPayeeIds = $data['payee_ids'] ?? null;
+        if (is_array($targetPayeeIds) && !empty($targetPayeeIds)) {
+            $employees = array_filter($employees, fn($e) => in_array((int)$e['payee_id'], $targetPayeeIds));
+        }
+
+        $summary = ['created' => 0, 'skipped' => 0, 'details' => []];
+
+        $this->db->beginTransaction();
+        try {
+            foreach ($employees as $emp) {
+                $payeeId = (int) $emp['payee_id'];
+
+                // Check if salary already exists for this employee in this period
+                $existingStmt = $this->db->prepare("
+                    SELECT COUNT(*) FROM salaries
+                    WHERE payee_id = :payee_id
+                      AND business_id = :business_id
+                      AND period_start <= :period_end
+                      AND period_end >= :period_start
+                ");
+                $existingStmt->execute([
+                    'payee_id'     => $payeeId,
+                    'business_id'  => $ctx->business_id,
+                    'period_start' => $periodStart,
+                    'period_end'   => $periodEnd,
+                ]);
+                if ((int) $existingStmt->fetchColumn() > 0) {
+                    $summary['skipped']++;
+                    $summary['details'][] = [
+                        'payee_id' => $payeeId,
+                        'employee_name' => $emp['employee_name'],
+                        'status' => 'skipped',
+                        'reason' => 'Salary already exists for this period',
+                    ];
+                    continue;
+                }
+
+                // Determine amounts: use latest salary as template, fallback to recurrence schedule
+                $templateSalary = null;
+                $latestSalaryStmt = $this->db->prepare("
+                    SELECT gross_amount_fc, tax_fc, net_amount_fc, currency, exchange_rate
+                    FROM salaries
+                    WHERE payee_id = :payee_id AND business_id = :business_id
+                    ORDER BY period_start DESC LIMIT 1
+                ");
+                $latestSalaryStmt->execute(['payee_id' => $payeeId, 'business_id' => $ctx->business_id]);
+                $templateSalary = $latestSalaryStmt->fetch(\PDO::FETCH_ASSOC);
+
+                if ($templateSalary) {
+                    $grossAmountFc = (float) $templateSalary['gross_amount_fc'];
+                    $taxFc = (float) $templateSalary['tax_fc'];
+                    $currency = $templateSalary['currency'];
+                } elseif (!empty($emp['default_amount'])) {
+                    // Fallback to recurrence schedule (default_amount = net)
+                    $netFromSchedule = (float) $emp['default_amount'];
+                    $grossAmountFc = $netFromSchedule; // Approximate: use net as gross if no template
+                    $taxFc = 0.0;
+                    $currency = $emp['default_currency'] ?? 'USD';
+                } else {
+                    $summary['skipped']++;
+                    $summary['details'][] = [
+                        'payee_id' => $payeeId,
+                        'employee_name' => $emp['employee_name'],
+                        'status' => 'skipped',
+                        'reason' => 'No salary history or recurring schedule configured',
+                    ];
+                    continue;
+                }
+
+                // Resolve exchange rate
+                $exchangeRate = $this->exchangeRateService->resolveRate($currency, null);
+
+                $grossAmountBc = round($grossAmountFc * $exchangeRate, 2);
+                $taxBc = round($taxFc * $exchangeRate, 2);
+                $netAmountFc = round($grossAmountFc - $taxFc, 2);
+                $netAmountBc = round($grossAmountBc - $taxBc, 2);
+
+                $salaryId = $this->repo->create([
+                    'business_id'    => $ctx->business_id,
+                    'payee_id'       => $payeeId,
+                    'period_start'   => $periodStart,
+                    'period_end'     => $periodEnd,
+                    'currency'       => $currency,
+                    'exchange_rate'  => $exchangeRate,
+                    'gross_amount_fc' => $grossAmountFc,
+                    'gross_amount_bc' => $grossAmountBc,
+                    'tax_fc'         => $taxFc,
+                    'tax_bc'         => $taxBc,
+                    'net_amount_fc'  => $netAmountFc,
+                    'net_amount_bc'  => $netAmountBc,
+                    'notes'          => 'Batch payroll - ' . $periodStart . ' to ' . $periodEnd,
+                ]);
+
+                // Decrease payee balance
+                $this->peopleRepo->updatePayeeBalance($payeeId, -$netAmountBc);
+
+                $summary['created']++;
+                $summary['details'][] = [
+                    'payee_id' => $payeeId,
+                    'employee_name' => $emp['employee_name'],
+                    'salary_id' => $salaryId,
+                    'status' => 'created',
+                    'gross_amount_fc' => $grossAmountFc,
+                    'currency' => $currency,
+                ];
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        return $summary;
+    }
+
     /* =====================================================================
      * Private helpers
      * ===================================================================== */
+
+    /**
+     * Validate that there's no period overlap for the same employee.
+     *
+     * @param int    $payeeId     Employee payee ID
+     * @param int    $businessId  Business ID
+     * @param string $periodStart Start of the new period (Y-m-d)
+     * @param string $periodEnd   End of the new period (Y-m-d)
+     * @param int|null $excludeId Salary ID to exclude (for updates)
+     * @throws \InvalidArgumentException If an overlapping record exists
+     */
+    private function checkPeriodOverlap(int $payeeId, int $businessId, string $periodStart, string $periodEnd, ?int $excludeId = null): void {
+        $sql = "
+            SELECT COUNT(*) FROM salaries
+            WHERE payee_id = :payee_id
+              AND business_id = :business_id
+              AND period_start <= :period_end
+              AND period_end >= :period_start
+        ";
+        $params = [
+            'payee_id'     => $payeeId,
+            'business_id'  => $businessId,
+            'period_start' => $periodStart,
+            'period_end'   => $periodEnd,
+        ];
+
+        if ($excludeId !== null) {
+            $sql .= " AND id != :exclude_id";
+            $params['exclude_id'] = $excludeId;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $count = (int) $stmt->fetchColumn();
+
+        if ($count > 0) {
+            throw new \InvalidArgumentException('A salary record already exists for this employee that overlaps the specified period');
+        }
+    }
 
     /**
      * Validate required fields.
