@@ -199,8 +199,8 @@ function renderBusinessTable(businesses) {
 		if (canEdit) {
 			actions += `
 				<button data-action="businesses.edit" title="Edit business"
-					class="btn btn-info btn-circle btn-sm me-1">
-					<i class="fas fa-edit"></i>
+					class="btn btn-light btn-circle btn-sm me-1">
+					<i class="fas fa-edit text-info"></i>
 				</button>`;
 		}
 		if (canManage) {

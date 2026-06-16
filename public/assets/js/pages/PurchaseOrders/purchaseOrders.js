@@ -158,17 +158,8 @@ export async function mount() {
         },
 
         'po.debit-note': async ({ el }) => {
-            const tr = el.closest('tr');
-            const rowData = poDataTable.row(tr).data();
-            const id = rowData[0];
-            if (!id) return;
-            await openModal({
-                scope:      MODAL_SCOPE.PAGE,
-                template:   'html/PurchaseOrders/debitNoteForm.html',
-                controller: '../pages/PurchaseOrders/debitNoteForm.modal.js',
-                data:       { po_id: id },
-                options:    { backdrop: false, keyboard: true, focus: true }
-            });
+            // Navigate to the debit notes page (filtered by this PO if needed)
+            window.location.hash = '#/purchase-orders/debit-notes';
         },
 
         'po.duplicate': async ({ el }) => {
@@ -443,7 +434,7 @@ function buildActionItems(po, perms) {
         items.push({ action: 'po.download-pdf', icon: 'fa-file-pdf text-danger', label: 'Download PDF' });
     }
     if (perms.canView && po.status === 'RECEIVED') {
-        items.push({ action: 'po.debit-note', icon: 'fa-undo text-warning', label: 'Debit Note' });
+        items.push({ action: 'po.debit-note', icon: 'fa-undo text-warning', label: 'Debit Notes' });
     }
     if (perms.canCreate) {
         items.push({ action: 'po.duplicate', icon: 'fa-copy text-secondary', label: 'Duplicate' });

@@ -172,14 +172,14 @@ function renderTable(shares) {
     shares.forEach(share => {
         let actions = '';
         if (canManage) {
-            actions += `<button data-action="partnerShares.contribute" class="btn btn-success btn-circle btn-sm me-1" title="Contribute">
-                            <i class="fas fa-plus-circle"></i></button>`;
-            actions += `<button data-action="partnerShares.withdraw" class="btn btn-warning btn-circle btn-sm me-1" title="Withdraw">
-                            <i class="fas fa-minus-circle"></i></button>`;
-            actions += `<button data-action="partnerShares.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
-                            <i class="fas fa-edit"></i></button>`;
-            actions += `<button data-action="partnerShares.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash"></i></button>`;
+            actions += `<button data-action="partnerShares.contribute" class="btn btn-light btn-circle btn-sm me-1" title="Contribute">
+                            <i class="fas fa-plus-circle text-success"></i></button>`;
+            actions += `<button data-action="partnerShares.withdraw" class="btn btn-light btn-circle btn-sm me-1" title="Withdraw">
+                            <i class="fas fa-minus-circle text-warning"></i></button>`;
+            actions += `<button data-action="partnerShares.edit" class="btn btn-light btn-circle btn-sm me-1" title="Edit">
+                            <i class="fas fa-edit text-info"></i></button>`;
+            actions += `<button data-action="partnerShares.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
+                            <i class="fas fa-trash text-danger"></i></button>`;
         }
 
         dataTable.row.add([

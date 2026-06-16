@@ -110,3 +110,9 @@ $router->get('/debit-notes/{id}',
     fn($id) => (new DebitNoteController())->show((int)$id),
     ['po.view']
 );
+
+// DELETE /debit-notes/{id}
+$router->delete('/debit-notes/{id}',
+    fn($id) => (new DebitNoteController())->delete((int)$id),
+    ['po.edit']
+);

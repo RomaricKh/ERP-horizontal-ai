@@ -202,12 +202,12 @@ function renderBusinessRolesTable(roles) {
             actions = '<span class="text-muted small"><i class="fas fa-lock mr-1"></i>Protected</span>';
         } else {
             if (canEdit) {
-                actions += `<button data-action="roles.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
-                                <i class="fas fa-edit"></i></button>`;
+                actions += `<button data-action="roles.edit" class="btn btn-light btn-circle btn-sm me-1" title="Edit">
+                                <i class="fas fa-edit text-info"></i></button>`;
             }
             if (canDelete) {
-                actions += `<button data-action="roles.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                                <i class="fas fa-trash"></i></button>`;
+                actions += `<button data-action="roles.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
+                                <i class="fas fa-trash text-danger"></i></button>`;
             }
         }
 

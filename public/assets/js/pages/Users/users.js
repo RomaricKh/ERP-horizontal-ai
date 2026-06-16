@@ -210,15 +210,15 @@ function renderUsersTable(users) {
 	if (canEdit) {
 		actions += `
 			<button data-action="users.edit" title="Edit user"
-				class="btn btn-info btn-circle btn-sm me-1">
-				<i class="fas fa-user-edit"></i>
+				class="btn btn-light btn-circle btn-sm me-1">
+				<i class="fas fa-user-edit text-info"></i>
 			</button>`;
 	}
 	if (canDelete) {
 		actions += `
 			<button data-action="users.delete" title="Remove from business"
-				class="btn btn-danger btn-circle btn-sm me-1">
-				<i class="fas fa-user-times"></i>
+				class="btn btn-light btn-circle btn-sm me-1">
+				<i class="fas fa-user-times text-danger"></i>
 			</button>`;
 	}
 	users.forEach(user => {

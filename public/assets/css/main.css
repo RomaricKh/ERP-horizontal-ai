@@ -184,3 +184,17 @@ html, body, #authViews, #appShell {
     background-color: rgba(255, 255, 255, 0.15);
     border-radius: 0.375rem;
 }
+
+/* ─── Fix dropdown overflow in DataTables ─────────────────────────────── */
+/* Prevents the action dropdown from being clipped by .table-responsive overflow */
+.table-responsive {
+    overflow: visible !important;
+}
+.dataTables_scrollBody {
+    overflow: visible !important;
+}
+/* Ensure dropdown menus render above table content */
+.table td .dropdown-menu {
+    position: absolute;
+    z-index: 1050;
+}

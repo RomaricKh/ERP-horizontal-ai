@@ -245,21 +245,21 @@ function buildActionButtons(record, canManage) {
     const status = (record.status || '').toUpperCase();
 
     // View details — always visible
-    actions += `<button data-action="profit.view-details" class="btn btn-secondary btn-circle btn-sm me-1" title="View Details">
-                    <i class="fas fa-eye"></i></button>`;
+    actions += `<button data-action="profit.view-details" class="btn btn-light btn-circle btn-sm me-1" title="View Details">
+                    <i class="fas fa-eye text-secondary"></i></button>`;
 
     if (status === 'DRAFT') {
-        actions += `<button data-action="profit.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
-                        <i class="fas fa-edit"></i></button>`;
-        actions += `<button data-action="profit.finalize" class="btn btn-warning btn-circle btn-sm me-1" title="Finalize">
-                        <i class="fas fa-lock"></i></button>`;
-        actions += `<button data-action="profit.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                        <i class="fas fa-trash"></i></button>`;
+        actions += `<button data-action="profit.edit" class="btn btn-light btn-circle btn-sm me-1" title="Edit">
+                        <i class="fas fa-edit text-info"></i></button>`;
+        actions += `<button data-action="profit.finalize" class="btn btn-light btn-circle btn-sm me-1" title="Finalize">
+                        <i class="fas fa-lock text-warning"></i></button>`;
+        actions += `<button data-action="profit.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
+                        <i class="fas fa-trash text-danger"></i></button>`;
     }
 
     if (status === 'FINALIZED') {
-        actions += `<button data-action="profit.distribute" class="btn btn-success btn-circle btn-sm me-1" title="Distribute">
-                        <i class="fas fa-share-alt"></i></button>`;
+        actions += `<button data-action="profit.distribute" class="btn btn-light btn-circle btn-sm me-1" title="Distribute">
+                        <i class="fas fa-share-alt text-success"></i></button>`;
     }
 
     return actions;

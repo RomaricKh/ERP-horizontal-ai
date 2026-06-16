@@ -225,4 +225,44 @@ class DebitNoteService
             throw $e;
         }
     }
+
+    /**
+     * Delete a DRAFT debit note.
+     * Only DRAFT status can be deleted. ISSUED debit notes cannot be reversed.
+     *
+     * @throws \RuntimeException if not found or not DRAFT
+     */
+    public function delete(int $id): void
+    {
+        $ctx  = AuthContext::get();
+        $note = $this->repo->findById($id, $ctx->business_id);
+        if (!$note) {
+            throw new \RuntimeException('Debit note not found');
+        }
+        if ($note['status'] !== 'DRAFT') {
+            throw new \RuntimeException('Only DRAFT debit notes can be deleted. Issued notes cannot be reversed.');
+        }
+
+        $this->db->beginTransaction();
+        try {
+            // Delete lines first (CASCADE should handle it, but explicit for safety)
+            $stmt = $this->db->prepare("DELETE FROM debit_note_items WHERE debit_note_id = :id");
+            $stmt->execute(['id' => $id]);
+
+            // Delete the debit note header
+            $stmt = $this->db->prepare("DELETE FROM debit_notes WHERE id = :id AND business_id = :business_id");
+            $stmt->execute(['id' => $id, 'business_id' => $ctx->business_id]);
+
+            $this->audit->log(
+                'DELETE', 'debit_notes', $id, 'DELETE',
+                $note, null,
+                $ctx->user_id, $ctx->tenant_id, $ctx->business_id
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
 }
