@@ -231,6 +231,11 @@ class PaymentService {
                 }
             }
 
+            // Update recurrence instances for allocated expenses/salaries that are now fully paid
+            if (!empty($allocations)) {
+                $this->updateRecurrenceInstancesForAllocations($allocations);
+            }
+
             $this->db->commit();
 
             // Notify users with "finance.view" permission about new payment
@@ -278,6 +283,10 @@ class PaymentService {
 
         $this->db->beginTransaction();
         try {
+            // Before deleting allocations, check which expenses/salaries will become unsettled
+            // and revert their recurrence instances back to pending/overdue
+            $existingAllocations = $this->allocationRepo->findBySlip($id);
+            
             // Allocations are deleted via CASCADE, but explicit delete for audit clarity
             $this->allocationRepo->deleteBySlip($id);
             $this->repo->delete($id, $ctx->business_id);
@@ -289,6 +298,11 @@ class PaymentService {
             $payeeId = $payment['payee_id'] ?? null;
             if ($payeeId) {
                 $this->peopleRepo->updatePayeeBalance((int) $payeeId, -$amountBc);
+            }
+
+            // Revert recurrence instances that are no longer fully settled
+            if (!empty($existingAllocations)) {
+                $this->revertRecurrenceInstancesForDeletedAllocations($existingAllocations);
             }
 
             $this->audit->log(
@@ -311,6 +325,109 @@ class PaymentService {
     }
 
     /**
+     * After allocations are saved, check if any allocated expenses or salaries
+     * are linked to recurrence_instances. If the expense/salary is now fully settled,
+     * mark the corresponding recurrence instance as 'paid'.
+     *
+     * @param array $allocations Array of allocation rows with reference_type and reference_id
+     */
+    private function updateRecurrenceInstancesForAllocations(array $allocations): void {
+        foreach ($allocations as $alloc) {
+            $refType = $alloc['reference_type'] ?? '';
+            $refId   = (int) ($alloc['reference_id'] ?? 0);
+
+            if ($refType === 'EXPENSE') {
+                // Check if this expense is fully settled (total allocations >= expense amount)
+                $expenseTotal = $this->getDocumentTotal('EXPENSE', $refId);
+                $totalAllocated = $this->sumPaymentAllocationsForDocument('EXPENSE', $refId);
+
+                if ($expenseTotal > 0 && $totalAllocated >= $expenseTotal) {
+                    // Update any recurrence_instances linked to this expense
+                    $stmt = $this->db->prepare("
+                        UPDATE recurrence_instances
+                        SET status = 'paid', paid_date = CURDATE(), updated_at = NOW()
+                        WHERE payment_record_id = :expense_id
+                          AND status IN ('pending', 'overdue')
+                    ");
+                    $stmt->execute(['expense_id' => $refId]);
+                }
+            } elseif ($refType === 'SALARY') {
+                // Check if this salary is fully settled
+                $salaryTotal = $this->getDocumentTotal('SALARY', $refId);
+                $totalAllocated = $this->sumPaymentAllocationsForDocument('SALARY', $refId);
+
+                if ($salaryTotal > 0 && $totalAllocated >= $salaryTotal) {
+                    // Update any recurrence_instances linked to this salary
+                    $stmt = $this->db->prepare("
+                        UPDATE recurrence_instances
+                        SET status = 'paid', paid_date = CURDATE(), updated_at = NOW()
+                        WHERE payment_record_id = :salary_id
+                          AND status IN ('pending', 'overdue')
+                    ");
+                    $stmt->execute(['salary_id' => $refId]);
+                }
+            }
+        }
+    }
+
+    /**
+     * When a payment is deleted, check if any of its allocations were keeping
+     * recurrence instances in 'paid' status. If the expense/salary is no longer
+     * fully settled after removal, revert the instance to 'pending' or 'overdue'.
+     *
+     * @param array $allocations The allocations that were just deleted
+     */
+    private function revertRecurrenceInstancesForDeletedAllocations(array $allocations): void {
+        foreach ($allocations as $alloc) {
+            $refType = $alloc['reference_type'] ?? '';
+            $refId   = (int) ($alloc['reference_id'] ?? 0);
+
+            if ($refType === 'EXPENSE' || $refType === 'SALARY') {
+                // After deletion, check if expense/salary is still fully settled
+                $docTotal = $this->getDocumentTotal($refType, $refId);
+                $totalAllocated = $this->sumPaymentAllocationsForDocument($refType, $refId);
+
+                if ($docTotal > 0 && $totalAllocated < $docTotal) {
+                    // No longer fully settled — revert the recurrence instance
+                    $today = date('Y-m-d');
+                    $stmt = $this->db->prepare("
+                        UPDATE recurrence_instances
+                        SET status = CASE
+                            WHEN due_date < :today THEN 'overdue'
+                            ELSE 'pending'
+                        END,
+                        paid_date = NULL,
+                        updated_at = NOW()
+                        WHERE payment_record_id = :record_id
+                          AND status = 'paid'
+                    ");
+                    $stmt->execute([
+                        'today'     => $today,
+                        'record_id' => $refId,
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Sum all payment allocations for a given document (by reference_type + reference_id).
+     */
+    private function sumPaymentAllocationsForDocument(string $referenceType, int $referenceId): float {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(amount_bc), 0)
+            FROM payment_allocations
+            WHERE reference_type = :reference_type
+              AND reference_id = :reference_id
+        ");
+        $stmt->execute([
+            'reference_type' => $referenceType,
+            'reference_id'   => $referenceId,
+        ]);
+        return (float) $stmt->fetchColumn();
+    }
+
+    /**
      * Get the total amount for a document by type and ID.
      */
     private function getDocumentTotal(string $referenceType, int $referenceId): float {
@@ -322,7 +439,7 @@ class PaymentService {
                 $stmt = $this->db->prepare("SELECT amount_bc AS total_amount_bc FROM expenses WHERE id = :id LIMIT 1");
                 break;
             case 'SALARY':
-                $stmt = $this->db->prepare("SELECT net_salary_bc AS total_amount_bc FROM salaries WHERE id = :id LIMIT 1");
+                $stmt = $this->db->prepare("SELECT net_amount_bc AS total_amount_bc FROM salaries WHERE id = :id LIMIT 1");
                 break;
             case 'PARTNER_PROFIT':
                 $stmt = $this->db->prepare("SELECT amount_bc AS total_amount_bc FROM partner_distributions WHERE id = :id LIMIT 1");
