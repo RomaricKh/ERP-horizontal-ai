@@ -155,14 +155,14 @@ function renderTable(assets) {
     assets.forEach(asset => {
         let actions = '';
 
-        actions += `<button data-action="assets.view" class="btn btn-info btn-circle btn-sm me-1" title="View / Edit">
-                        <i class="fas fa-eye"></i></button>`;
+        actions += `<button data-action="assets.view" class="btn btn-light btn-circle btn-sm me-1" title="View / Edit">
+                        <i class="fas fa-eye text-info"></i></button>`;
 
         if (canManage) {
-            actions += `<button data-action="assets.depreciate" class="btn btn-warning btn-circle btn-sm me-1" title="Depreciate">
-                            <i class="fas fa-chart-line"></i></button>`;
-            actions += `<button data-action="assets.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash"></i></button>`;
+            actions += `<button data-action="assets.depreciate" class="btn btn-light btn-circle btn-sm me-1" title="Depreciate">
+                            <i class="fas fa-chart-line text-warning"></i></button>`;
+            actions += `<button data-action="assets.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
+                            <i class="fas fa-trash text-danger"></i></button>`;
         }
 
         dataTable.row.add([

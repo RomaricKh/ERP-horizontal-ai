@@ -81,13 +81,13 @@ function renderTable(stock) {
 
         let actions = '';
         if (canAdjust) {
-            actions = `<button class="btn btn-success btn-circle btn-sm"
+            actions = `<button class="btn btn-light btn-circle btn-sm"
                                data-action="stock.adjust-from-view"
                                data-item-id="${s.item_id}"
                                data-item-name="${escHtml(s.item_name)}"
                                data-qty="${qty}"
                                title="Adjust stock">
-                           <i class="fas fa-boxes"></i>
+                           <i class="fas fa-boxes text-success"></i>
                        </button>`;
         }
 

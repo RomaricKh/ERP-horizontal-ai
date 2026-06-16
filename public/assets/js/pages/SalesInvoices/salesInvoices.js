@@ -309,13 +309,13 @@ function renderTable(invoices) {
         }
 
         if (canView) {
-            actions += `<button data-action="invoice.download-pdf" class="btn btn-outline-danger btn-circle btn-sm me-1" title="Download PDF">
-                            <i class="fas fa-file-pdf"></i></button>`;
+            actions += `<button data-action="invoice.download-pdf" class="btn btn-light btn-circle btn-sm me-1" title="Download PDF">
+                            <i class="fas fa-file-pdf text-danger"></i></button>`;
         }
 
         if (canView && (inv.status === 'DELIVERED' || inv.status === 'PAID')) {
-            actions += `<button data-action="invoice.credit-note" class="btn btn-outline-warning btn-circle btn-sm me-1" title="Issue Credit Note">
-                            <i class="fas fa-undo"></i></button>`;
+            actions += `<button data-action="invoice.credit-note" class="btn btn-light btn-circle btn-sm me-1" title="Issue Credit Note">
+                            <i class="fas fa-undo text-warning"></i></button>`;
         }
 
         const rowNode = invDataTable.row.add([

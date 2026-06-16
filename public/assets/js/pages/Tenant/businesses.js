@@ -216,8 +216,8 @@ function renderBusinessTable(businesses) {
 		if (canDelete) {
 			actions += `
 				<button data-action="businesses.delete" title="Permanently delete (empty businesses only)"
-					class="btn btn-outline-danger btn-circle btn-sm">
-					<i class="fas fa-trash"></i>
+					class="btn btn-light btn-circle btn-sm">
+					<i class="fas fa-trash text-danger"></i>
 				</button>`;
 		}
 

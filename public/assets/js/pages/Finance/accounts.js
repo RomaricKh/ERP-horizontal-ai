@@ -145,12 +145,12 @@ function renderTable(accounts) {
     accounts.forEach(account => {
         let actions = '';
         if (canManage) {
-            actions += `<button data-action="accounts.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
-                            <i class="fas fa-edit"></i></button>`;
+            actions += `<button data-action="accounts.edit" class="btn btn-light btn-circle btn-sm me-1" title="Edit">
+                            <i class="fas fa-edit text-info"></i></button>`;
         }
         if (canManage) {
-            actions += `<button data-action="accounts.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash"></i></button>`;
+            actions += `<button data-action="accounts.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
+                            <i class="fas fa-trash text-danger"></i></button>`;
         }
 
         const balanceFc = account.balance_fc != null ? getFormatter().formatNumber(account.balance_fc, 2) : '0.00';

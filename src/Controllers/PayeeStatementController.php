@@ -248,6 +248,38 @@ class PayeeStatementController extends BaseController {
         $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'start_date' => $startDate, 'end_date' => $endDate]);
         $transactions = array_merge($transactions, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
+        // Debit Notes — ISSUED (we returned items to supplier → reduces what we owe → positive debit)
+        $stmt = $db->prepare("
+            SELECT dn.debit_note_date AS date, 'debit_note' AS type,
+                   dn.debit_note_number AS reference_number,
+                   CONCAT('Debit Note #', dn.debit_note_number, ' (return on PO #', po.po_number, ')') AS description,
+                   dn.total_amount_fc AS debit_amount, 0 AS credit_amount,
+                   dn.status
+            FROM debit_notes dn
+            JOIN purchase_orders po ON po.id = dn.purchase_order_id
+            WHERE po.supplier_id = :payee_id AND dn.business_id = :business_id
+              AND dn.debit_note_date >= :start_date AND dn.debit_note_date <= :end_date
+              AND dn.status = 'ISSUED'
+        ");
+        $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'start_date' => $startDate, 'end_date' => $endDate]);
+        $transactions = array_merge($transactions, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+        // Credit Notes — ISSUED (customer returned items → reduces what they owe us → negative debit)
+        $stmt = $db->prepare("
+            SELECT cn.credit_note_date AS date, 'credit_note' AS type,
+                   cn.credit_note_number AS reference_number,
+                   CONCAT('Credit Note #', cn.credit_note_number, ' (return on Inv #', si.invoice_number, ')') AS description,
+                   (cn.total_amount_fc * -1) AS debit_amount, 0 AS credit_amount,
+                   cn.status
+            FROM credit_notes cn
+            JOIN sales_invoices si ON si.id = cn.sales_invoice_id
+            WHERE si.customer_id = :payee_id AND cn.business_id = :business_id
+              AND cn.credit_note_date >= :start_date AND cn.credit_note_date <= :end_date
+              AND cn.status = 'ISSUED'
+        ");
+        $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId, 'start_date' => $startDate, 'end_date' => $endDate]);
+        $transactions = array_merge($transactions, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
         // Sort by date
         usort($transactions, fn($a, $b) => strcmp($a['date'], $b['date']));
 
@@ -285,6 +317,28 @@ class PayeeStatementController extends BaseController {
 
         // Collections before start (they paid us → negative, reduces what they owe)
         $stmt = $db->prepare("SELECT COALESCE(SUM(amount_fc), 0) FROM collection_slips WHERE payee_id = :pid AND business_id = :bid AND slip_date < :d");
+        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
+        $balance -= (float)$stmt->fetchColumn();
+
+        // Debit Notes before start — ISSUED (we returned to supplier → positive, reduces what we owe)
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(dn.total_amount_fc), 0)
+            FROM debit_notes dn
+            JOIN purchase_orders po ON po.id = dn.purchase_order_id
+            WHERE po.supplier_id = :pid AND dn.business_id = :bid
+              AND dn.debit_note_date < :d AND dn.status = 'ISSUED'
+        ");
+        $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
+        $balance += (float)$stmt->fetchColumn();
+
+        // Credit Notes before start — ISSUED (customer returned to us → negative, reduces what they owe)
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(cn.total_amount_fc), 0)
+            FROM credit_notes cn
+            JOIN sales_invoices si ON si.id = cn.sales_invoice_id
+            WHERE si.customer_id = :pid AND cn.business_id = :bid
+              AND cn.credit_note_date < :d AND cn.status = 'ISSUED'
+        ");
         $stmt->execute(['pid' => $payeeId, 'bid' => $businessId, 'd' => $startDate]);
         $balance -= (float)$stmt->fetchColumn();
 

@@ -127,10 +127,10 @@ function buildStatusBadge(asset) {
 }
 
 function buildActions(asset) {
-    return `<a href="#/prepaid-assets/detail?id=${asset.id}" class="btn btn-info btn-circle btn-sm me-1" title="View Full Detail">
-                <i class="fas fa-eye"></i></a>` +
-           `<button data-action="prepaid-assets.view-detail" class="btn btn-outline-info btn-circle btn-sm" title="Quick View">
-                <i class="fas fa-search"></i></button>`;
+    return `<a href="#/prepaid-assets/detail?id=${asset.id}" class="btn btn-light btn-circle btn-sm me-1" title="View Full Detail">
+                <i class="fas fa-eye text-info"></i></a>` +
+           `<button data-action="prepaid-assets.view-detail" class="btn btn-light btn-circle btn-sm" title="Quick View">
+                <i class="fas fa-search text-info"></i></button>`;
 }
 
 async function showAssetDetail(id) {

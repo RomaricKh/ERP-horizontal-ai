@@ -126,8 +126,8 @@ function renderTable(orders) {
         let actions = '';
 
         if (canReverse && order.status === 'COMPLETED') {
-            actions += `<button data-action="production.reverse" class="btn btn-warning btn-circle btn-sm me-1" title="Reverse">
-                            <i class="fas fa-undo"></i></button>`;
+            actions += `<button data-action="production.reverse" class="btn btn-light btn-circle btn-sm me-1" title="Reverse">
+                            <i class="fas fa-undo text-warning"></i></button>`;
         }
 
         const prodDate = order.production_date ? getFormatter().formatDate(order.production_date) : '—';

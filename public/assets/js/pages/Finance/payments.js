@@ -136,14 +136,14 @@ function renderTable(payments) {
     payments.forEach(payment => {
         let actions = '';
         if (canView) {
-            actions += `<button data-action="payments.view" class="btn btn-info btn-circle btn-sm me-1" title="View">
-                            <i class="fas fa-eye"></i></button>`;
-            actions += `<button data-action="payments.allocations" class="btn btn-secondary btn-circle btn-sm me-1" title="Allocations">
-                            <i class="fas fa-layer-group"></i></button>`;
+            actions += `<button data-action="payments.view" class="btn btn-light btn-circle btn-sm me-1" title="View">
+                            <i class="fas fa-eye text-info"></i></button>`;
+            actions += `<button data-action="payments.allocations" class="btn btn-light btn-circle btn-sm me-1" title="Allocations">
+                            <i class="fas fa-layer-group text-secondary"></i></button>`;
         }
         if (canDelete) {
-            actions += `<button data-action="payments.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash"></i></button>`;
+            actions += `<button data-action="payments.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
+                            <i class="fas fa-trash text-danger"></i></button>`;
         }
 
         const amountFc = payment.amount_fc != null ? getFormatter().formatNumber(payment.amount_fc, 2) : '0.00';

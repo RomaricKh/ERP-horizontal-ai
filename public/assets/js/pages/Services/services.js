@@ -194,16 +194,16 @@ function renderTable(services) {
         let actions = '';
 
         if (canEdit) {
-            actions += `<button data-action="services.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
-                            <i class="fas fa-edit"></i></button>`;
+            actions += `<button data-action="services.edit" class="btn btn-light btn-circle btn-sm me-1" title="Edit">
+                            <i class="fas fa-edit text-info"></i></button>`;
         }
         if (canDelete && parseInt(service.is_active) === 1) {
-            actions += `<button data-action="services.deactivate" class="btn btn-danger btn-circle btn-sm me-1" title="Deactivate">
-                            <i class="fas fa-ban"></i></button>`;
+            actions += `<button data-action="services.deactivate" class="btn btn-light btn-circle btn-sm me-1" title="Deactivate">
+                            <i class="fas fa-ban text-danger"></i></button>`;
         }
         if (canEdit && parseInt(service.is_active) === 0) {
-            actions += `<button data-action="services.reactivate" class="btn btn-success btn-circle btn-sm me-1" title="Reactivate">
-                            <i class="fas fa-redo"></i></button>`;
+            actions += `<button data-action="services.reactivate" class="btn btn-light btn-circle btn-sm me-1" title="Reactivate">
+                            <i class="fas fa-redo text-success"></i></button>`;
         }
 
         const statusBadge = parseInt(service.is_active) === 1

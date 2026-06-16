@@ -378,36 +378,36 @@ function buildActions(instance, canEdit) {
 
     if (canEdit) {
         if (instance.status === 'pending') {
-            actions += `<button data-action="recurring-expenses.mark-paid" class="btn btn-success btn-circle btn-sm me-1" title="Mark Paid">
-                            <i class="fas fa-check"></i></button>`;
-            actions += `<button data-action="recurring-expenses.skip" class="btn btn-secondary btn-circle btn-sm me-1" title="Skip">
-                            <i class="fas fa-forward"></i></button>`;
+            actions += `<button data-action="recurring-expenses.mark-paid" class="btn btn-light btn-circle btn-sm me-1" title="Mark Paid">
+                            <i class="fas fa-check text-success"></i></button>`;
+            actions += `<button data-action="recurring-expenses.skip" class="btn btn-light btn-circle btn-sm me-1" title="Skip">
+                            <i class="fas fa-forward text-secondary"></i></button>`;
 
             // Show "Pay Early" for future pending instances
             const today = new Date().toISOString().split('T')[0];
             if (instance.due_date > today) {
-                actions += `<button data-action="recurring-expenses.pay-early" class="btn btn-info btn-circle btn-sm me-1" title="Pay Early">
-                                <i class="fas fa-clock"></i></button>`;
+                actions += `<button data-action="recurring-expenses.pay-early" class="btn btn-light btn-circle btn-sm me-1" title="Pay Early">
+                                <i class="fas fa-clock text-info"></i></button>`;
             }
         }
 
         if (instance.status === 'overdue') {
-            actions += `<button data-action="recurring-expenses.mark-paid" class="btn btn-success btn-circle btn-sm me-1" title="Mark Paid">
-                            <i class="fas fa-check"></i></button>`;
-            actions += `<button data-action="recurring-expenses.skip" class="btn btn-secondary btn-circle btn-sm me-1" title="Skip">
-                            <i class="fas fa-forward"></i></button>`;
+            actions += `<button data-action="recurring-expenses.mark-paid" class="btn btn-light btn-circle btn-sm me-1" title="Mark Paid">
+                            <i class="fas fa-check text-success"></i></button>`;
+            actions += `<button data-action="recurring-expenses.skip" class="btn btn-light btn-circle btn-sm me-1" title="Skip">
+                            <i class="fas fa-forward text-secondary"></i></button>`;
         }
 
         // Show "View Group" button for advance-paid instances that belong to a bulk advance payment
         if (instance.is_advance_payment && instance.bulk_advance_payment_id) {
-            actions += `<button data-action="recurring-expenses.view-advance-group" data-bap-id="${instance.bulk_advance_payment_id}" class="btn btn-info btn-circle btn-sm me-1" title="View Advance Group">
-                            <i class="fas fa-layer-group"></i></button>`;
+            actions += `<button data-action="recurring-expenses.view-advance-group" data-bap-id="${instance.bulk_advance_payment_id}" class="btn btn-light btn-circle btn-sm me-1" title="View Advance Group">
+                            <i class="fas fa-layer-group text-info"></i></button>`;
         }
     }
 
     // Audit history button — available to anyone with view permission
-    actions += `<button data-action="recurring-expenses.view-history" class="btn btn-outline-secondary btn-circle btn-sm me-1" title="View Audit History">
-                    <i class="fas fa-history"></i></button>`;
+    actions += `<button data-action="recurring-expenses.view-history" class="btn btn-light btn-circle btn-sm me-1" title="View Audit History">
+                    <i class="fas fa-history text-secondary"></i></button>`;
 
     return actions;
 }
