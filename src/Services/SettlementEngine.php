@@ -250,7 +250,6 @@ class SettlementEngine {
             FROM expenses e
             WHERE e.payee_id = :payee_id
               AND e.business_id = :business_id
-              AND e.status != 'CANCELLED'
             ORDER BY e.expense_date ASC, e.id ASC
         ");
         $stmt->execute([
@@ -271,8 +270,8 @@ class SettlementEngine {
         $stmt = $this->db->prepare("
             SELECT
                 s.id,
-                s.net_salary_bc AS total_amount_bc,
-                s.salary_date AS doc_date,
+                s.net_amount_bc AS total_amount_bc,
+                s.period_start AS doc_date,
                 'SALARY' AS reference_type,
                 COALESCE(
                     (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'SALARY' AND pa.reference_id = s.id),
@@ -281,8 +280,7 @@ class SettlementEngine {
             FROM salaries s
             WHERE s.payee_id = :payee_id
               AND s.business_id = :business_id
-              AND s.status != 'CANCELLED'
-            ORDER BY s.salary_date ASC, s.id ASC
+            ORDER BY s.period_start ASC, s.id ASC
         ");
         $stmt->execute([
             'payee_id'    => $payeeId,
