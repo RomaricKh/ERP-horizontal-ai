@@ -15,7 +15,6 @@ function escHtml(s) {
     return d.innerHTML;
 }
 
-/** Map status → Bootstrap badge class */
 const STATUS_BADGE = {
     DRAFT:     'secondary',
     APPROVED:  'primary',
@@ -23,7 +22,6 @@ const STATUS_BADGE = {
     CANCELLED: 'danger',
 };
 
-/** Map Payment_Status → Bootstrap badge class */
 const PAYMENT_STATUS_BADGE = {
     UNPAID:         'warning',
     PARTIALLY_PAID: 'info',
@@ -36,9 +34,10 @@ let poUpdatedHandler;
 let paymentsUpdatedHandler;
 let poDataTable = null;
 let allPOs = [];
-let supplierFilter = null;
+let statusFilterSelect = null;
+let supplierFilterSelect = null;
+let selectedStatuses = [];
 let selectedSuppliers = [];
-let selectedStatus = '';
 
 export async function mount() {
     await fetchPurchaseOrders();
@@ -62,9 +61,9 @@ export async function mount() {
         },
 
         'po.view': async ({ el }) => {
-            const tr      = el.closest('tr');
+            const tr = el.closest('tr');
             const rowData = poDataTable.row(tr).data();
-            const id      = rowData[0];
+            const id = rowData[0];
             if (!id) return;
             await openModal({
                 scope:      MODAL_SCOPE.PAGE,
@@ -76,19 +75,19 @@ export async function mount() {
         },
 
         'po.delete': async ({ el }) => {
-            const tr      = el.closest('tr');
+            const tr = el.closest('tr');
             const rowData = poDataTable.row(tr).data();
-            const id      = rowData[0];
+            const id = rowData[0];
             if (!id) return;
 
             const confirmed = await confirm({
-                title:   'Delete Purchase Order',
+                title: 'Delete Purchase Order',
                 message: 'Delete this purchase order? This action cannot be undone.'
             });
             if (!confirmed) return;
 
             try {
-                const res  = await apiFetch(`/api/purchase-orders/${id}`, { method: 'DELETE' });
+                const res = await apiFetch(`/api/purchase-orders/${id}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
                     await alert({ title: 'Error', alertText: data.message || 'Failed to delete purchase order' });
@@ -105,14 +104,11 @@ export async function mount() {
         },
 
         'po.receive': async ({ el }) => {
-            const tr      = el.closest('tr');
+            const tr = el.closest('tr');
             const rowData = poDataTable.row(tr).data();
-            const id      = rowData[0];
+            const id = rowData[0];
             if (!id) return;
-
-            await receivePOWithBatchInfo(id, async () => {
-                await fetchPurchaseOrders();
-            });
+            await receivePOWithBatchInfo(id, async () => { await fetchPurchaseOrders(); });
         },
 
         'po.cancel': async ({ el }) => {
@@ -120,35 +116,32 @@ export async function mount() {
         },
 
         'po.record-payment': async ({ el }) => {
-            const tr      = el.closest('tr');
+            const tr = el.closest('tr');
             const rowData = poDataTable.row(tr).data();
-            const id      = rowData[0];
+            const id = rowData[0];
             if (!id) return;
 
             try {
-                const res  = await apiFetch(`/api/purchase-orders/${id}/payment-shortcut`);
+                const res = await apiFetch(`/api/purchase-orders/${id}/payment-shortcut`);
                 const json = await res.json();
                 if (!json.success) {
-                    await alert({ title: 'Error', alertText: json.message || 'Unable to load payment shortcut data' });
+                    await alert({ title: 'Error', alertText: json.message || 'Unable to load payment data' });
                     return;
                 }
                 const shortcut = json.data.payment_shortcut;
-
                 await openModal({
                     scope:      MODAL_SCOPE.PAGE,
                     template:   'html/Finance/paymentForm.html',
                     controller: '../pages/Finance/paymentForm.modal.js',
-                    data:       {
-                        prefill: {
-                            payee_id:       shortcut.supplier_id,
-                            reference_type: shortcut.reference_type,
-                            reference_id:   shortcut.reference_id,
-                            currency:       shortcut.currency,
-                            exchange_rate:  shortcut.exchange_rate,
-                            amount_fc:      shortcut.amount_fc,
-                        }
-                    },
-                    options:    { backdrop: false, keyboard: true, focus: true }
+                    data:       { prefill: {
+                        payee_id: shortcut.supplier_id,
+                        reference_type: shortcut.reference_type,
+                        reference_id: shortcut.reference_id,
+                        currency: shortcut.currency,
+                        exchange_rate: shortcut.exchange_rate,
+                        amount_fc: shortcut.amount_fc,
+                    }},
+                    options: { backdrop: false, keyboard: true, focus: true }
                 });
             } catch (err) {
                 console.error('Payment shortcut failed:', err);
@@ -160,8 +153,6 @@ export async function mount() {
             const rowData = poDataTable.row(tr).data();
             const id = rowData[0];
             if (!id) return;
-
-            // Open PDF download in a new tab/window
             const token = getToken();
             window.open(`/api/purchase-orders/${id}/pdf?token=${encodeURIComponent(token)}`, '_blank');
         },
@@ -171,7 +162,6 @@ export async function mount() {
             const rowData = poDataTable.row(tr).data();
             const id = rowData[0];
             if (!id) return;
-
             await openModal({
                 scope:      MODAL_SCOPE.PAGE,
                 template:   'html/PurchaseOrders/debitNoteForm.html',
@@ -219,12 +209,15 @@ export function unmount() {
     }
     unregister?.();
     unregister = null;
+    statusFilterSelect?.destroy?.();
+    supplierFilterSelect?.destroy?.();
+    statusFilterSelect = null;
+    supplierFilterSelect = null;
     poDataTable?.destroy();
     poDataTable = null;
     allPOs = [];
-    supplierFilter = null;
+    selectedStatuses = [];
     selectedSuppliers = [];
-    selectedStatus = '';
     closeModalsInContainer(po_container);
 }
 
@@ -239,80 +232,124 @@ export async function render(container) {
             el.remove();
         }
     });
-
-    // Bind status filter
-    const statusSelect = container.querySelector('#poStatusFilter');
-    if (statusSelect) {
-        statusSelect.addEventListener('change', () => {
-            selectedStatus = statusSelect.value;
-            renderTable(getFilteredPOs());
-        });
-    }
 }
 
 async function fetchPurchaseOrders() {
-    const res  = await apiFetch('/api/purchase-orders');
+    const res = await apiFetch('/api/purchase-orders');
     const data = await res.json();
     if (!data.success) return;
     allPOs = data.data.purchase_orders ?? [];
-    buildSupplierFilter();
+    buildFilters();
     renderTable(getFilteredPOs());
 }
 
-function buildSupplierFilter() {
-    const filterContainer = po_container?.querySelector('#poSupplierFilterContainer');
-    if (!filterContainer) return;
+function buildFilters() {
+    // Wait for DataTable to render so we can find the search box area
+    setTimeout(() => {
+        const dtSearch = po_container.querySelector('.dt-search') || po_container.querySelector('.dataTables_filter');
+        if (!dtSearch) return;
 
-    const supplierMap = new Map();
-    allPOs.forEach(po => {
-        if (po.supplier_id && po.supplier_name) {
-            supplierMap.set(String(po.supplier_id), po.supplier_name);
+        const searchParent = dtSearch.parentElement;
+        searchParent.style.display = 'flex';
+        searchParent.style.alignItems = 'flex-start';
+        searchParent.style.gap = '0.75rem';
+        searchParent.style.flexWrap = 'wrap';
+
+        // Build status filter (multiSelect) if not already built
+        if (!statusFilterSelect) {
+            const statusHost = document.createElement('div');
+            statusHost.style.minWidth = '180px';
+            searchParent.insertBefore(statusHost, dtSearch);
+
+            const statusOptions = [
+                { value: 'DRAFT', label: 'Draft' },
+                { value: 'APPROVED', label: 'Approved' },
+                { value: 'RECEIVED', label: 'Received' },
+                { value: 'CANCELLED', label: 'Cancelled' },
+                { value: 'UNPAID', label: 'Unpaid' },
+                { value: 'PARTIALLY_PAID', label: 'Partial' },
+                { value: 'PAID', label: 'Paid' },
+            ];
+
+            statusFilterSelect = createMultiSelect({
+                container: statusHost,
+                options: statusOptions,
+                placeholder: 'Filter status...',
+                onChange: (selected) => {
+                    selectedStatuses = selected;
+                    renderTable(getFilteredPOs());
+                }
+            });
         }
-    });
 
-    const options = Array.from(supplierMap.entries()).map(([value, label]) => ({ value, label }));
+        // Build supplier filter (multiSelect) if not already built
+        if (!supplierFilterSelect) {
+            const supplierMap = new Map();
+            allPOs.forEach(po => {
+                if (po.supplier_id && po.supplier_name) {
+                    supplierMap.set(String(po.supplier_id), po.supplier_name);
+                }
+            });
+            const supplierOptions = Array.from(supplierMap.entries()).map(([value, label]) => ({ value, label }));
 
-    if (options.length <= 1) {
-        filterContainer.innerHTML = '';
-        return;
-    }
+            if (supplierOptions.length > 1) {
+                const supplierHost = document.createElement('div');
+                supplierHost.style.minWidth = '180px';
+                searchParent.insertBefore(supplierHost, dtSearch);
 
-    filterContainer.innerHTML = '';
-    supplierFilter = createMultiSelect({
-        container: filterContainer,
-        options,
-        placeholder: 'Filter by supplier...',
-        onChange: (selected) => {
-            selectedSuppliers = selected;
-            renderTable(getFilteredPOs());
+                supplierFilterSelect = createMultiSelect({
+                    container: supplierHost,
+                    options: supplierOptions,
+                    placeholder: 'Filter supplier...',
+                    onChange: (selected) => {
+                        selectedSuppliers = selected;
+                        renderTable(getFilteredPOs());
+                    }
+                });
+            }
         }
-    });
+    }, 50);
 }
 
 function getFilteredPOs() {
     let filtered = allPOs;
-    if (selectedStatus) {
-        filtered = filtered.filter(po => po.status === selectedStatus);
+
+    if (selectedStatuses.length > 0) {
+        // Split into document statuses and payment statuses
+        const docStatuses = selectedStatuses.filter(s => ['DRAFT', 'APPROVED', 'RECEIVED', 'CANCELLED'].includes(s));
+        const payStatuses = selectedStatuses.filter(s => ['UNPAID', 'PARTIALLY_PAID', 'PAID'].includes(s));
+
+        filtered = filtered.filter(po => {
+            const matchDoc = docStatuses.length === 0 || docStatuses.includes(po.status);
+            const matchPay = payStatuses.length === 0 || payStatuses.includes(po.payment_status);
+            // If user selected both types, require both to match
+            if (docStatuses.length > 0 && payStatuses.length > 0) {
+                return matchDoc && matchPay;
+            }
+            return matchDoc || matchPay;
+        });
     }
+
     if (selectedSuppliers.length > 0) {
         filtered = filtered.filter(po => selectedSuppliers.includes(String(po.supplier_id)));
     }
+
     return filtered;
 }
 
 async function changeStatus(el, newStatus, confirmMessage) {
-    const tr      = el.closest('tr');
+    const tr = el.closest('tr');
     const rowData = poDataTable.row(tr).data();
-    const id      = rowData[0];
+    const id = rowData[0];
     if (!id) return;
 
     const confirmed = await confirm({ title: 'Confirm', message: confirmMessage });
     if (!confirmed) return;
 
     try {
-        const res  = await apiFetch(`/api/purchase-orders/${id}/status`, {
+        const res = await apiFetch(`/api/purchase-orders/${id}/status`, {
             method: 'POST',
-            body:   JSON.stringify({ status: newStatus })
+            body: JSON.stringify({ status: newStatus })
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -331,7 +368,7 @@ function renderTable(pos) {
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 8, className: 'text-center', orderable: false, searchable: false }
+                { targets: 7, className: 'text-center', orderable: false, searchable: false }
             ]
         });
     }
@@ -344,83 +381,106 @@ function renderTable(pos) {
     const canReceive = hasPermission('po.receive');
     const canPay     = hasPermission('payments.create');
     const canCreate  = hasPermission('po.create');
+    const canEdit    = hasPermission('po.edit');
 
     pos.forEach(po => {
         const badgeClass = STATUS_BADGE[po.status] || 'secondary';
         const statusBadge = `<span class="badge bg-${escHtml(badgeClass)}">${escHtml(po.status)}</span>`;
 
-        // Display computed Payment_Status badge for RECEIVED POs
         let paymentBadge = '';
         if (po.status === 'RECEIVED' && po.payment_status) {
             const pBadgeClass = PAYMENT_STATUS_BADGE[po.payment_status] || 'secondary';
-            paymentBadge = ` <span class="badge bg-${escHtml(pBadgeClass)}">${escHtml(po.payment_status)}</span>`;
+            paymentBadge = ` <span class="badge bg-${escHtml(pBadgeClass)}">${escHtml(po.payment_status.replace('_', ' '))}</span>`;
         }
 
         const totalFc   = po.total_amount_fc != null ? getFormatter().formatNumber(po.total_amount_fc, 2) : '0.00';
-        const paidFc    = po.amount_paid_fc != null ? getFormatter().formatNumber(po.amount_paid_fc, 2) : '0.00';
         const balanceFc = po.balance_fc != null ? getFormatter().formatNumber(po.balance_fc, 2) : '0.00';
 
-        // Build workflow action buttons based on current status
-        let actions = '';
-
-        if (canView) {
-            actions += `<button data-action="po.view" class="btn btn-info btn-circle btn-sm me-1" title="View / Edit">
-                            <i class="fas fa-eye"></i></button>`;
-        }
-
-        if (canApprove && po.status === 'DRAFT') {
-            actions += `<button data-action="po.approve" class="btn btn-primary btn-circle btn-sm me-1" title="Approve">
-                            <i class="fas fa-check"></i></button>`;
-        }
-
-        if (canReceive && po.status === 'APPROVED') {
-            actions += `<button data-action="po.receive" class="btn btn-success btn-circle btn-sm me-1" title="Mark Received">
-                            <i class="fas fa-truck"></i></button>`;
-        }
-
-        if (canApprove && (po.status === 'APPROVED' || po.status === 'RECEIVED')) {
-            actions += `<button data-action="po.cancel" class="btn btn-warning btn-circle btn-sm me-1" title="Cancel">
-                            <i class="fas fa-ban"></i></button>`;
-        }
-
-        if (canPay && po.status === 'RECEIVED' && po.payment_status !== 'PAID') {
-            actions += `<button data-action="po.record-payment" class="btn btn-dark btn-circle btn-sm me-1" title="Record Payment">
-                            <i class="fas fa-money-bill-wave"></i></button>`;
-        }
-
-        if (canDelete && po.status === 'DRAFT') {
-            actions += `<button data-action="po.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash"></i></button>`;
-        }
-
-        if (canView) {
-            actions += `<button data-action="po.download-pdf" class="btn btn-outline-danger btn-circle btn-sm me-1" title="Download PDF">
-                            <i class="fas fa-file-pdf"></i></button>`;
-        }
-
-        if (canView && (po.status === 'RECEIVED' || po.status === 'CLOSED')) {
-            actions += `<button data-action="po.debit-note" class="btn btn-outline-warning btn-circle btn-sm me-1" title="Issue Debit Note">
-                            <i class="fas fa-undo"></i></button>`;
-        }
-
-        if (canCreate) {
-            actions += `<button data-action="po.duplicate" class="btn btn-outline-secondary btn-circle btn-sm me-1" title="Duplicate PO">
-                            <i class="fas fa-copy"></i></button>`;
-        }
+        // Build actions: primary inline + overflow dropdown
+        const actionItems = buildActionItems(po, { canView, canDelete, canApprove, canReceive, canPay, canCreate, canEdit });
+        const actions = renderActions(actionItems);
 
         poDataTable.row.add([
             po.id,
-            escHtml(po.po_number   ?? ''),
-            escHtml(po.supplier_name ?? '—'),
-            getFormatter().formatDate(po.po_date ?? ''),
+            escHtml(po.po_number || ''),
+            escHtml(po.supplier_name || '—'),
+            getFormatter().formatDate(po.po_date || ''),
             statusBadge + paymentBadge,
-            totalFc,
-            paidFc,
-            balanceFc,
+            `${escHtml(po.currency || '')} ${totalFc}`,
+            `${escHtml(po.currency || '')} ${balanceFc}`,
             actions
         ]);
     });
 
     poDataTable.draw(false);
     poDataTable.columns.adjust();
+}
+
+function buildActionItems(po, perms) {
+    const items = [];
+
+    // Primary: View (always first)
+    if (perms.canView) {
+        items.push({ action: 'po.view', icon: 'fa-eye text-info', label: 'View', primary: true });
+    }
+
+    // Workflow actions based on status
+    if (perms.canApprove && po.status === 'DRAFT') {
+        items.push({ action: 'po.approve', icon: 'fa-check text-primary', label: 'Approve', primary: true });
+    }
+    if (perms.canReceive && po.status === 'APPROVED') {
+        items.push({ action: 'po.receive', icon: 'fa-truck text-success', label: 'Receive', primary: true });
+    }
+    if (perms.canPay && po.status === 'RECEIVED' && po.payment_status !== 'PAID') {
+        items.push({ action: 'po.record-payment', icon: 'fa-money-bill-wave text-dark', label: 'Pay', primary: true });
+    }
+
+    // Secondary actions (overflow)
+    if (perms.canApprove && (po.status === 'APPROVED' || po.status === 'RECEIVED')) {
+        items.push({ action: 'po.cancel', icon: 'fa-ban text-warning', label: 'Cancel' });
+    }
+    if (perms.canView) {
+        items.push({ action: 'po.download-pdf', icon: 'fa-file-pdf text-danger', label: 'Download PDF' });
+    }
+    if (perms.canView && po.status === 'RECEIVED') {
+        items.push({ action: 'po.debit-note', icon: 'fa-undo text-warning', label: 'Debit Note' });
+    }
+    if (perms.canCreate) {
+        items.push({ action: 'po.duplicate', icon: 'fa-copy text-secondary', label: 'Duplicate' });
+    }
+    if (perms.canDelete && po.status === 'DRAFT') {
+        items.push({ action: 'po.delete', icon: 'fa-trash text-danger', label: 'Delete', divider: true });
+    }
+
+    return items;
+}
+
+function renderActions(items) {
+    if (items.length === 0) return '';
+
+    // Split into primary (max 3) and overflow
+    const primary = items.filter(i => i.primary).slice(0, 3);
+    const overflow = items.filter(i => !i.primary || items.filter(x => x.primary).indexOf(i) >= 3);
+
+    let html = primary.map(item =>
+        `<button data-action="${item.action}" class="btn btn-light btn-circle btn-sm me-1" title="${escHtml(item.label)}">
+            <i class="fas ${item.icon}"></i></button>`
+    ).join('');
+
+    if (overflow.length > 0) {
+        html += `<div class="dropdown d-inline-block">
+            <button class="btn btn-light btn-circle btn-sm" data-bs-toggle="dropdown" data-bs-auto-close="true" title="More">
+                <i class="fas fa-ellipsis-v"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                ${overflow.map(item => {
+                    const divider = item.divider ? '<li><hr class="dropdown-divider"></li>' : '';
+                    return `${divider}<li><button class="dropdown-item small" data-action="${item.action}">
+                        <i class="fas ${item.icon} me-2"></i>${escHtml(item.label)}</button></li>`;
+                }).join('')}
+            </ul>
+        </div>`;
+    }
+
+    return html;
 }

@@ -1,31 +1,13 @@
 <!-- Page Heading -->
 <h1 class="h3 mb-2 text-gray-800" data-i18n="po.title">Purchase Orders</h1>
 
-<!-- Filters -->
-<div class="row mb-3">
-    <div class="col-md-3">
-        <div id="poStatusFilterContainer">
-            <select class="form-select form-select-sm" id="poStatusFilter">
-                <option value="">All Statuses</option>
-                <option value="DRAFT">Draft</option>
-                <option value="APPROVED">Approved</option>
-                <option value="RECEIVED">Received</option>
-                <option value="CANCELLED">Cancelled</option>
-            </select>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div id="poSupplierFilterContainer"></div>
-    </div>
-</div>
-
 <!-- Purchase Orders DataTable -->
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
         <h6 class="m-0 font-weight-bold text-primary" data-i18n="po.heading">Purchase Orders</h6>
         <div class="d-flex gap-2">
             <button class="btn btn-primary btn-icon-split btn-sm"
-                    data-action="po.create" data-bs-toggle="tooltip" data-bs-placement="top" title="Create a new purchase order">
+                    data-action="po.create" title="Create a new purchase order">
                 <span class="text" data-i18n="po.new_btn">New PO</span>
                 <span class="icon"><i class="fas fa-fw fa-plus"></i></span>
             </button>
@@ -38,13 +20,12 @@
                 <thead>
                     <tr>
                         <th data-i18n="common.id">ID</th>
-                        <th data-i18n="po.po_number">PO Number</th>
+                        <th data-i18n="po.po_number">PO #</th>
                         <th data-i18n="po.supplier">Supplier</th>
                         <th data-i18n="common.date">Date</th>
                         <th data-i18n="common.status">Status</th>
-                        <th data-i18n="po.total_fc">Total (FC)</th>
-                        <th data-i18n="po.paid_fc">Paid (FC)</th>
-                        <th data-i18n="po.balance_fc">Balance (FC)</th>
+                        <th data-i18n="po.total_fc">Total</th>
+                        <th data-i18n="po.balance_fc">Balance</th>
                         <th data-i18n="common.actions">Actions</th>
                     </tr>
                 </thead>
