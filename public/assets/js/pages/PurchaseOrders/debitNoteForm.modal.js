@@ -59,18 +59,23 @@ async function loadPOForDebitNote(poId) {
         tbody.innerHTML = '';
 
         const lines = poData.lines || [];
+        const returnedQtys = poData.returned_quantities || {};
+
         lines.forEach((line, idx) => {
             const name = line.item_name || '—';
-            const maxQty = parseFloat(line.quantity) || 0;
+            const orderedQty = parseFloat(line.quantity) || 0;
+            const alreadyReturned = parseFloat(returnedQtys[line.item_id]) || 0;
+            const maxQty = Math.max(0, orderedQty - alreadyReturned);
             const unitFc = parseFloat(line.unit_price_fc) || 0;
             const unitBc = parseFloat(line.unit_price_bc) || 0;
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${escHtml(name)}</td>
-                <td>${maxQty}</td>
+                <td>${orderedQty}${alreadyReturned > 0 ? ` <small class="text-muted">(${alreadyReturned} returned)</small>` : ''}</td>
                 <td><input type="number" class="form-control form-control-sm dn-qty" 
-                     data-idx="${idx}" min="0" max="${maxQty}" step="0.001" value="0"></td>
+                     data-idx="${idx}" min="0" max="${maxQty}" step="0.001" value="0"
+                     ${maxQty <= 0 ? 'disabled' : ''}></td>
                 <td>${unitFc.toFixed(2)}</td>
                 <td>${unitBc.toFixed(2)}</td>
                 <td class="dn-line-total">0.00</td>

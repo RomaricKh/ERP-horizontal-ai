@@ -119,7 +119,7 @@ class PurchaseOrderRepository {
      * Insert a po_details row and return the new line id.
      *
      * Expected keys: item_id, quantity, unit_price_fc, unit_price_bc
-     * Optional keys: tax_rate (defaults to 0)
+     * Optional keys: tax_rate (defaults to 0), discount_percent, expiry_date
      */
     public function addLine(int $poId, array $data): int {
         $stmt = $this->db->prepare("
@@ -128,14 +128,14 @@ class PurchaseOrderRepository {
                unit_price_fc, unit_price_bc,
                total_price_fc, total_price_bc,
                tax_rate, tax_amount_fc, tax_amount_bc,
-               discount_percent,
+               discount_percent, expiry_date,
                created_at)
             VALUES
               (:po_id, :item_id, :quantity,
                :unit_price_fc, :unit_price_bc,
                :total_price_fc, :total_price_bc,
                :tax_rate, :tax_amount_fc, :tax_amount_bc,
-               :discount_percent,
+               :discount_percent, :expiry_date,
                NOW())
         ");
         $qty             = (float) $data['quantity'];
@@ -153,6 +153,9 @@ class PurchaseOrderRepository {
         $taxAmountFc = round($totalFc * ($taxRate / 100), 2);
         $taxAmountBc = round($totalBc * ($taxRate / 100), 2);
 
+        // Expiry date (optional, for batch-tracked items)
+        $expiryDate = (!empty($data['expiry_date']) && $data['expiry_date'] !== '') ? $data['expiry_date'] : null;
+
         $stmt->execute([
             'po_id'            => $poId,
             'item_id'          => $data['item_id'],
@@ -165,6 +168,7 @@ class PurchaseOrderRepository {
             'tax_amount_fc'    => $taxAmountFc,
             'tax_amount_bc'    => $taxAmountBc,
             'discount_percent' => $discountPercent,
+            'expiry_date'      => $expiryDate,
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -317,6 +321,7 @@ class PurchaseOrderRepository {
                 pd.tax_amount_fc,
                 pd.tax_amount_bc,
                 pd.discount_percent,
+                pd.expiry_date,
                 pd.created_at
             FROM po_details pd
             LEFT JOIN items i ON i.id = pd.item_id

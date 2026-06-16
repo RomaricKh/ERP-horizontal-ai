@@ -230,4 +230,32 @@ class DebitNoteRepository
         ]);
         return (float) $stmt->fetchColumn();
     }
+
+    /**
+     * Get already-returned quantities per item for a PO (from ISSUED debit notes).
+     * Returns associative array: item_id => total_returned_qty
+     */
+    public function getReturnedQuantitiesByItem(int $purchaseOrderId, int $businessId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT dni.item_id, SUM(dni.quantity) AS returned_qty
+            FROM debit_note_items dni
+            JOIN debit_notes dn ON dn.id = dni.debit_note_id
+            WHERE dn.purchase_order_id = :po_id
+              AND dn.business_id = :business_id
+              AND dn.status = 'ISSUED'
+            GROUP BY dni.item_id
+        ");
+        $stmt->execute([
+            'po_id'       => $purchaseOrderId,
+            'business_id' => $businessId,
+        ]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(int) $row['item_id']] = (float) $row['returned_qty'];
+        }
+        return $result;
+    }
 }

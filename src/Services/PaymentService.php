@@ -219,18 +219,6 @@ class PaymentService {
                 $ctx->business_id
             );
 
-            // Evaluate supplier settlement after payment creation — close fully-paid POs
-            if ($payeeId) {
-                $settledIds = $this->settlementEngine->evaluateSupplierSettlement($payeeId, $ctx->business_id);
-                if (!empty($settledIds)) {
-                    // Update PO status to CLOSED
-                    foreach ($settledIds as $poId) {
-                        $this->updatePoStatus($poId, $ctx->business_id, 'CLOSED');
-                    }
-                    $this->audit->log('UPDATE', 'purchase_orders', implode(',', $settledIds), 'SETTLEMENT', null, ['settled_po_ids' => $settledIds, 'triggering_payment_id' => $id], $ctx->user_id, $ctx->tenant_id, $ctx->business_id);
-                }
-            }
-
             // Update recurrence instances for allocated expenses/salaries that are now fully paid
             if (!empty($allocations)) {
                 $this->updateRecurrenceInstancesForAllocations($allocations);
@@ -450,20 +438,6 @@ class PaymentService {
         $stmt->execute(['id' => $referenceId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ? (float) $row['total_amount_bc'] : 0.0;
-    }
-
-    /**
-     * Update a purchase order's status.
-     */
-    private function updatePoStatus(int $poId, int $businessId, string $status): void {
-        $stmt = $this->db->prepare("
-            UPDATE purchase_orders SET status = :status WHERE id = :id AND business_id = :business_id
-        ");
-        $stmt->execute([
-            'status'      => $status,
-            'id'          => $poId,
-            'business_id' => $businessId,
-        ]);
     }
 
     /**

@@ -31,6 +31,12 @@ $router->post('/purchase-orders/{id}/status',
     ['po.view']
 );
 
+// POST /purchase-orders/{id}/duplicate
+$router->post('/purchase-orders/{id}/duplicate',
+    fn($id) => (new PurchaseOrdersController())->duplicate((int)$id),
+    ['po.create']
+);
+
 // POST /purchase-orders/{id}/lines
 $router->post('/purchase-orders/{id}/lines',
     fn($id) => (new PurchaseOrdersController())->addLine((int)$id),

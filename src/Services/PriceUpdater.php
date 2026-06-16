@@ -40,12 +40,13 @@ class PriceUpdater {
      * Process price updates for all lines of a received PO.
      * MUST be called within an existing transaction.
      *
-     * @param array  $lines    PO lines from PurchaseOrderRepository::getLines()
-     * @param string $poDate   The PO date (used as valid_from for price records)
-     * @param int    $poId     Purchase order ID (for audit reference)
-     * @param string $poNumber Purchase order number (for audit reference)
+     * @param array    $lines      PO lines from PurchaseOrderRepository::getLines()
+     * @param string   $poDate     The PO date (used as valid_from for price records)
+     * @param int      $poId       Purchase order ID (for audit reference)
+     * @param string   $poNumber   Purchase order number (for audit reference)
+     * @param int|null $supplierId Optional supplier payee ID (for future supplier-specific pricing)
      */
-    public function updatePricesFromPO(array $lines, string $poDate, int $poId, string $poNumber): void
+    public function updatePricesFromPO(array $lines, string $poDate, int $poId, string $poNumber, ?int $supplierId = null): void
     {
         $uniqueLines = $this->deduplicateLines($lines);
 

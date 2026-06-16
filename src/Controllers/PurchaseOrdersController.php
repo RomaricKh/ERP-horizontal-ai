@@ -67,6 +67,12 @@ class PurchaseOrdersController extends BaseController {
             } catch (\Throwable $e) {
                 $po['payment_status'] = null;
             }
+            // Include already-returned quantities per item for debit note UI
+            $ctx = AuthContext::get();
+            $db = Database::getConnection();
+            $dnRepo = new \App\Repository\DebitNoteRepository($db);
+            $po['returned_quantities'] = $dnRepo->getReturnedQuantitiesByItem($id, $ctx->business_id);
+
             $this->json(true, ['purchase_order' => $po]);
         } catch (\RuntimeException $e) {
             $this->notFound($e->getMessage());
@@ -79,11 +85,17 @@ class PurchaseOrdersController extends BaseController {
     public function update(int $id): void {
         try {
             $this->auth();
-            // Currently update is handled via addLine/removeLine/updateStatus
-            // This endpoint is a placeholder for header-only edits (DRAFT only)
-            $this->json(false, null, 'Use specific endpoints to modify a purchase order', 422);
+            $data  = $this->input([]);
+            $lines = $data['lines'] ?? null;
+            unset($data['lines']);
+            $this->service->update($id, $data, $lines);
+            $this->json(true, ['id' => $id]);
+        } catch (\InvalidArgumentException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to update purchase order');
+            $this->serverError('Failed to update purchase order: ' . $e->getMessage());
         }
     }
 
@@ -155,6 +167,19 @@ class PurchaseOrdersController extends BaseController {
             $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
             $this->serverError('Failed to remove line item: ' . $e->getMessage());
+        }
+    }
+
+    // POST /purchase-orders/{id}/duplicate
+    public function duplicate(int $id): void {
+        try {
+            $this->auth();
+            $newId = $this->service->duplicate($id);
+            $this->json(true, ['id' => $newId], null, 201);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to duplicate purchase order: ' . $e->getMessage());
         }
     }
 

@@ -612,6 +612,7 @@ CREATE TABLE IF NOT EXISTS `po_details` (
   `tax_amount_fc` decimal(12,2) NOT NULL DEFAULT '0.00',
   `tax_amount_bc` decimal(12,2) NOT NULL DEFAULT '0.00',
   `discount_percent` decimal(5,2) NOT NULL DEFAULT '0.00',
+  `expiry_date` date DEFAULT NULL,
   `created_at` datetime NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_po_details_item` (`item_id`),

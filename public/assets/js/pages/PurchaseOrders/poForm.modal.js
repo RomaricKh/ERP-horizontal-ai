@@ -46,19 +46,22 @@ export async function mount({ modalRoot: root, data }) {
 
     if (currentPoId) {
         await fetchAndFill(currentPoId);
-        // Render read-only: disable all inputs and hide save button
-        modalRoot.querySelectorAll('input, select, textarea').forEach(el => {
-            el.disabled = true;
-        });
-        modalRoot.querySelectorAll('[data-action="po.save"]').forEach(el => {
-            el.style.display = 'none';
-        });
-        modalRoot.querySelectorAll('[data-action="po.add-line"]').forEach(el => {
-            el.style.display = 'none';
-        });
-        modalRoot.querySelectorAll('[data-action="po.remove-line"]').forEach(el => {
-            el.style.display = 'none';
-        });
+        // For non-DRAFT POs: render read-only
+        const poStatus = modalRoot.dataset.poStatus;
+        if (poStatus && poStatus !== 'DRAFT') {
+            modalRoot.querySelectorAll('input, select, textarea').forEach(el => {
+                el.disabled = true;
+            });
+            modalRoot.querySelectorAll('[data-action="po.save"]').forEach(el => {
+                el.style.display = 'none';
+            });
+            modalRoot.querySelectorAll('[data-action="po.add-line"]').forEach(el => {
+                el.style.display = 'none';
+            });
+            modalRoot.querySelectorAll('[data-action="po.remove-line"]').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
     } else {
         // Auto-suggest PO number
         await suggestPoNumber();
@@ -125,14 +128,12 @@ export async function mount({ modalRoot: root, data }) {
             try {
                 let res, json;
                 if (currentPoId) {
-                    // For existing POs, we only support adding/removing lines via the modal
-                    // Header edits are not supported after creation in this version
-                    res  = await apiFetch(`/api/purchase-orders/${currentPoId}`, {
+                    res = await apiFetch(`/api/purchase-orders/${currentPoId}`, {
                         method: 'PUT',
                         body:   JSON.stringify(payload)
                     });
                 } else {
-                    res  = await apiFetch('/api/purchase-orders', {
+                    res = await apiFetch('/api/purchase-orders', {
                         method: 'POST',
                         body:   JSON.stringify(payload)
                     });
@@ -190,6 +191,10 @@ async function fetchAndFill(poId) {
 
         const po = json.data?.purchase_order ?? {};
 
+        // Store status for read-only check
+        modalRoot.dataset.poStatus = po.status || '';
+
+        F.title().textContent = po.status === 'DRAFT' ? 'Edit Purchase Order' : `Purchase Order: ${po.po_number || ''}`;
         F.supplier().value     = po.supplier_id    ?? '';
         F.poNumber().value     = po.po_number      ?? '';
         F.poDate().value       = po.po_date        ?? '';
@@ -207,6 +212,7 @@ async function fetchAndFill(poId) {
                 unit_price_bc:    line.unit_price_bc,
                 tax_rate:         line.tax_rate,
                 discount_percent: line.discount_percent,
+                expiry_date:      line.expiry_date || '',
             });
         });
 
@@ -220,7 +226,8 @@ function buildItemOptions(selectedId) {
     let opts = '<option value="">— Select item —</option>';
     itemsList.forEach(item => {
         const sel = String(item.id) === String(selectedId) ? ' selected' : '';
-        opts += `<option value="${item.id}"${sel}>${escHtml(item.name)}</option>`;
+        const expiryTag = item.has_expiry ? ' 📅' : '';
+        opts += `<option value="${item.id}" data-cost="${item.cost_price || ''}" data-has-expiry="${item.has_expiry || 0}"${sel}>${escHtml(item.name)}${expiryTag}</option>`;
     });
     return opts;
 }
@@ -234,8 +241,16 @@ function addLineRow(prefill) {
     const unitBc   = prefill?.unit_price_bc ?? '';
     const taxRate  = prefill?.tax_rate      ?? '';
     const discountPercent = prefill?.discount_percent ?? '';
+    const expiryDate = prefill?.expiry_date ?? '';
     const discount = parseFloat(discountPercent) || 0;
     const totalFc  = (qty && unitFc) ? formatAmount(parseFloat(qty) * parseFloat(unitFc) * (1 - discount / 100)) : '0.00';
+
+    // Determine if the prefilled item has expiry tracking
+    let hasExpiry = false;
+    if (prefill?.item_id) {
+        const item = itemsList.find(i => String(i.id) === String(prefill.item_id));
+        hasExpiry = item && (item.has_expiry == 1 || item.has_expiry === true);
+    }
 
     const tr = document.createElement('tr');
     tr.dataset.lineIdx = idx;
@@ -244,6 +259,9 @@ function addLineRow(prefill) {
             <select class="form-select form-select-sm line-item-select" data-line="${idx}">
                 ${buildItemOptions(prefill?.item_id)}
             </select>
+            <input type="date" class="form-control form-control-sm mt-1 line-expiry-date ${hasExpiry ? '' : 'd-none'}"
+                   data-line="${idx}" value="${escHtml(String(expiryDate))}" placeholder="Expiry date"
+                   title="Expiry date for this batch">
         </td>
         <td>
             <input type="number" class="form-control form-control-sm line-qty"
@@ -292,6 +310,29 @@ function addLineRow(prefill) {
     tr.querySelector('.line-unit-fc').addEventListener('input', () => recalcLine(tr));
     tr.querySelector('.line-tax-rate').addEventListener('input', () => recalcLine(tr));
     tr.querySelector('.line-discount').addEventListener('input', () => recalcLine(tr));
+
+    // Item select change: auto-fill cost price + show/hide expiry field
+    const itemSelect = tr.querySelector('.line-item-select');
+    const expiryInput = tr.querySelector('.line-expiry-date');
+    itemSelect.addEventListener('change', () => {
+        const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+        const costPrice = selectedOption?.dataset?.cost;
+        const itemHasExpiry = selectedOption?.dataset?.hasExpiry === '1';
+
+        // Auto-fill cost price from item's stored cost_price
+        if (costPrice && !tr.querySelector('.line-unit-fc').value) {
+            tr.querySelector('.line-unit-fc').value = parseFloat(costPrice).toFixed(2);
+            recalcLine(tr);
+        }
+
+        // Show/hide expiry date input
+        if (itemHasExpiry) {
+            expiryInput.classList.remove('d-none');
+        } else {
+            expiryInput.classList.add('d-none');
+            expiryInput.value = '';
+        }
+    });
 
     tbody.appendChild(tr);
     recalcGrandTotal();
@@ -356,22 +397,28 @@ function collectLines() {
     const rate  = parseFloat(F.exchangeRate().value) || 0;
 
     tbody.querySelectorAll('tr').forEach(tr => {
-        const itemId   = tr.querySelector('.line-item-select')?.value;
+        const itemSelect = tr.querySelector('.line-item-select');
+        const itemId   = itemSelect?.value;
         const qty      = parseFloat(tr.querySelector('.line-qty')?.value)      || 0;
         const unitFc   = parseFloat(tr.querySelector('.line-unit-fc')?.value)  || 0;
         const taxRate  = parseFloat(tr.querySelector('.line-tax-rate')?.value) || 0;
         const discount = parseFloat(tr.querySelector('.line-discount')?.value) || 0;
         const unitBc   = calcBc(unitFc, rate);
+        const expiryDate = tr.querySelector('.line-expiry-date')?.value || null;
 
         if (itemId && qty > 0) {
-            lines.push({
+            const lineData = {
                 item_id:          parseInt(itemId, 10),
                 quantity:         qty,
                 unit_price_fc:    unitFc,
                 unit_price_bc:    unitBc,
                 tax_rate:         taxRate,
                 discount_percent: discount,
-            });
+            };
+            if (expiryDate) {
+                lineData.expiry_date = expiryDate;
+            }
+            lines.push(lineData);
         }
     });
 

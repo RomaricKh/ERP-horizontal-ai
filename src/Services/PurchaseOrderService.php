@@ -148,6 +148,83 @@ class PurchaseOrderService {
     }
 
     /**
+     * Update an existing purchase order (DRAFT only).
+     * Allows header edits and full line replacement.
+     *
+     * @param int        $id    PO ID
+     * @param array      $data  Header data (supplier_id, po_date, currency, exchange_rate, notes)
+     * @param array|null $lines If provided, replaces all existing lines
+     * @throws \RuntimeException if not found or not DRAFT
+     */
+    public function update(int $id, array $data, ?array $lines = null): void {
+        $ctx = AuthContext::get();
+        $po  = $this->repo->findById($id, $ctx->business_id);
+        if (!$po) {
+            throw new \RuntimeException('Purchase order not found');
+        }
+        if ($po['status'] !== 'DRAFT') {
+            throw new \RuntimeException('Only DRAFT purchase orders can be edited');
+        }
+
+        // Resolve exchange rate if currency/rate provided
+        $currency = isset($data['currency']) ? trim($data['currency']) : $po['currency'];
+        $providedRate = (!isset($data['exchange_rate']) || $data['exchange_rate'] === '' || $data['exchange_rate'] === null)
+            ? null
+            : (float) $data['exchange_rate'];
+        $resolvedRate = $this->exchangeRateService->resolveRate($currency, $providedRate);
+
+        $this->db->beginTransaction();
+        try {
+            // Update header
+            $stmt = $this->db->prepare("
+                UPDATE purchase_orders
+                SET supplier_id   = :supplier_id,
+                    po_date       = :po_date,
+                    currency      = :currency,
+                    exchange_rate = :exchange_rate,
+                    notes         = :notes,
+                    updated_at    = NOW()
+                WHERE id = :id AND business_id = :business_id AND status = 'DRAFT'
+            ");
+            $stmt->execute([
+                'supplier_id'  => isset($data['supplier_id']) && $data['supplier_id'] !== '' ? (int) $data['supplier_id'] : ($po['supplier_id'] ?? null),
+                'po_date'      => $data['po_date'] ?? $po['po_date'],
+                'currency'     => $currency,
+                'exchange_rate' => $resolvedRate,
+                'notes'        => array_key_exists('notes', $data) ? ($data['notes'] ?: null) : $po['notes'],
+                'id'           => $id,
+                'business_id'  => $ctx->business_id,
+            ]);
+
+            // Replace lines if provided
+            if ($lines !== null) {
+                $this->repo->deleteLines($id);
+                foreach ($lines as $line) {
+                    $this->repo->addLine($id, $line);
+                }
+                $this->repo->recalculateTotals($id, $this->db);
+            }
+
+            $this->audit->log(
+                'UPDATE',
+                'purchase_orders',
+                $id,
+                'UPDATE',
+                $po,
+                ['po_date' => $data['po_date'] ?? $po['po_date'], 'lines_replaced' => $lines !== null],
+                $ctx->user_id,
+                $ctx->tenant_id,
+                $ctx->business_id
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
      * Add a line item to a purchase order.
      * Recalculates totals after adding.
      *
@@ -264,11 +341,21 @@ class PurchaseOrderService {
             );
         }
 
-        // Pre-validate batch_info for RECEIVED transition (before starting transaction)
-        $batchInfoByItemId = [];
+        // Pre-validate expiry dates for RECEIVED transition (before starting transaction)
         if ($newStatus === 'RECEIVED') {
             $lines = $this->repo->getLines($id);
-            $batchInfoByItemId = $this->validateBatchInfoForReceive($lines, $batchInfo);
+            // Validate that all expiry-tracked items have expiry_date set on their lines
+            $missingExpiry = [];
+            foreach ($lines as $line) {
+                if ((int) ($line['has_expiry'] ?? 0) === 1 && empty($line['expiry_date'])) {
+                    $missingExpiry[] = $line['item_name'] ?? "Item #{$line['item_id']}";
+                }
+            }
+            if (!empty($missingExpiry)) {
+                throw new \RuntimeException(
+                    'Expiry date required for items: ' . implode(', ', $missingExpiry) . '. Edit the PO lines to add expiry dates before receiving.'
+                );
+            }
         }
 
         $this->db->beginTransaction();
@@ -297,15 +384,14 @@ class PurchaseOrderService {
                     $itemId = (int) $line['item_id'];
                     $hasExpiry = (int) ($line['has_expiry'] ?? 0);
 
-                    // For expiry-tracked items: create batch before adjusting stock
-                    if ($hasExpiry === 1 && isset($batchInfoByItemId[$itemId])) {
-                        $info = $batchInfoByItemId[$itemId];
+                    // For expiry-tracked items: create batch using the expiry_date from the line
+                    if ($hasExpiry === 1 && !empty($line['expiry_date'])) {
                         $this->batchService->createBatch(
                             $itemId,
                             (float) $line['quantity'],
-                            $info['expiry_date'],
-                            $info['manufacturing_date'] ?? null,
-                            $info['batch_number'] ?? null,
+                            $line['expiry_date'],
+                            null, // manufacturing_date not tracked on PO lines
+                            null, // batch_number auto-generated
                             $id
                         );
                     }
@@ -396,99 +482,6 @@ class PurchaseOrderService {
     }
 
     /**
-     * Validate batch_info for PO receive transition.
-     *
-     * Checks that all expiry-tracked line items have matching batch_info entries
-     * with valid expiry_date format. Ignores batch_info for non-expiry items.
-     * Accepts past expiry dates without rejection (Requirement 10.6).
-     *
-     * @param array      $lines     PO line items (with has_expiry field)
-     * @param array|null $batchInfo Batch info array from request payload
-     * @return array     Indexed by item_id for quick lookup during processing
-     * @throws \RuntimeException if validation fails (maps to HTTP 422 in controller)
-     */
-    private function validateBatchInfoForReceive(array $lines, ?array $batchInfo): array {
-        // Index batch_info by item_id for quick lookup
-        $batchInfoByItemId = [];
-        if (is_array($batchInfo)) {
-            foreach ($batchInfo as $entry) {
-                if (isset($entry['item_id'])) {
-                    $batchInfoByItemId[(int) $entry['item_id']] = $entry;
-                }
-            }
-        }
-
-        // Collect expiry-tracked items missing batch_info or with invalid dates
-        $missingItems = [];
-        $invalidDates = [];
-
-        foreach ($lines as $line) {
-            $hasExpiry = (int) ($line['has_expiry'] ?? 0);
-            if ($hasExpiry !== 1) {
-                continue; // Non-expiry items: ignore
-            }
-
-            $itemId = (int) $line['item_id'];
-            $itemName = $line['item_name'] ?? "Item #{$itemId}";
-
-            // Check if batch_info entry exists for this expiry-tracked item
-            if (!isset($batchInfoByItemId[$itemId])) {
-                $missingItems[] = $itemName;
-                continue;
-            }
-
-            // Validate expiry_date format (YYYY-MM-DD)
-            $entry = $batchInfoByItemId[$itemId];
-            $expiryDate = $entry['expiry_date'] ?? null;
-
-            if (!$this->isValidDateFormat($expiryDate)) {
-                $invalidDates[] = $itemName;
-            }
-        }
-
-        // Reject if any expiry-tracked items are missing batch_info
-        if (!empty($missingItems)) {
-            throw new \RuntimeException(
-                'Batch information required for items: ' . implode(', ', $missingItems)
-            );
-        }
-
-        // Reject if any expiry_date values are invalid
-        if (!empty($invalidDates)) {
-            throw new \RuntimeException(
-                'Invalid expiry_date for item ' . implode(', ', $invalidDates) . ': must be YYYY-MM-DD'
-            );
-        }
-
-        return $batchInfoByItemId;
-    }
-
-    /**
-     * Validate that a date string matches YYYY-MM-DD format and is a valid calendar date.
-     *
-     * @param mixed $date
-     * @return bool
-     */
-    private function isValidDateFormat($date): bool {
-        if (!is_string($date) || $date === '') {
-            return false;
-        }
-
-        // Check format with regex
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            return false;
-        }
-
-        // Validate it's a real calendar date
-        $parts = explode('-', $date);
-        $year  = (int) $parts[0];
-        $month = (int) $parts[1];
-        $day   = (int) $parts[2];
-
-        return checkdate($month, $day, $year);
-    }
-
-    /**
      * Delete a purchase order.
      * Only DRAFT status is allowed.
      * Deletes line items first, then the PO header, within a single transaction.
@@ -533,10 +526,11 @@ class PurchaseOrderService {
 
     /**
      * Compute the payment status of a purchase order based on linked payment slips.
+     * Subtracts issued debit note totals from the effective payable amount.
      *
      * Returns:
-     *   'PAID'           — sum of payment slip amounts >= PO total_amount_bc
-     *   'PARTIALLY_PAID' — sum > 0 but < total_amount_bc
+     *   'PAID'           — sum of payment slip amounts >= effective payable
+     *   'PARTIALLY_PAID' — sum > 0 but < effective payable
      *   'UNPAID'         — no payments (sum = 0)
      *
      * @throws \RuntimeException if PO not found
@@ -550,6 +544,11 @@ class PurchaseOrderService {
 
         $totalAmountBc = (float) ($po['total_amount_bc'] ?? 0);
 
+        // Subtract issued debit note totals
+        $debitNoteTotalBc = $this->getIssuedDebitNoteTotalBc($poId, $ctx->business_id);
+        $effectivePayable = $totalAmountBc - $debitNoteTotalBc;
+        if ($effectivePayable < 0) $effectivePayable = 0;
+
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(amount_bc), 0) AS total_paid
             FROM payment_allocations
@@ -562,7 +561,7 @@ class PurchaseOrderService {
         if ($totalPaid <= 0) {
             return 'UNPAID';
         }
-        if ($totalPaid >= $totalAmountBc) {
+        if ($effectivePayable <= 0 || $totalPaid >= $effectivePayable) {
             return 'PAID';
         }
         return 'PARTIALLY_PAID';
@@ -570,7 +569,7 @@ class PurchaseOrderService {
 
     /**
      * Compute the remaining amount (in FC) for a purchase order.
-     * Returns total_amount_fc minus sum of payment allocations amount_fc.
+     * Returns total_amount_fc minus sum of payment allocations amount_fc minus issued debit note total FC.
      */
     public function computeRemainingAmountFc(int $poId): float {
         $ctx = AuthContext::get();
@@ -581,6 +580,11 @@ class PurchaseOrderService {
 
         $totalFc = (float) ($po['total_amount_fc'] ?? 0);
 
+        // Subtract issued debit note totals (FC)
+        $debitNoteTotalFc = $this->getIssuedDebitNoteTotalFc($poId, $ctx->business_id);
+        $effectiveTotalFc = $totalFc - $debitNoteTotalFc;
+        if ($effectiveTotalFc < 0) $effectiveTotalFc = 0;
+
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(amount_fc), 0) AS total_paid_fc
             FROM payment_allocations
@@ -590,12 +594,43 @@ class PurchaseOrderService {
         $stmt->execute(['po_id' => $poId]);
         $totalPaidFc = (float) $stmt->fetchColumn();
 
-        $remaining = round($totalFc - $totalPaidFc, 2);
+        $remaining = round($effectiveTotalFc - $totalPaidFc, 2);
         return $remaining > 0 ? $remaining : 0.0;
     }
 
     /**
+     * Get sum of issued debit note totals (BC) for a PO.
+     */
+    private function getIssuedDebitNoteTotalBc(int $poId, int $businessId): float {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(total_amount_bc), 0)
+            FROM debit_notes
+            WHERE purchase_order_id = :po_id
+              AND business_id = :business_id
+              AND status = 'ISSUED'
+        ");
+        $stmt->execute(['po_id' => $poId, 'business_id' => $businessId]);
+        return (float) $stmt->fetchColumn();
+    }
+
+    /**
+     * Get sum of issued debit note totals (FC) for a PO.
+     */
+    private function getIssuedDebitNoteTotalFc(int $poId, int $businessId): float {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(total_amount_fc), 0)
+            FROM debit_notes
+            WHERE purchase_order_id = :po_id
+              AND business_id = :business_id
+              AND status = 'ISSUED'
+        ");
+        $stmt->execute(['po_id' => $poId, 'business_id' => $businessId]);
+        return (float) $stmt->fetchColumn();
+    }
+
+    /**
      * Return pre-filled payment slip data for a RECEIVED purchase order.
+     * Accounts for debit notes and existing payments.
      *
      * Only available for POs in RECEIVED status.
      *
@@ -611,23 +646,7 @@ class PurchaseOrderService {
             throw new \RuntimeException('Payment shortcut is only available for RECEIVED purchase orders.');
         }
 
-        // Calculate remaining amount (total - already paid via allocations)
-        $totalFc = (float) ($po['total_amount_fc'] ?? 0);
-        $exchangeRate = (float) ($po['exchange_rate'] ?? 1);
-
-        $stmt = $this->db->prepare("
-            SELECT COALESCE(SUM(amount_fc), 0) AS total_paid_fc
-            FROM payment_allocations
-            WHERE reference_type = 'PURCHASE_ORDER'
-              AND reference_id = :po_id
-        ");
-        $stmt->execute(['po_id' => $poId]);
-        $totalPaidFc = (float) $stmt->fetchColumn();
-
-        $remainingFc = round($totalFc - $totalPaidFc, 2);
-        if ($remainingFc < 0) {
-            $remainingFc = 0;
-        }
+        $remainingFc = $this->computeRemainingAmountFc($poId);
 
         return [
             'supplier_id'    => $po['supplier_id'],
@@ -647,6 +666,41 @@ class PurchaseOrderService {
     public function generatePoNumber(): string {
         $ctx = AuthContext::get();
         return $this->repo->generatePoNumber($ctx->business_id);
+    }
+
+    /**
+     * Duplicate a purchase order: creates a new DRAFT PO with the same header and lines.
+     *
+     * @param int $sourceId The source PO ID to duplicate
+     * @return int The new PO ID
+     * @throws \RuntimeException if source PO not found
+     */
+    public function duplicate(int $sourceId): int {
+        $ctx = AuthContext::get();
+        $source = $this->repo->findById($sourceId, $ctx->business_id);
+        if (!$source) {
+            throw new \RuntimeException('Purchase order not found');
+        }
+
+        $lines = $source['lines'] ?? [];
+        $lineData = array_map(function ($line) {
+            return [
+                'item_id'          => $line['item_id'],
+                'quantity'         => $line['quantity'],
+                'unit_price_fc'    => $line['unit_price_fc'],
+                'unit_price_bc'    => $line['unit_price_bc'],
+                'tax_rate'         => $line['tax_rate'] ?? 0,
+                'discount_percent' => $line['discount_percent'] ?? 0,
+            ];
+        }, $lines);
+
+        return $this->create([
+            'supplier_id'   => $source['supplier_id'],
+            'po_date'       => date('Y-m-d'),
+            'currency'      => $source['currency'],
+            'exchange_rate' => $source['exchange_rate'],
+            'notes'         => $source['notes'] ? $source['notes'] . ' (duplicated from ' . $source['po_number'] . ')' : 'Duplicated from ' . $source['po_number'],
+        ], $lineData);
     }
 
     /**

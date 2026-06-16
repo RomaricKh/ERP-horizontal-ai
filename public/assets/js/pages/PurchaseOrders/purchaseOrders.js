@@ -7,6 +7,7 @@ import { createDataTable } from '../../templates/datatables.design.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
 import { getFormatter } from '../../i18n/translationClient.js';
 import { receivePOWithBatchInfo } from './poReceive.js';
+import { createMultiSelect } from '../../components/multiSelect.js';
 
 function escHtml(s) {
     const d = document.createElement('div');
@@ -34,6 +35,10 @@ let unregister;
 let poUpdatedHandler;
 let paymentsUpdatedHandler;
 let poDataTable = null;
+let allPOs = [];
+let supplierFilter = null;
+let selectedSuppliers = [];
+let selectedStatus = '';
 
 export async function mount() {
     await fetchPurchaseOrders();
@@ -175,6 +180,31 @@ export async function mount() {
                 options:    { backdrop: false, keyboard: true, focus: true }
             });
         },
+
+        'po.duplicate': async ({ el }) => {
+            const tr = el.closest('tr');
+            const rowData = poDataTable.row(tr).data();
+            const id = rowData[0];
+            if (!id) return;
+
+            const confirmed = await confirm({
+                title: 'Duplicate Purchase Order',
+                message: 'Create a new DRAFT PO with the same line items?'
+            });
+            if (!confirmed) return;
+
+            try {
+                const res = await apiFetch(`/api/purchase-orders/${id}/duplicate`, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    await alert({ title: 'Error', alertText: data.message || 'Failed to duplicate PO' });
+                } else {
+                    await fetchPurchaseOrders();
+                }
+            } catch (err) {
+                console.error('Duplicate PO failed:', err);
+            }
+        },
     });
 }
 
@@ -191,6 +221,10 @@ export function unmount() {
     unregister = null;
     poDataTable?.destroy();
     poDataTable = null;
+    allPOs = [];
+    supplierFilter = null;
+    selectedSuppliers = [];
+    selectedStatus = '';
     closeModalsInContainer(po_container);
 }
 
@@ -205,13 +239,65 @@ export async function render(container) {
             el.remove();
         }
     });
+
+    // Bind status filter
+    const statusSelect = container.querySelector('#poStatusFilter');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', () => {
+            selectedStatus = statusSelect.value;
+            renderTable(getFilteredPOs());
+        });
+    }
 }
 
 async function fetchPurchaseOrders() {
     const res  = await apiFetch('/api/purchase-orders');
     const data = await res.json();
     if (!data.success) return;
-    renderTable(data.data.purchase_orders ?? []);
+    allPOs = data.data.purchase_orders ?? [];
+    buildSupplierFilter();
+    renderTable(getFilteredPOs());
+}
+
+function buildSupplierFilter() {
+    const filterContainer = po_container?.querySelector('#poSupplierFilterContainer');
+    if (!filterContainer) return;
+
+    const supplierMap = new Map();
+    allPOs.forEach(po => {
+        if (po.supplier_id && po.supplier_name) {
+            supplierMap.set(String(po.supplier_id), po.supplier_name);
+        }
+    });
+
+    const options = Array.from(supplierMap.entries()).map(([value, label]) => ({ value, label }));
+
+    if (options.length <= 1) {
+        filterContainer.innerHTML = '';
+        return;
+    }
+
+    filterContainer.innerHTML = '';
+    supplierFilter = createMultiSelect({
+        container: filterContainer,
+        options,
+        placeholder: 'Filter by supplier...',
+        onChange: (selected) => {
+            selectedSuppliers = selected;
+            renderTable(getFilteredPOs());
+        }
+    });
+}
+
+function getFilteredPOs() {
+    let filtered = allPOs;
+    if (selectedStatus) {
+        filtered = filtered.filter(po => po.status === selectedStatus);
+    }
+    if (selectedSuppliers.length > 0) {
+        filtered = filtered.filter(po => selectedSuppliers.includes(String(po.supplier_id)));
+    }
+    return filtered;
 }
 
 async function changeStatus(el, newStatus, confirmMessage) {
@@ -257,6 +343,7 @@ function renderTable(pos) {
     const canApprove = hasPermission('po.approve');
     const canReceive = hasPermission('po.receive');
     const canPay     = hasPermission('payments.create');
+    const canCreate  = hasPermission('po.create');
 
     pos.forEach(po => {
         const badgeClass = STATUS_BADGE[po.status] || 'secondary';
@@ -314,6 +401,11 @@ function renderTable(pos) {
         if (canView && (po.status === 'RECEIVED' || po.status === 'CLOSED')) {
             actions += `<button data-action="po.debit-note" class="btn btn-outline-warning btn-circle btn-sm me-1" title="Issue Debit Note">
                             <i class="fas fa-undo"></i></button>`;
+        }
+
+        if (canCreate) {
+            actions += `<button data-action="po.duplicate" class="btn btn-outline-secondary btn-circle btn-sm me-1" title="Duplicate PO">
+                            <i class="fas fa-copy"></i></button>`;
         }
 
         poDataTable.row.add([
