@@ -1047,6 +1047,25 @@ CREATE TABLE IF NOT EXISTS `recurrence_schedules` (
   CONSTRAINT `fk_recurrence_schedules_business` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS `bulk_advance_payments` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `business_id` int NOT NULL,
+  `recurrence_schedule_id` int unsigned NOT NULL,
+  `total_amount` decimal(15,2) NOT NULL,
+  `total_amount_bc` decimal(15,2) NOT NULL,
+  `currency` varchar(3) NOT NULL,
+  `periods_count` int NOT NULL,
+  `payment_date` date NOT NULL,
+  `payment_record_id` int DEFAULT NULL,
+  `created_by` int DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_bap_business` (`business_id`),
+  KEY `idx_bap_schedule` (`recurrence_schedule_id`),
+  CONSTRAINT `fk_bap_business` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`),
+  CONSTRAINT `fk_bap_schedule` FOREIGN KEY (`recurrence_schedule_id`) REFERENCES `recurrence_schedules` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `recurrence_instances` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `recurrence_schedule_id` int unsigned NOT NULL,
@@ -1060,6 +1079,8 @@ CREATE TABLE IF NOT EXISTS `recurrence_instances` (
   `paid_date` date DEFAULT NULL,
   `notification_sent` tinyint(1) NOT NULL DEFAULT '0',
   `payment_record_id` int DEFAULT NULL,
+  `is_advance_payment` tinyint(1) NOT NULL DEFAULT '0',
+  `bulk_advance_payment_id` int DEFAULT NULL,
   `period_start` date DEFAULT NULL,
   `period_end` date DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1068,8 +1089,10 @@ CREATE TABLE IF NOT EXISTS `recurrence_instances` (
   UNIQUE KEY `uq_schedule_due_date` (`recurrence_schedule_id`,`due_date`),
   KEY `idx_instances_business_due_status` (`business_id`,`due_date`,`status`),
   KEY `idx_instances_payment_record` (`payment_record_id`),
+  KEY `fk_instances_bap` (`bulk_advance_payment_id`),
   CONSTRAINT `fk_instances_business` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_instances_schedule` FOREIGN KEY (`recurrence_schedule_id`) REFERENCES `recurrence_schedules` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_instances_schedule` FOREIGN KEY (`recurrence_schedule_id`) REFERENCES `recurrence_schedules` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_instances_bap` FOREIGN KEY (`bulk_advance_payment_id`) REFERENCES `bulk_advance_payments` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ============================================================================

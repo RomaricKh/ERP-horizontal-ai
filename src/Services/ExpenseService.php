@@ -360,8 +360,17 @@ class ExpenseService {
             throw new \RuntimeException('Expense not found');
         }
 
+        // Guard: cannot delete expense that has payment allocations
+        $allocationCount = $this->countPaymentAllocationsForExpense($id);
+        if ($allocationCount > 0) {
+            throw new \RuntimeException('Cannot delete this expense: it has payment allocations. Remove the payments first.');
+        }
+
         $this->db->beginTransaction();
         try {
+            // Deactivate any linked recurrence schedule
+            $this->cleanupRecurrenceForExpense($id);
+
             $this->repo->delete($id, $ctx->business_id);
 
             // Reverse payee balance (increase back since we no longer owe)
@@ -388,5 +397,42 @@ class ExpenseService {
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Count payment allocations referencing this expense.
+     */
+    private function countPaymentAllocationsForExpense(int $expenseId): int {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) FROM payment_allocations
+            WHERE reference_type = 'EXPENSE' AND reference_id = :id
+        ");
+        $stmt->execute(['id' => $expenseId]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Deactivate recurrence schedule and cancel pending instances for a deleted expense.
+     */
+    private function cleanupRecurrenceForExpense(int $expenseId): void {
+        // Find active schedule for this expense
+        $stmt = $this->db->prepare("
+            SELECT id FROM recurrence_schedules
+            WHERE entity_type = 'EXPENSE' AND entity_id = :id
+        ");
+        $stmt->execute(['id' => $expenseId]);
+        $scheduleId = $stmt->fetchColumn();
+
+        if (!$scheduleId) return;
+
+        // Delete all instances for this schedule
+        $this->db->prepare("
+            DELETE FROM recurrence_instances WHERE recurrence_schedule_id = :schedule_id
+        ")->execute(['schedule_id' => $scheduleId]);
+
+        // Delete the schedule itself
+        $this->db->prepare("
+            DELETE FROM recurrence_schedules WHERE id = :id
+        ")->execute(['id' => $scheduleId]);
     }
 }

@@ -104,6 +104,12 @@ class RecurrenceService
             'end_date'         => $data['end_date'] ?? null,
         ]);
 
+        // Immediately generate instances up to today (don't wait for cron)
+        $today = date('Y-m-d');
+        if ($data['start_date'] <= $today) {
+            $this->generatorService->generateForAllBusinesses($today, $this->db);
+        }
+
         // Log audit entry
         $this->auditRepo->create([
             'entity_type'    => 'schedule',
