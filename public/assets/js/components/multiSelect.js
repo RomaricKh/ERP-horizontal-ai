@@ -2,6 +2,9 @@
  * Custom multi-select dropdown with inline tag chips.
  * Options are highlighted when selected (no checkboxes).
  * Selected items show as removable tag pills in the trigger.
+ *
+ * Options format: [{ value, label }] or [{ id, label }] — both accepted.
+ * onChange receives array of selected values (not labels).
  */
 
 export function createMultiSelect({ container, placeholder = 'Select...', icon = 'fas fa-filter', options = [], onChange }) {
@@ -15,10 +18,16 @@ export function createMultiSelect({ container, placeholder = 'Select...', icon =
         focus: '#4e73df',
     };
 
-    const state = new Set(); // selected option IDs
+    // Normalize options to always have { value, label }
+    const normalizedOptions = options.map(opt => ({
+        value: String(opt.value ?? opt.id ?? opt.label),
+        label: opt.label || opt.name || String(opt.value ?? opt.id ?? ''),
+    }));
+
+    const state = new Set(); // selected option values
 
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:relative; min-width:240px;';
+    wrapper.style.cssText = 'position:relative; min-width:200px;';
 
     // ─── Trigger ──────────────────────────────────────────────────────────
     const trigger = document.createElement('div');
@@ -68,9 +77,9 @@ export function createMultiSelect({ container, placeholder = 'Select...', icon =
     optionsList.style.cssText = 'padding:2px 6px 6px;';
 
     const optionEls = [];
-    options.forEach(opt => {
+    normalizedOptions.forEach(opt => {
         const item = document.createElement('div');
-        item.dataset.id = opt.id;
+        item.dataset.value = opt.value;
         item.dataset.label = opt.label;
         item.dataset.search = opt.label.toLowerCase();
         item.textContent = opt.label;
@@ -80,14 +89,15 @@ export function createMultiSelect({ container, placeholder = 'Select...', icon =
             border:1px solid transparent; transition:all 0.1s;
         `;
         item.addEventListener('mouseenter', () => {
-            if (!state.has(String(opt.id))) item.style.backgroundColor = COLORS.hoverBg;
+            if (!state.has(opt.value)) item.style.backgroundColor = COLORS.hoverBg;
         });
         item.addEventListener('mouseleave', () => {
-            if (!state.has(String(opt.id))) item.style.backgroundColor = '';
+            if (!state.has(opt.value)) item.style.backgroundColor = '';
         });
         item.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleOption(String(opt.id));
+            e.preventDefault();
+            toggleOption(opt.value);
         });
         optionsList.appendChild(item);
         optionEls.push(item);
@@ -130,7 +140,7 @@ export function createMultiSelect({ container, placeholder = 'Select...', icon =
         const x = e.target.closest('.ms-tag-x');
         if (!x) return;
         e.stopPropagation();
-        state.delete(x.dataset.id);
+        state.delete(x.dataset.value);
         render();
     });
 
@@ -144,9 +154,9 @@ export function createMultiSelect({ container, placeholder = 'Select...', icon =
     const outsideHandler = (e) => { if (!wrapper.contains(e.target)) close(); };
     document.addEventListener('click', outsideHandler);
 
-    function toggleOption(id) {
-        if (state.has(id)) state.delete(id);
-        else state.add(id);
+    function toggleOption(value) {
+        if (state.has(value)) state.delete(value);
+        else state.add(value);
         render();
     }
 
@@ -176,7 +186,7 @@ export function createMultiSelect({ container, placeholder = 'Select...', icon =
     function render() {
         // Update option highlight styles
         optionEls.forEach(el => {
-            const selected = state.has(el.dataset.id);
+            const selected = state.has(el.dataset.value);
             el.style.backgroundColor = selected ? COLORS.selectedBg : '';
             el.style.borderColor = selected ? COLORS.selectedBorder : 'transparent';
             el.style.fontWeight = selected ? '600' : '';
@@ -184,9 +194,9 @@ export function createMultiSelect({ container, placeholder = 'Select...', icon =
 
         // Update trigger tags
         trigger.querySelectorAll('.ms-tag').forEach(t => t.remove());
-        const selected = [...state].map(id => {
-            const opt = options.find(o => String(o.id) === id);
-            return opt ? { id, label: opt.label } : null;
+        const selected = [...state].map(value => {
+            const opt = normalizedOptions.find(o => o.value === value);
+            return opt || null;
         }).filter(Boolean);
 
         if (selected.length === 0) {
@@ -202,17 +212,18 @@ export function createMultiSelect({ container, placeholder = 'Select...', icon =
                     background:${COLORS.tagBg}; color:${COLORS.tagText};
                     font-size:0.72rem; white-space:nowrap; line-height:1.4;
                 `;
-                tag.innerHTML = `${esc(s.label)}<span class="ms-tag-x" data-id="${s.id}" style="cursor:pointer;opacity:0.7;font-weight:bold;margin-left:2px;">&times;</span>`;
+                tag.innerHTML = `${esc(s.label)}<span class="ms-tag-x" data-value="${s.value}" style="cursor:pointer;opacity:0.7;font-weight:bold;margin-left:2px;">&times;</span>`;
                 trigger.insertBefore(tag, chevron);
             });
         }
 
         countEl.textContent = `${selected.length} selected`;
-        if (onChange) onChange(selected.map(s => s.label));
+        // Emit values (not labels)
+        if (onChange) onChange([...state]);
     }
 
     return {
-        getSelected: () => [...state].map(id => { const o = options.find(x => String(x.id) === id); return o?.label; }).filter(Boolean),
+        getSelected: () => [...state],
         clear: () => { state.clear(); render(); },
         destroy: () => { document.removeEventListener('click', outsideHandler); wrapper.remove(); }
     };

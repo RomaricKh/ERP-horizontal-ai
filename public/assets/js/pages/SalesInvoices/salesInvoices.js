@@ -284,28 +284,28 @@ function renderTable(invoices) {
         let actions = '';
 
         if (canView) {
-            actions += `<button data-action="invoice.view" class="btn btn-info btn-circle btn-sm me-1" title="View / Edit">
-                            <i class="fas fa-eye"></i></button>`;
+            actions += `<button data-action="invoice.view" class="btn btn-light btn-circle btn-sm me-1" title="View / Edit">
+                            <i class="fas fa-eye text-info"></i></button>`;
         }
 
         if (canDeliver && inv.status === 'DRAFT') {
-            actions += `<button data-action="invoice.deliver" class="btn btn-primary btn-circle btn-sm me-1" title="Mark Delivered">
-                            <i class="fas fa-shipping-fast"></i></button>`;
+            actions += `<button data-action="invoice.deliver" class="btn btn-light btn-circle btn-sm me-1" title="Mark Delivered">
+                            <i class="fas fa-shipping-fast text-primary"></i></button>`;
         }
 
         if ((inv.status === 'DRAFT' || inv.status === 'DELIVERED') && canDeliver) {
-            actions += `<button data-action="invoice.cancel" class="btn btn-warning btn-circle btn-sm me-1" title="Cancel">
-                            <i class="fas fa-ban"></i></button>`;
+            actions += `<button data-action="invoice.cancel" class="btn btn-light btn-circle btn-sm me-1" title="Cancel">
+                            <i class="fas fa-ban text-warning"></i></button>`;
         }
 
         if (canDelete && inv.status === 'DRAFT') {
-            actions += `<button data-action="invoice.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash"></i></button>`;
+            actions += `<button data-action="invoice.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
+                            <i class="fas fa-trash text-danger"></i></button>`;
         }
 
         if (canCollect && inv.status === 'DELIVERED' && inv.payment_status !== 'PAID') {
-            actions += `<button data-action="invoice.collect" class="btn btn-secondary btn-circle btn-sm me-1" title="Create Collection Slip">
-                            <i class="fas fa-receipt"></i></button>`;
+            actions += `<button data-action="invoice.collect" class="btn btn-light btn-circle btn-sm me-1" title="Create Collection Slip">
+                            <i class="fas fa-receipt text-secondary"></i></button>`;
         }
 
         if (canView) {

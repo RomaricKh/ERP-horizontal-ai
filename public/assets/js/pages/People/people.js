@@ -284,12 +284,17 @@ async function buildTypeFilterDropdown() {
         container: filterHost,
         placeholder: 'Filter by Type',
         icon: 'fas fa-filter',
-        options: types.map(t => ({ id: t.id, label: t.name })),
-        onChange: (selectedLabels) => {
-            if (selectedLabels.length === 0) {
+        options: types.map(t => ({ value: String(t.id), label: t.name })),
+        onChange: (selectedValues) => {
+            if (selectedValues.length === 0) {
                 peopleDataTable.column(4).search('').draw();
             } else {
-                const regex = selectedLabels.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                // Look up type names from selected IDs for regex search
+                const selectedNames = selectedValues.map(v => {
+                    const t = types.find(tp => String(tp.id) === v);
+                    return t ? t.name : v;
+                });
+                const regex = selectedNames.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
                 peopleDataTable.column(4).search(regex, true, false).draw();
             }
         }

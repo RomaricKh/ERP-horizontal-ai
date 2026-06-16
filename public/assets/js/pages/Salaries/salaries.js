@@ -267,21 +267,21 @@ function renderTable(salaries) {
 
         // Quick-pay button (only if not fully paid)
         if (canPay && !isFullyPaid) {
-            actions += `<button data-action="salaries.pay" class="btn btn-success btn-circle btn-sm me-1" title="Pay">
-                            <i class="fas fa-money-bill"></i></button>`;
+            actions += `<button data-action="salaries.pay" class="btn btn-light btn-circle btn-sm me-1" title="Pay">
+                            <i class="fas fa-money-bill text-success"></i></button>`;
         }
 
         // Payslip PDF download
-        actions += `<button data-action="salaries.payslip" class="btn btn-outline-primary btn-circle btn-sm me-1" title="Download Payslip">
-                        <i class="fas fa-file-pdf"></i></button>`;
+        actions += `<button data-action="salaries.payslip" class="btn btn-light btn-circle btn-sm me-1" title="Download Payslip">
+                        <i class="fas fa-file-pdf text-danger"></i></button>`;
 
         if (canEdit) {
-            actions += `<button data-action="salaries.edit" class="btn btn-info btn-circle btn-sm me-1" title="Edit">
-                            <i class="fas fa-edit"></i></button>`;
+            actions += `<button data-action="salaries.edit" class="btn btn-light btn-circle btn-sm me-1" title="Edit">
+                            <i class="fas fa-edit text-info"></i></button>`;
         }
         if (canDelete && !isFullyPaid && !isPartiallyPaid) {
-            actions += `<button data-action="salaries.delete" class="btn btn-danger btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash"></i></button>`;
+            actions += `<button data-action="salaries.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
+                            <i class="fas fa-trash text-danger"></i></button>`;
         }
 
         const netFc = salary.net_amount_fc != null ? getFormatter().formatNumber(salary.net_amount_fc, 2) : '0.00';

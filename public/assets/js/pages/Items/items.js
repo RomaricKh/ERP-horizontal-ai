@@ -448,12 +448,16 @@ async function buildTypeFilter() {
         container: filterHost,
         placeholder: 'Filter by Type',
         icon: 'fas fa-tags',
-        options: types.map(t => ({ id: t.id, label: t.name })),
-        onChange: (selectedLabels) => {
-            if (selectedLabels.length === 0) {
+        options: types.map(t => ({ value: String(t.id), label: t.name })),
+        onChange: (selectedValues) => {
+            if (selectedValues.length === 0) {
                 itemsDataTable.column(3).search('').draw();
             } else {
-                const regex = selectedLabels.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                const selectedNames = selectedValues.map(v => {
+                    const t = types.find(tp => String(tp.id) === v);
+                    return t ? t.name : v;
+                });
+                const regex = selectedNames.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
                 itemsDataTable.column(3).search(regex, true, false).draw();
             }
         }

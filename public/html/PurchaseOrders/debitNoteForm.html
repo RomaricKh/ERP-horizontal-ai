@@ -4,19 +4,29 @@
 
     <div class="modal-header bg-gradient-warning text-white">
       <h5 class="modal-title" id="debitNoteModalTitle">
-        <i class="fas fa-undo me-2"></i><span>Issue Debit Note</span>
+        <i class="fas fa-undo me-2"></i><span>Debit Note</span>
       </h5>
       <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
 
     <div class="modal-body px-4">
 
+      <!-- ── Existing Debit Notes Section (shown when drafts/issued exist) ── -->
+      <div id="dnExistingSection" class="d-none">
+        <div class="border rounded p-3 mb-4">
+          <h6 class="text-warning fw-bold mb-3">
+            <i class="fas fa-list me-1"></i> Existing Debit Notes for this PO
+          </h6>
+          <div id="dnExistingList" class="list-group list-group-flush mb-0"></div>
+        </div>
+      </div>
+
       <!-- ── Header Section ─────────────────────────────────────────── -->
-      <div class="border rounded p-3 mb-4 bg-light">
+      <div class="border rounded p-3 mb-4 bg-light" id="debitNoteHeaderForm">
         <h6 class="text-warning fw-bold mb-3">
-          <i class="fas fa-file-alt me-1"></i> Debit Note Details
+          <i class="fas fa-file-alt me-1"></i> New Debit Note
         </h6>
-        <form id="debitNoteHeaderForm" novalidate>
+        <form novalidate>
           <div class="row g-3">
             <div class="col-md-5">
               <label class="form-label small text-muted" for="inputDNPurchaseOrder">Purchase Order</label>
@@ -48,33 +58,31 @@
       </div>
 
       <!-- ── Line Items Section ─────────────────────────────────────── -->
-      <div class="border rounded p-3 mb-4">
+      <div class="border rounded p-3 mb-4" id="dnLinesTable">
         <h6 class="text-warning fw-bold mb-3">
           <i class="fas fa-boxes me-1"></i> Return Items
         </h6>
         <div class="alert alert-light border small mb-3">
           <i class="fas fa-info-circle text-info me-1"></i>
-          Enter the quantity to return per item. Max quantity reflects what hasn't been returned yet.
+          Max qty = min(ordered − returned, current stock). Cannot return more than available.
         </div>
 
         <div class="table-responsive">
-          <table class="table table-bordered table-sm mb-0" id="dnLinesTable">
+          <table class="table table-bordered table-sm mb-0">
             <thead class="table-light">
               <tr>
                 <th>Item</th>
-                <th style="width:130px">Ordered (Remaining)</th>
+                <th style="width:130px">Ordered</th>
                 <th style="width:110px">Return Qty</th>
-                <th style="width:120px" class="text-end">Unit Price (FC)</th>
-                <th style="width:120px" class="text-end">Unit Price (BC)</th>
-                <th style="width:120px" class="text-end">Line Total (BC)</th>
+                <th style="width:110px" class="text-end">Price (FC)</th>
+                <th style="width:110px" class="text-end">Price (BC)</th>
+                <th style="width:110px" class="text-end">Total (BC)</th>
               </tr>
             </thead>
-            <tbody id="dnLinesBody">
-              <!-- Populated dynamically from PO lines -->
-            </tbody>
+            <tbody id="dnLinesBody"></tbody>
             <tfoot>
               <tr class="fw-bold table-warning">
-                <td colspan="5" class="text-end">Total Return Amount:</td>
+                <td colspan="5" class="text-end">Total Return:</td>
                 <td class="text-end" id="dnTotalBc">0.00</td>
               </tr>
             </tfoot>
@@ -82,11 +90,11 @@
         </div>
       </div>
 
-      <!-- ── View Mode (for issued debit notes) ───────────────────── -->
+      <!-- ── View Mode (for single debit note view) ───────────────── -->
       <div id="dnViewSection" class="d-none">
         <div class="border rounded p-3 mb-4">
           <h6 class="text-success fw-bold mb-3">
-            <i class="fas fa-check-circle me-1"></i> Issued Debit Note
+            <i class="fas fa-check-circle me-1"></i> Debit Note Details
           </h6>
           <div class="row g-3">
             <div class="col-md-4">
@@ -111,11 +119,14 @@
       <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
         <i class="fas fa-times me-1"></i>Close
       </button>
+      <button class="btn btn-outline-warning d-none" type="button" id="btnNewDebitNote">
+        <i class="fas fa-plus me-1"></i> Create New
+      </button>
       <button class="btn btn-warning" type="button" id="btnSaveDebitNote">
         <i class="fas fa-save me-1"></i> Create Draft
       </button>
       <button class="btn btn-success d-none" type="button" id="btnIssueDebitNote">
-        <i class="fas fa-check-circle me-1"></i> Issue Debit Note
+        <i class="fas fa-check-circle me-1"></i> Issue
       </button>
     </div>
 

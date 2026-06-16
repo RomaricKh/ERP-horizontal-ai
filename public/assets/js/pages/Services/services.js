@@ -248,12 +248,16 @@ function buildCategoryFilter() {
         container: filterHost,
         placeholder: 'Filter by Category',
         icon: 'fas fa-folder',
-        options: categoriesCache.map(c => ({ id: c.id, label: c.name })),
-        onChange: (selectedLabels) => {
-            if (selectedLabels.length === 0) {
+        options: categoriesCache.map(c => ({ value: String(c.id), label: c.name })),
+        onChange: (selectedValues) => {
+            if (selectedValues.length === 0) {
                 servicesDataTable.column(2).search('').draw();
             } else {
-                const regex = selectedLabels.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                const selectedNames = selectedValues.map(v => {
+                    const c = categoriesCache.find(cat => String(cat.id) === v);
+                    return c ? c.name : v;
+                });
+                const regex = selectedNames.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
                 servicesDataTable.column(2).search(regex, true, false).draw();
             }
         }
