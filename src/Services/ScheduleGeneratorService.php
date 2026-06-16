@@ -406,11 +406,27 @@ class ScheduleGeneratorService
 
                     $instanceId = (int) $db->lastInsertId();
 
-                    // Auto-create the actual expense/salary record from the template
-                    if ($schedule['entity_type'] === 'EXPENSE') {
-                        $this->createExpenseFromTemplate($db, $schedule, $businessId, $dueDate, $instanceId);
-                    } elseif ($schedule['entity_type'] === 'SALARY') {
-                        $this->createSalaryFromTemplate($db, $schedule, $businessId, $dueDate, $boundaries, $instanceId);
+                    // For the FIRST instance (due_date = start_date), link to the original expense
+                    // instead of creating a duplicate. For subsequent instances, create new records.
+                    if ($dueDate === $schedule['start_date'] && $schedule['entity_type'] === 'EXPENSE') {
+                        // Link instance to the original template expense
+                        $updateStmt = $db->prepare("
+                            UPDATE recurrence_instances SET payment_record_id = :expense_id WHERE id = :id
+                        ");
+                        $updateStmt->execute(['expense_id' => (int) $schedule['entity_id'], 'id' => $instanceId]);
+                    } elseif ($dueDate === $schedule['start_date'] && $schedule['entity_type'] === 'SALARY') {
+                        // Link instance to the original template salary
+                        $updateStmt = $db->prepare("
+                            UPDATE recurrence_instances SET payment_record_id = :salary_id WHERE id = :id
+                        ");
+                        $updateStmt->execute(['salary_id' => (int) $schedule['entity_id'], 'id' => $instanceId]);
+                    } else {
+                        // Subsequent instances: create new expense/salary records
+                        if ($schedule['entity_type'] === 'EXPENSE') {
+                            $this->createExpenseFromTemplate($db, $schedule, $businessId, $dueDate, $instanceId);
+                        } elseif ($schedule['entity_type'] === 'SALARY') {
+                            $this->createSalaryFromTemplate($db, $schedule, $businessId, $dueDate, $boundaries, $instanceId);
+                        }
                     }
 
                     $generatedForSchedule++;
