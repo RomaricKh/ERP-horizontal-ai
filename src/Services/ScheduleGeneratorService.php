@@ -404,6 +404,15 @@ class ScheduleGeneratorService
                         'period_end' => $boundaries['period_end'],
                     ]);
 
+                    $instanceId = (int) $db->lastInsertId();
+
+                    // Auto-create the actual expense/salary record from the template
+                    if ($schedule['entity_type'] === 'EXPENSE') {
+                        $this->createExpenseFromTemplate($db, $schedule, $businessId, $dueDate, $instanceId);
+                    } elseif ($schedule['entity_type'] === 'SALARY') {
+                        $this->createSalaryFromTemplate($db, $schedule, $businessId, $dueDate, $boundaries, $instanceId);
+                    }
+
                     $generatedForSchedule++;
                 }
 
@@ -437,5 +446,138 @@ class ScheduleGeneratorService
         if (!$parsed || $parsed->format('Y-m-d') !== $date) {
             throw new \InvalidArgumentException("Invalid date format: {$date}. Expected Y-m-d.");
         }
+    }
+
+    /**
+     * Create an actual expense record from the recurring template.
+     * Copies payee, category, amount, currency from the template expense.
+     * Links the instance to the created expense via payment_record_id.
+     */
+    private function createExpenseFromTemplate(\PDO $db, array $schedule, int $businessId, string $dueDate, int $instanceId): void
+    {
+        $entityId = (int) $schedule['entity_id'];
+
+        // Fetch the template expense
+        $stmt = $db->prepare("
+            SELECT payee_id, expense_category_id, currency, exchange_rate, notes
+            FROM expenses
+            WHERE id = :id AND business_id = :business_id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $entityId, 'business_id' => $businessId]);
+        $template = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$template) return;
+
+        $amount = (float) $schedule['default_amount'];
+        $exchangeRate = (float) ($template['exchange_rate'] ?: 1);
+        $amountBc = $amount * $exchangeRate;
+
+        // Insert the actual expense
+        $insertStmt = $db->prepare("
+            INSERT INTO expenses
+              (business_id, payee_id, expense_category_id, expense_date,
+               currency, exchange_rate, amount_fc, amount_bc, notes,
+               reference_number, created_at)
+            VALUES
+              (:business_id, :payee_id, :category_id, :expense_date,
+               :currency, :exchange_rate, :amount_fc, :amount_bc, :notes,
+               :reference_number, NOW())
+        ");
+        $insertStmt->execute([
+            'business_id'  => $businessId,
+            'payee_id'     => $template['payee_id'],
+            'category_id'  => $template['expense_category_id'],
+            'expense_date' => $dueDate,
+            'currency'     => $schedule['default_currency'],
+            'exchange_rate' => $exchangeRate,
+            'amount_fc'    => $amount,
+            'amount_bc'    => $amountBc,
+            'notes'        => $template['notes'] ? $template['notes'] . ' (auto-generated)' : 'Recurring expense (auto-generated)',
+            'reference_number' => 'REC-' . $instanceId,
+        ]);
+
+        $expenseId = (int) $db->lastInsertId();
+
+        // Link the instance to the expense
+        $updateStmt = $db->prepare("
+            UPDATE recurrence_instances SET payment_record_id = :expense_id WHERE id = :id
+        ");
+        $updateStmt->execute(['expense_id' => $expenseId, 'id' => $instanceId]);
+    }
+
+    /**
+     * Create an actual salary record from the recurring template.
+     * Copies payee, amounts from the template salary.
+     * Links the instance to the created salary via payment_record_id.
+     */
+    private function createSalaryFromTemplate(\PDO $db, array $schedule, int $businessId, string $dueDate, array $boundaries, int $instanceId): void
+    {
+        $entityId = (int) $schedule['entity_id'];
+
+        // Fetch the template salary
+        $stmt = $db->prepare("
+            SELECT payee_id, currency, exchange_rate,
+                   gross_amount_fc, gross_amount_bc, tax_fc, tax_bc,
+                   net_amount_fc, net_amount_bc, notes
+            FROM salaries
+            WHERE id = :id AND business_id = :business_id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $entityId, 'business_id' => $businessId]);
+        $template = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$template) return;
+
+        // Insert the actual salary using schedule amount (may override template)
+        $amount = (float) $schedule['default_amount'];
+        $exchangeRate = (float) ($template['exchange_rate'] ?: 1);
+
+        // If schedule amount differs from template net, scale proportionally
+        $templateNet = (float) $template['net_amount_fc'];
+        $scale = ($templateNet > 0) ? ($amount / $templateNet) : 1;
+
+        $grossFc = (float) $template['gross_amount_fc'] * $scale;
+        $taxFc = (float) $template['tax_fc'] * $scale;
+        $netFc = $amount;
+        $grossBc = $grossFc * $exchangeRate;
+        $taxBc = $taxFc * $exchangeRate;
+        $netBc = $netFc * $exchangeRate;
+
+        $insertStmt = $db->prepare("
+            INSERT INTO salaries
+              (business_id, payee_id, period_start, period_end,
+               currency, exchange_rate,
+               gross_amount_fc, gross_amount_bc, tax_fc, tax_bc,
+               net_amount_fc, net_amount_bc, notes, created_at)
+            VALUES
+              (:business_id, :payee_id, :period_start, :period_end,
+               :currency, :exchange_rate,
+               :gross_fc, :gross_bc, :tax_fc, :tax_bc,
+               :net_fc, :net_bc, :notes, NOW())
+        ");
+        $insertStmt->execute([
+            'business_id'  => $businessId,
+            'payee_id'     => $template['payee_id'],
+            'period_start' => $boundaries['period_start'],
+            'period_end'   => $boundaries['period_end'],
+            'currency'     => $schedule['default_currency'],
+            'exchange_rate' => $exchangeRate,
+            'gross_fc'     => round($grossFc, 2),
+            'gross_bc'     => round($grossBc, 2),
+            'tax_fc'       => round($taxFc, 2),
+            'tax_bc'       => round($taxBc, 2),
+            'net_fc'       => round($netFc, 2),
+            'net_bc'       => round($netBc, 2),
+            'notes'        => $template['notes'] ? $template['notes'] . ' (auto-generated)' : 'Recurring salary (auto-generated)',
+        ]);
+
+        $salaryId = (int) $db->lastInsertId();
+
+        // Link the instance to the salary
+        $updateStmt = $db->prepare("
+            UPDATE recurrence_instances SET payment_record_id = :salary_id WHERE id = :id
+        ");
+        $updateStmt->execute(['salary_id' => $salaryId, 'id' => $instanceId]);
     }
 }

@@ -15,9 +15,8 @@ export async function mount({ modalRoot: root }) {
     unregister = registerPageActions({
 
         'expense-categories.add': async () => {
-            const nameInput    = document.getElementById('newExpenseCategoryName');
-            const isFixedInput = document.getElementById('newExpenseCategoryIsFixed');
-            const name         = nameInput?.value.trim();
+            const nameInput = document.getElementById('newExpenseCategoryName');
+            const name      = nameInput?.value.trim();
 
             if (!name) {
                 nameInput?.classList.add('is-invalid');
@@ -28,12 +27,11 @@ export async function mount({ modalRoot: root }) {
             try {
                 const res  = await apiFetch('/api/expenses/categories', {
                     method: 'POST',
-                    body: JSON.stringify({ name, is_fixed: isFixedInput?.checked ? 1 : 0 })
+                    body: JSON.stringify({ name })
                 });
                 const json = await res.json();
                 if (!res.ok || !json.success) throw new Error(json.message || 'Failed');
-                nameInput.value       = '';
-                if (isFixedInput) isFixedInput.checked = false;
+                nameInput.value = '';
                 await loadCategories();
                 document.dispatchEvent(new CustomEvent('expenses.updated'));
             } catch (err) {
@@ -139,7 +137,6 @@ function renderList() {
     container.innerHTML = categories.map(cat => {
         const isSystem = parseInt(cat.is_system) === 1;
         const badge = isSystem ? ' <span class="badge bg-secondary ms-1">System</span>' : '';
-        const fixedBadge = cat.is_fixed ? ' <span class="badge bg-info ms-1">Fixed</span>' : '';
         const actions = isSystem
             ? '<span class="text-muted small"><i class="fas fa-lock me-1"></i>Protected</span>'
             : `<div class="d-flex gap-2">
@@ -153,9 +150,7 @@ function renderList() {
 
         return `
             <div class="expense-category-row d-flex align-items-center justify-content-between border-bottom py-2">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="category-label">${escHtml(cat.name)}${badge}${fixedBadge}</span>
-                </div>
+                <span class="category-label">${escHtml(cat.name)}${badge}</span>
                 ${actions}
             </div>
         `;

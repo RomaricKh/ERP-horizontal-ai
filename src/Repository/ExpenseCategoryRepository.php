@@ -42,15 +42,14 @@ class ExpenseCategoryRepository {
     public function create(array $data): int {
         $stmt = $this->db->prepare("
             INSERT INTO expense_categories
-              (tenant_id, business_id, name, is_system, is_fixed, created_by, created_at, updated_at)
+              (tenant_id, business_id, name, is_system, created_by, created_at, updated_at)
             VALUES
-              (:tenant_id, :business_id, :name, 0, :is_fixed, :created_by, NOW(), NOW())
+              (:tenant_id, :business_id, :name, 0, :created_by, NOW(), NOW())
         ");
         $stmt->execute([
             'tenant_id'   => $data['tenant_id'],
             'business_id' => $data['business_id'],
             'name'        => $data['name'],
-            'is_fixed'    => $data['is_fixed'] ? 1 : 0,
             'created_by'  => $data['created_by'],
         ]);
         return (int) $this->db->lastInsertId();

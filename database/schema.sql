@@ -722,7 +722,6 @@ CREATE TABLE IF NOT EXISTS `expense_categories` (
   `is_system` tinyint(1) NOT NULL DEFAULT '0',
   `module_id` int DEFAULT NULL,
   `code` varchar(50) DEFAULT NULL,
-  `is_fixed` tinyint(1) DEFAULT '0',
   `created_at` datetime NOT NULL,
   `updated_at` datetime DEFAULT NULL,
   `created_by` int DEFAULT NULL,
