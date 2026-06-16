@@ -94,6 +94,31 @@ class DebitNoteService
             ]);
 
             foreach ($lines as $line) {
+                // Validate return quantity doesn't exceed available stock
+                if (!empty($line['item_id'])) {
+                    $stockStmt = $this->db->prepare("
+                        SELECT COALESCE(s.quantity, 0) AS stock_quantity
+                        FROM stock s
+                        WHERE s.item_id = :item_id AND s.business_id = :business_id
+                        LIMIT 1
+                    ");
+                    $stockStmt->execute([
+                        'item_id'     => (int) $line['item_id'],
+                        'business_id' => $ctx->business_id,
+                    ]);
+                    $currentStock = (float) ($stockStmt->fetchColumn() ?: 0);
+                    $returnQty = (float) $line['quantity'];
+
+                    if ($returnQty > $currentStock) {
+                        $itemNameStmt = $this->db->prepare("SELECT name FROM items WHERE id = :id LIMIT 1");
+                        $itemNameStmt->execute(['id' => (int) $line['item_id']]);
+                        $itemName = $itemNameStmt->fetchColumn() ?: "Item #{$line['item_id']}";
+                        throw new \InvalidArgumentException(
+                            "Cannot return {$returnQty} of '{$itemName}': only {$currentStock} in stock"
+                        );
+                    }
+                }
+
                 $this->repo->addLine($noteId, $line);
             }
 

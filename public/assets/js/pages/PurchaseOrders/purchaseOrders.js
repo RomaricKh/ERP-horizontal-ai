@@ -1,6 +1,6 @@
 // assets/js/pages/PurchaseOrders/purchaseOrders.js
 
-import { hasPermission } from '../../Auth/auth.js';
+import { hasPermission, getToken } from '../../Auth/auth.js';
 import { registerPageActions } from '../Core/pageActions.js';
 import { MODAL_SCOPE, openModal, closeModalsInContainer, confirm, alert } from '../../components/modals.js';
 import { createDataTable } from '../../templates/datatables.design.js';
@@ -162,7 +162,7 @@ export async function mount() {
             if (!id) return;
 
             // Open PDF download in a new tab/window
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const token = getToken();
             window.open(`/api/purchase-orders/${id}/pdf?token=${encodeURIComponent(token)}`, '_blank');
         },
 

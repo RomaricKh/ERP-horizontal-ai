@@ -90,7 +90,7 @@ $router->delete('/purchase-orders/{id}',
 // POST /debit-notes/{id}/issue — must be before /{id} GET
 $router->post('/debit-notes/{id}/issue',
     fn($id) => (new DebitNoteController())->issue((int)$id),
-    ['purchase_orders.manage']
+    ['po.edit']
 );
 
 // GET /debit-notes
@@ -102,7 +102,7 @@ $router->get('/debit-notes',
 // POST /debit-notes
 $router->post('/debit-notes',
     fn() => (new DebitNoteController())->store(),
-    ['purchase_orders.manage']
+    ['po.edit']
 );
 
 // GET /debit-notes/{id}

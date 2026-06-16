@@ -48,6 +48,21 @@ async function loadPOForDebitNote(poId) {
         }
         poData = json.data.purchase_order;
 
+        // Fetch current stock levels for all items in the PO
+        const itemIds = [...new Set((poData.lines || []).map(l => l.item_id).filter(Boolean))];
+        const stockLevels = {};
+        for (const itemId of itemIds) {
+            try {
+                const stockRes = await apiFetch(`/api/items/${itemId}`);
+                const stockJson = await stockRes.json();
+                if (stockJson.success && stockJson.data?.item) {
+                    stockLevels[itemId] = parseFloat(stockJson.data.item.stock_qty) || 0;
+                }
+            } catch (e) {
+                stockLevels[itemId] = 0;
+            }
+        }
+
         // Populate header fields
         modalRoot.querySelector('#inputDNPurchaseOrder').value = poData.po_number || `PO #${poId}`;
         modalRoot.querySelector('#inputDNPurchaseOrderId').value = poId;
@@ -65,20 +80,31 @@ async function loadPOForDebitNote(poId) {
             const name = line.item_name || '—';
             const orderedQty = parseFloat(line.quantity) || 0;
             const alreadyReturned = parseFloat(returnedQtys[line.item_id]) || 0;
-            const maxQty = Math.max(0, orderedQty - alreadyReturned);
+            const remainingFromPO = Math.max(0, orderedQty - alreadyReturned);
+            const currentStock = stockLevels[line.item_id] || 0;
+            // Max returnable = min(what hasn't been returned yet, what's actually in stock)
+            const maxQty = Math.min(remainingFromPO, currentStock);
             const unitFc = parseFloat(line.unit_price_fc) || 0;
             const unitBc = parseFloat(line.unit_price_bc) || 0;
+
+            let infoText = '';
+            if (alreadyReturned > 0) {
+                infoText += `<small class="text-muted d-block">${alreadyReturned} returned</small>`;
+            }
+            if (currentStock < remainingFromPO) {
+                infoText += `<small class="text-warning d-block">Stock: ${currentStock}</small>`;
+            }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${escHtml(name)}</td>
-                <td>${orderedQty}${alreadyReturned > 0 ? ` <small class="text-muted">(${alreadyReturned} returned)</small>` : ''}</td>
+                <td>${orderedQty}${infoText}</td>
                 <td><input type="number" class="form-control form-control-sm dn-qty" 
                      data-idx="${idx}" min="0" max="${maxQty}" step="0.001" value="0"
                      ${maxQty <= 0 ? 'disabled' : ''}></td>
-                <td>${unitFc.toFixed(2)}</td>
-                <td>${unitBc.toFixed(2)}</td>
-                <td class="dn-line-total">0.00</td>
+                <td class="text-end">${unitFc.toFixed(2)}</td>
+                <td class="text-end">${unitBc.toFixed(2)}</td>
+                <td class="text-end dn-line-total">0.00</td>
             `;
             tr.dataset.itemId = line.item_id || '';
             tr.dataset.unitPriceFc = unitFc;
@@ -86,9 +112,20 @@ async function loadPOForDebitNote(poId) {
             tbody.appendChild(tr);
         });
 
-        // Attach qty change listeners
+        // Attach qty change listeners with max enforcement
         tbody.querySelectorAll('.dn-qty').forEach(input => {
-            input.addEventListener('input', recalculateTotal);
+            input.addEventListener('input', () => {
+                // Clamp to max
+                const max = parseFloat(input.max) || 0;
+                const val = parseFloat(input.value) || 0;
+                if (val > max) {
+                    input.value = max;
+                }
+                if (val < 0) {
+                    input.value = 0;
+                }
+                recalculateTotal();
+            });
         });
     } catch (err) {
         console.error('Failed to load PO for debit note:', err);

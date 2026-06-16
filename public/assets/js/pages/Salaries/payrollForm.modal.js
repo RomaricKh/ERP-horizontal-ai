@@ -89,19 +89,27 @@ export function unmount() {
 
 async function loadEmployees() {
     try {
-        const res = await apiFetch('/api/people?type=Employee');
+        const res = await apiFetch('/api/people');
         const json = await res.json();
-        const people = json.success ? (json.data?.people ?? json.data ?? []) : [];
+        const allPeople = json.success ? (json.data?.people ?? []) : [];
+
+        // Filter to only people with 'Employee' in their payee_types
+        const employees = allPeople.filter(p => {
+            const types = (p.payee_types || '').toLowerCase();
+            return types.includes('employee');
+        });
 
         const container = document.getElementById('payrollEmployeeSelectContainer');
-        if (!container || people.length === 0) {
-            if (container) container.innerHTML = '<span class="text-muted small">No employees found.</span>';
+        if (!container) return;
+
+        if (employees.length === 0) {
+            container.innerHTML = '<span class="text-muted small"><i class="fas fa-info-circle me-1"></i>No employees found. Add people with the "Employee" type first.</span>';
             return;
         }
 
-        const options = people.map(p => ({
+        const options = employees.map(p => ({
             value: String(p.payee_id || p.id),
-            label: p.name || p.employee_name || `Employee #${p.id}`
+            label: p.name || `Employee #${p.id}`
         }));
 
         employeeSelect = createMultiSelect({

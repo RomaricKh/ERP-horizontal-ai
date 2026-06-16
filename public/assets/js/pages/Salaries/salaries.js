@@ -1,6 +1,6 @@
 // assets/js/pages/Salaries/salaries.js
 
-import { hasPermission } from '../../Auth/auth.js';
+import { hasPermission, getToken } from '../../Auth/auth.js';
 import { registerPageActions } from '../Core/pageActions.js';
 import { MODAL_SCOPE, openModal, closeModalsInContainer, confirm, alert } from '../../components/modals.js';
 import { createDataTable } from '../../templates/datatables.design.js';
@@ -131,7 +131,7 @@ export async function mount() {
             if (!id) return;
 
             // Open payslip PDF in a new tab (pass token for auth since window.open doesn't send headers)
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const token = getToken();
             window.open(`/api/salaries/${id}/payslip?token=${encodeURIComponent(token)}`, '_blank');
         },
 
