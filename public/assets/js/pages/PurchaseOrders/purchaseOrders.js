@@ -363,7 +363,7 @@ function renderTable(pos) {
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 8, className: 'text-center', orderable: false, searchable: false }
+                { targets: 9, className: 'text-center', orderable: false, searchable: false }
             ]
         });
     }
@@ -389,8 +389,9 @@ function renderTable(pos) {
         }
 
         const totalFc   = po.total_amount_fc != null ? getFormatter().formatNumber(po.total_amount_fc, 2) : '0.00';
-        const balanceFc = po.balance_fc != null ? getFormatter().formatNumber(po.balance_fc, 2) : '0.00';
+        const returnsFc = po.returns_fc != null && po.returns_fc > 0 ? getFormatter().formatNumber(po.returns_fc, 2) : '—';
         const paidFc    = po.amount_paid_fc != null ? getFormatter().formatNumber(po.amount_paid_fc, 2) : '0.00';
+        const balanceFc = po.balance_fc != null ? getFormatter().formatNumber(po.balance_fc, 2) : '0.00';
 
         // Build actions: primary inline + overflow dropdown
         const actionItems = buildActionItems(po, { canView, canDelete, canApprove, canReceive, canPay, canCreate, canEdit });
@@ -403,6 +404,7 @@ function renderTable(pos) {
             getFormatter().formatDate(po.po_date || ''),
             statusBadge + paymentBadge,
             `${escHtml(po.currency || '')} ${totalFc}`,
+            returnsFc === '—' ? '—' : `${escHtml(po.currency || '')} ${returnsFc}`,
             `${escHtml(po.currency || '')} ${paidFc}`,
             `${escHtml(po.currency || '')} ${balanceFc}`,
             actions

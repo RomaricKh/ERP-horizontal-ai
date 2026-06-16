@@ -20,6 +20,8 @@ class PurchaseOrdersController extends BaseController {
     public function index(): void {
         try {
             $this->auth();
+            $ctx = AuthContext::get();
+            $db = Database::getConnection();
             $pos = $this->service->list();
             // Include computed payment_status and amounts for each PO
             foreach ($pos as &$po) {
@@ -28,10 +30,29 @@ class PurchaseOrdersController extends BaseController {
                 } catch (\Throwable $e) {
                     $po['payment_status'] = null;
                 }
-                $remaining = $this->service->computeRemainingAmountFc((int) $po['id']);
+
+                // Get actual payments (from payment_allocations)
+                $paidStmt = $db->prepare("
+                    SELECT COALESCE(SUM(amount_fc), 0)
+                    FROM payment_allocations
+                    WHERE reference_type = 'PURCHASE_ORDER' AND reference_id = :po_id
+                ");
+                $paidStmt->execute(['po_id' => (int) $po['id']]);
+                $po['amount_paid_fc'] = (float) $paidStmt->fetchColumn();
+
+                // Get debit note returns (ISSUED only)
+                $dnStmt = $db->prepare("
+                    SELECT COALESCE(SUM(total_amount_fc), 0)
+                    FROM debit_notes
+                    WHERE purchase_order_id = :po_id AND business_id = :bid AND status = 'ISSUED'
+                ");
+                $dnStmt->execute(['po_id' => (int) $po['id'], 'bid' => $ctx->business_id]);
+                $po['returns_fc'] = (float) $dnStmt->fetchColumn();
+
+                // Balance = total - returns - paid
                 $totalFc = (float) ($po['total_amount_fc'] ?? 0);
-                $po['amount_paid_fc'] = round($totalFc - $remaining, 2);
-                $po['balance_fc'] = $remaining;
+                $po['balance_fc'] = round($totalFc - $po['returns_fc'] - $po['amount_paid_fc'], 2);
+                if ($po['balance_fc'] < 0) $po['balance_fc'] = 0;
             }
             unset($po);
             $this->json(true, ['purchase_orders' => $pos]);
