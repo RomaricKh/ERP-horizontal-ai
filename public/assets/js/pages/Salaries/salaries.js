@@ -130,8 +130,9 @@ export async function mount() {
             const id      = rowData[0];
             if (!id) return;
 
-            // Open payslip PDF in a new tab
-            window.open(`/api/salaries/${id}/payslip`, '_blank');
+            // Open payslip PDF in a new tab (pass token for auth since window.open doesn't send headers)
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            window.open(`/api/salaries/${id}/payslip?token=${encodeURIComponent(token)}`, '_blank');
         },
 
         'salaries.generate-payroll': async () => {

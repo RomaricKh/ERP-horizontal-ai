@@ -25,15 +25,19 @@ class AuthMiddleware {
     public function handle($requiredPermissions = null): void {
         $headers = getallheaders();
 
-        if (empty($headers['Authorization'])) {
+        // Try Authorization header first, fall back to ?token= query parameter (for PDF downloads)
+        $token = null;
+        if (!empty($headers['Authorization']) && preg_match('/Bearer\s(\S+)/', $headers['Authorization'], $m)) {
+            $token = $m[1];
+        } elseif (!empty($_GET['token'])) {
+            $token = $_GET['token'];
+        }
+
+        if (!$token) {
             $this->unauthorized('Missing Authorization header');
         }
 
-        if (!preg_match('/Bearer\s(\S+)/', $headers['Authorization'], $m)) {
-            $this->unauthorized('Invalid Authorization format');
-        }
-
-        $decoded = $this->auth->verifyToken($m[1]);
+        $decoded = $this->auth->verifyToken($token);
 
         if (!$decoded) {
             $this->unauthorized('Invalid or expired token');

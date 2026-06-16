@@ -442,7 +442,7 @@ class PaymentService {
                 $stmt = $this->db->prepare("SELECT net_amount_bc AS total_amount_bc FROM salaries WHERE id = :id LIMIT 1");
                 break;
             case 'PARTNER_PROFIT':
-                $stmt = $this->db->prepare("SELECT amount_bc AS total_amount_bc FROM partner_distributions WHERE id = :id LIMIT 1");
+                $stmt = $this->db->prepare("SELECT amount_bc AS total_amount_bc FROM profit_distributions WHERE id = :id LIMIT 1");
                 break;
             default:
                 return 0.0;
