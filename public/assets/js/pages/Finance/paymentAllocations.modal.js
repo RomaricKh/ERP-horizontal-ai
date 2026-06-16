@@ -20,9 +20,9 @@ export async function mount({ modalRoot: root, data }) {
         const amountEl = modalRoot.querySelector('#allocPaymentAmount');
 
         if (numEl) numEl.textContent = payment.payment_number || '—';
-        if (dateEl) dateEl.textContent = fmt.formatDate(payment.payment_date) || payment.payment_date || '—';
+        if (dateEl) dateEl.textContent = payment.payment_date || '—';
         if (payeeEl) payeeEl.textContent = payment.payee_name || '—';
-        if (amountEl) amountEl.textContent = `${payment.currency || ''} ${fmt.formatNumber(payment.amount_fc, 2)}`;
+        if (amountEl) amountEl.textContent = payment.amount_fc || '—';
     }
 
     // Fetch allocations

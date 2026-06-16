@@ -67,7 +67,6 @@ export async function mount() {
                         payment_date: rowData[2],
                         payee_name: rowData[3],
                         amount_fc: rowData[5],
-                        currency: '',
                     }
                 },
                 options: { backdrop: false, keyboard: true, focus: true }
