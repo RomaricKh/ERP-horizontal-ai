@@ -48,19 +48,17 @@ async function loadPOForDebitNote(poId) {
         }
         poData = json.data.purchase_order;
 
-        // Fetch current stock levels for all items in the PO
-        const itemIds = [...new Set((poData.lines || []).map(l => l.item_id).filter(Boolean))];
+        // Fetch all items to get current stock levels (the listing includes stock_qty)
         const stockLevels = {};
-        for (const itemId of itemIds) {
-            try {
-                const stockRes = await apiFetch(`/api/items/${itemId}`);
-                const stockJson = await stockRes.json();
-                if (stockJson.success && stockJson.data?.item) {
-                    stockLevels[itemId] = parseFloat(stockJson.data.item.stock_qty) || 0;
-                }
-            } catch (e) {
-                stockLevels[itemId] = 0;
-            }
+        try {
+            const itemsRes = await apiFetch('/api/items');
+            const itemsJson = await itemsRes.json();
+            const allItems = itemsJson.success ? (itemsJson.data?.items ?? []) : [];
+            allItems.forEach(item => {
+                stockLevels[item.id] = parseFloat(item.stock_qty) || 0;
+            });
+        } catch (e) {
+            console.warn('Failed to load stock levels:', e);
         }
 
         // Populate header fields
