@@ -158,8 +158,12 @@ export async function mount() {
         },
 
         'po.debit-note': async ({ el }) => {
-            // Navigate to the debit notes page (filtered by this PO if needed)
-            window.location.hash = '#/purchase-orders/debit-notes';
+            // Navigate to the debit notes page filtered by this PO
+            const tr = el.closest('tr');
+            const rowData = poDataTable.row(tr).data();
+            const id = rowData[0];
+            if (!id) return;
+            window.location.hash = `#/purchase-orders/debit-notes?po_id=${id}`;
         },
 
         'po.duplicate': async ({ el }) => {
@@ -460,7 +464,7 @@ function renderActions(items) {
 
     if (overflow.length > 0) {
         html += `<div class="dropdown d-inline-block">
-            <button class="btn btn-light btn-circle btn-sm" data-bs-toggle="dropdown" data-bs-auto-close="true" title="More">
+            <button class="btn btn-light btn-circle btn-sm" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="dynamic" title="More">
                 <i class="fas fa-ellipsis-v"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm">

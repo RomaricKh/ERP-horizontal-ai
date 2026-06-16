@@ -60,3 +60,41 @@ window.addEventListener('blur', () => {
 
 // Initial claim
 markActive();
+
+// ─── Global: Fix dropdown overflow in DataTables ─────────────────────────
+// When a dropdown inside a table opens, reposition it as fixed to prevent
+// clipping by overflow:hidden/auto on parent containers.
+document.addEventListener('shown.bs.dropdown', (e) => {
+    const menu = e.target.nextElementSibling || e.target.parentElement.querySelector('.dropdown-menu');
+    if (!menu) return;
+
+    // Only fix dropdowns inside tables
+    const table = e.target.closest('.table-responsive, .dataTables_wrapper');
+    if (!table) return;
+
+    const btnRect = e.target.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${btnRect.bottom + 2}px`;
+    menu.style.left = 'auto';
+    menu.style.right = `${window.innerWidth - btnRect.right}px`;
+    menu.style.transform = 'none';
+    menu.style.zIndex = '1080';
+
+    // If dropdown would go below viewport, open upward
+    const menuHeight = menu.offsetHeight;
+    if (btnRect.bottom + menuHeight + 10 > window.innerHeight) {
+        menu.style.top = `${btnRect.top - menuHeight - 2}px`;
+    }
+});
+
+document.addEventListener('hidden.bs.dropdown', (e) => {
+    const menu = e.target.nextElementSibling || e.target.parentElement.querySelector('.dropdown-menu');
+    if (!menu) return;
+    // Reset styles
+    menu.style.position = '';
+    menu.style.top = '';
+    menu.style.left = '';
+    menu.style.right = '';
+    menu.style.transform = '';
+    menu.style.zIndex = '';
+});

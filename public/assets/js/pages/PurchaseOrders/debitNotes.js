@@ -17,8 +17,13 @@ let dn_container;
 let unregister;
 let dnUpdatedHandler;
 let dnDataTable = null;
+let currentPoId = null;
 
 export async function mount() {
+    // Extract po_id from URL query string
+    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    currentPoId = params.get('po_id') || null;
+
     await fetchDebitNotes();
 
     dnUpdatedHandler = async () => { await fetchDebitNotes(); };
@@ -31,7 +36,7 @@ export async function mount() {
                 scope: MODAL_SCOPE.PAGE,
                 template: 'html/PurchaseOrders/debitNoteForm.html',
                 controller: '../pages/PurchaseOrders/debitNoteCreate.modal.js',
-                data: {},
+                data: { po_id: currentPoId ? parseInt(currentPoId) : null },
                 options: { backdrop: false, keyboard: true, focus: true }
             });
         },
@@ -111,6 +116,7 @@ export function unmount() {
     unregister = null;
     dnDataTable?.destroy();
     dnDataTable = null;
+    currentPoId = null;
     closeModalsInContainer(dn_container);
 }
 
@@ -122,13 +128,36 @@ export async function render(container) {
     if (!hasPermission('po.edit')) {
         container.querySelectorAll('[data-action="dn.create"]').forEach(el => el.remove());
     }
+
+    // Show PO context in the subtitle if filtered
+    if (currentPoId) {
+        const subtitle = container.querySelector('#dnSubtitle');
+        if (subtitle) {
+            try {
+                const res = await apiFetch(`/api/purchase-orders/${currentPoId}`);
+                const json = await res.json();
+                if (json.success) {
+                    const po = json.data.purchase_order;
+                    subtitle.textContent = `Showing returns for ${po.po_number || 'PO #' + currentPoId} — ${po.supplier_name || ''}`;
+                }
+            } catch (e) { /* ignore */ }
+        }
+    }
 }
 
 async function fetchDebitNotes() {
     const res = await apiFetch('/api/debit-notes');
     const json = await res.json();
     if (!json.success) return;
-    renderTable(json.data?.debit_notes ?? []);
+
+    let notes = json.data?.debit_notes ?? [];
+
+    // Filter by current PO if specified
+    if (currentPoId) {
+        notes = notes.filter(n => String(n.purchase_order_id) === String(currentPoId));
+    }
+
+    renderTable(notes);
 }
 
 function renderTable(notes) {
