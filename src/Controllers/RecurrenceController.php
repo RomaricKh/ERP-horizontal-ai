@@ -80,7 +80,7 @@ class RecurrenceController extends BaseController
     {
         try {
             $this->auth();
-            $data = $this->input(['frequency', 'default_amount', 'default_currency', 'start_date']);
+            $data = $this->input(['frequency', 'default_amount', 'default_currency', 'start_date', 'end_date']);
 
             $id = $this->recurrenceService->createSchedule('EXPENSE', $expenseId, $data);
             $this->json(true, ['id' => $id], null, 201);
@@ -90,7 +90,7 @@ class RecurrenceController extends BaseController
             $code = str_contains($e->getMessage(), 'not found') ? 404 : 409;
             $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to create expense recurrence');
+            $this->serverError('Failed to create expense recurrence: ' . $e->getMessage());
         }
     }
 

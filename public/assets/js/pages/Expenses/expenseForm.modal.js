@@ -287,10 +287,10 @@ async function handleRecurrenceSave(expenseId) {
             });
             const json = await res.json();
             if (!res.ok || !json.success) {
-                console.warn('Recurrence save failed:', json.message);
+                showFormError('Recurrence: ' + (json.message || 'Failed to save recurring schedule'));
             }
         } catch (err) {
-            console.warn('Recurrence save error:', err);
+            showFormError('Recurrence: ' + (err.message || 'Failed to save recurring schedule'));
         }
     }
 }

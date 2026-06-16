@@ -92,9 +92,11 @@ class RecurrenceService
         }
 
         // Create the schedule
+        $ctx = AuthContext::get();
         $scheduleId = $this->scheduleRepo->create([
             'entity_type'      => $entityType,
             'entity_id'        => $entityId,
+            'business_id'      => $ctx->business_id,
             'frequency'        => $data['frequency'],
             'default_amount'   => $data['default_amount'],
             'default_currency' => $data['default_currency'],
@@ -1768,7 +1770,7 @@ class RecurrenceService
     {
         $required = ['frequency', 'default_amount', 'default_currency', 'start_date'];
         foreach ($required as $field) {
-            if (empty($data[$field])) {
+            if (!isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '')) {
                 throw new \InvalidArgumentException("Missing field: {$field}");
             }
         }
@@ -1777,6 +1779,10 @@ class RecurrenceService
             throw new \InvalidArgumentException(
                 'Invalid frequency. Must be one of: ' . implode(', ', self::VALID_FREQUENCIES)
             );
+        }
+
+        if (!is_numeric($data['default_amount']) || (float) $data['default_amount'] <= 0) {
+            throw new \InvalidArgumentException('Default amount must be greater than zero');
         }
     }
 
