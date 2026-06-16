@@ -136,22 +136,30 @@ function renderList() {
         return;
     }
 
-    container.innerHTML = categories.map(cat => `
-        <div class="expense-category-row d-flex align-items-center justify-content-between border-bottom py-2">
-            <div class="d-flex align-items-center gap-2">
-                <span class="category-label">${escHtml(cat.name)}</span>
-                ${cat.is_fixed ? '<span class="badge bg-secondary">Fixed</span>' : ''}
-            </div>
-            <div class="d-flex gap-2">
+    container.innerHTML = categories.map(cat => {
+        const isSystem = parseInt(cat.is_system) === 1;
+        const badge = isSystem ? ' <span class="badge bg-secondary ms-1">System</span>' : '';
+        const fixedBadge = cat.is_fixed ? ' <span class="badge bg-info ms-1">Fixed</span>' : '';
+        const actions = isSystem
+            ? '<span class="text-muted small"><i class="fas fa-lock me-1"></i>Protected</span>'
+            : `<div class="d-flex gap-2">
                 <button class="btn btn-sm btn-outline-secondary" data-action="expense-categories.edit" data-id="${cat.id}" title="Edit">
                     <i class="fas fa-pencil-alt"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-danger" data-action="expense-categories.delete" data-id="${cat.id}" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
+               </div>`;
+
+        return `
+            <div class="expense-category-row d-flex align-items-center justify-content-between border-bottom py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="category-label">${escHtml(cat.name)}${badge}${fixedBadge}</span>
+                </div>
+                ${actions}
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function escHtml(str) {

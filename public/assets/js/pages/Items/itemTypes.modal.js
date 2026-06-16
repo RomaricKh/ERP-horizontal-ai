@@ -119,19 +119,27 @@ function renderList() {
         return;
     }
 
-    container.innerHTML = visibleTypes.map(t => `
-        <div class="item-type-row d-flex align-items-center justify-content-between border-bottom py-2">
-            <span class="type-label">${escHtml(t.name)}</span>
-            <div class="d-flex gap-2">
+    container.innerHTML = visibleTypes.map(t => {
+        const isSystem = parseInt(t.is_system) === 1;
+        const badge = isSystem ? ' <span class="badge bg-secondary ms-1">System</span>' : '';
+        const actions = isSystem
+            ? '<span class="text-muted small"><i class="fas fa-lock me-1"></i>Protected</span>'
+            : `<div class="d-flex gap-2">
                 <button class="btn btn-sm btn-outline-secondary" data-action="item-types.edit" data-id="${t.id}" title="Edit">
                     <i class="fas fa-pencil-alt"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-danger" data-action="item-types.delete" data-id="${t.id}" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
+               </div>`;
+
+        return `
+            <div class="item-type-row d-flex align-items-center justify-content-between border-bottom py-2">
+                <span class="type-label">${escHtml(t.name)}${badge}</span>
+                ${actions}
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function escHtml(str) {
