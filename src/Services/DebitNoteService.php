@@ -205,11 +205,12 @@ class DebitNoteService
             }
 
             // Reduce supplier payee balance (debit note reduces what we owe supplier)
+            // Convention: positive delta = reduces debt (same as payment)
             $supplierId = $po['supplier_id'] ?? null;
             if ($supplierId) {
                 $totalBc = (float) $note['total_amount_bc'];
                 if ($totalBc > 0) {
-                    $this->peopleRepo->updatePayeeBalance((int) $supplierId, -$totalBc);
+                    $this->peopleRepo->updatePayeeBalance((int) $supplierId, $totalBc);
                 }
             }
 
