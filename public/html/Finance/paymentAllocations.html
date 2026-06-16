@@ -1,0 +1,66 @@
+<!-- Payment Allocations View Modal -->
+<div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+  <div class="modal-content text-gray-800">
+
+    <div class="modal-header bg-gradient-dark text-white">
+      <h5 class="modal-title" id="allocModalTitle">
+        <i class="fas fa-layer-group me-2"></i><span>Payment Allocations</span>
+      </h5>
+      <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4">
+
+      <!-- Payment Summary -->
+      <div class="border rounded p-3 mb-4 bg-light">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <small class="text-muted d-block">Payment #</small>
+            <strong id="allocPaymentNumber">—</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted d-block">Date</small>
+            <strong id="allocPaymentDate">—</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted d-block">Payee</small>
+            <strong id="allocPayeeName">—</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted d-block">Amount</small>
+            <strong id="allocPaymentAmount" class="text-primary">—</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Allocations Table -->
+      <div class="border rounded p-3">
+        <h6 class="text-primary fw-bold mb-3"><i class="fas fa-sitemap me-1"></i> Allocation Breakdown</h6>
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Document</th>
+                <th>Type</th>
+                <th class="text-end">Amount (FC)</th>
+                <th class="text-end">Amount (BC)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="allocTableBody">
+              <tr><td colspan="5" class="text-center text-muted py-3">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-light border" type="button" data-bs-dismiss="modal">
+        <i class="fas fa-times me-1"></i>Close
+      </button>
+    </div>
+
+  </div>
+</div>

@@ -55,7 +55,23 @@ export async function mount() {
             const rowData = paymentsDataTable.row(tr).data();
             const id      = rowData[0];
             if (!id) return;
-            await showAllocationDetail(id, rowData);
+
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/Finance/paymentAllocations.html',
+                controller: '../pages/Finance/paymentAllocations.modal.js',
+                data: {
+                    payment_id: id,
+                    payment: {
+                        payment_number: rowData[1],
+                        payment_date: rowData[2],
+                        payee_name: rowData[3],
+                        amount_fc: rowData[5],
+                        currency: '',
+                    }
+                },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
         },
 
         'payments.delete': async ({ el }) => {
@@ -164,79 +180,4 @@ function renderTable(payments) {
 
     paymentsDataTable.draw(false);
     paymentsDataTable.columns.adjust();
-}
-
-async function showAllocationDetail(paymentId, rowData) {
-    const fmt = getFormatter();
-
-    try {
-        const res = await apiFetch(`/api/payments/${paymentId}/allocations`);
-        const json = await res.json();
-        if (!json.success) return;
-
-        const allocations = json.data?.allocations ?? [];
-
-        // Populate header
-        const headerEl = document.getElementById('paymentAllocDetailHeader');
-        if (headerEl) {
-            headerEl.innerHTML = `
-                <div class="d-flex justify-content-between">
-                    <span><strong>Payment:</strong> ${escHtml(rowData[1])}</span>
-                    <span><strong>Amount:</strong> ${rowData[6]}</span>
-                    <span><strong>Date:</strong> ${rowData[2]}</span>
-                </div>
-            `;
-        }
-
-        // Populate body
-        const tbody = document.getElementById('paymentAllocDetailBody');
-        if (tbody) {
-            if (allocations.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No allocations recorded</td></tr>`;
-            } else {
-                tbody.innerHTML = '';
-                allocations.forEach(alloc => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${escHtml(alloc.doc_number || `#${alloc.reference_id}`)}</td>
-                        <td><span class="badge bg-secondary">${formatRefType(alloc.reference_type)}</span></td>
-                        <td class="text-end">${fmt.formatNumber(alloc.amount_bc, 2)}</td>
-                        <td class="text-end">${fmt.formatNumber(alloc.amount_fc, 2)}</td>
-                        <td>${alloc.doc_status ? `<span class="badge bg-${getStatusColor(alloc.doc_status)}">${alloc.doc_status}</span>` : '—'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            }
-        }
-
-        // Show the modal
-        const modalEl = document.getElementById('paymentAllocDetailModal');
-        if (modalEl) {
-            const modal = new bootstrap.Modal(modalEl);
-            modal.show();
-        }
-    } catch (err) {
-        console.error('showAllocationDetail failed:', err);
-    }
-}
-
-function formatRefType(type) {
-    const map = {
-        'PURCHASE_ORDER': 'PO',
-        'EXPENSE': 'Expense',
-        'SALARY': 'Salary',
-        'PARTNER_PROFIT': 'Profit Dist.',
-    };
-    return map[type] || type;
-}
-
-function getStatusColor(status) {
-    const map = {
-        'CLOSED': 'success',
-        'PAID': 'success',
-        'RECEIVED': 'info',
-        'DELIVERED': 'info',
-        'PARTIALLY_PAID': 'warning',
-    };
-    return map[status] || 'secondary';
 }
