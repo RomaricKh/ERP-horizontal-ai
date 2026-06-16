@@ -1,15 +1,16 @@
 // assets/js/components/supplierPricesPanel.js
-// Renders supplier price data for an item inside a given container element.
+// Renders supplier/purchase price history for an item inside a given container element.
 
 import { apiFetch } from '../Auth/apiFetch.js';
 import { getFormatter } from '../i18n/translationClient.js';
 
 /**
  * Render supplier prices for an item inside the specified container.
- * Shows a table of supplier prices sourced from purchase order history.
+ * Shows a table of historical cost prices from the price history table
+ * (populated when POs are received and price changes).
  *
  * @param {string} containerId - The DOM element ID to render into
- * @param {number} itemId - The item ID to fetch supplier prices for
+ * @param {number|string} itemId - The item ID to fetch supplier prices for
  */
 export async function renderSupplierPricesPanel(containerId, itemId) {
     const container = document.getElementById(containerId);
@@ -24,73 +25,72 @@ export async function renderSupplierPricesPanel(containerId, itemId) {
     `;
 
     try {
-        const res = await apiFetch(`/api/items/${itemId}/stock/history`);
+        const res = await apiFetch(`/api/items/${itemId}/price-history`);
         const json = await res.json();
 
         if (!json.success) {
-            container.innerHTML = `<p class="text-muted small">No supplier price data available.</p>`;
+            container.innerHTML = `<p class="text-muted small p-3 mb-0">No price history available.</p>`;
             return;
         }
 
-        const history = json.data?.history || json.data || [];
+        // Response shape: { success: true, data: [ {price_type, old_price, new_price, effective_date, source_type, source_id, ...} ] }
+        const records = Array.isArray(json.data) ? json.data : (json.data?.records || json.data?.history || []);
 
-        // Extract unique supplier prices from stock history (PO receipts)
-        const supplierPrices = extractSupplierPrices(history);
-
-        if (supplierPrices.length === 0) {
-            container.innerHTML = `<p class="text-muted small">No supplier price history found for this item.</p>`;
+        if (!Array.isArray(records) || records.length === 0) {
+            container.innerHTML = `<p class="text-muted small p-3 mb-0">No price history found for this item.</p>`;
             return;
         }
 
-        renderTable(container, supplierPrices);
+        renderTable(container, records);
     } catch (err) {
         console.error('renderSupplierPricesPanel failed:', err);
-        container.innerHTML = `<p class="text-danger small">Failed to load supplier prices.</p>`;
+        container.innerHTML = `<p class="text-danger small p-3 mb-0">Failed to load price history.</p>`;
     }
 }
 
-function extractSupplierPrices(history) {
-    // Filter to stock-in transactions from purchase orders
-    const poRecords = history.filter(h =>
-        h.type === 'IN' && h.reference_type === 'PURCHASE_ORDER'
-    );
-
-    // Group by supplier (reference_id) and find latest price per supplier
-    const supplierMap = new Map();
-    for (const record of poRecords) {
-        const key = record.reference_id;
-        if (!supplierMap.has(key) || record.created_at > supplierMap.get(key).created_at) {
-            supplierMap.set(key, record);
-        }
-    }
-
-    return Array.from(supplierMap.values());
-}
-
-function renderTable(container, prices) {
+function renderTable(container, records) {
     const fmt = getFormatter();
 
-    const rows = prices.map(p => `
-        <tr>
-            <td>${escHtml(p.supplier_name || `PO #${p.reference_id}`)}</td>
-            <td class="text-end">${p.unit_cost != null ? fmt.formatNumber(p.unit_cost, 4) : '—'}</td>
-            <td>${p.created_at ? fmt.formatDate(p.created_at) : '—'}</td>
-            <td class="text-end">${p.quantity != null ? fmt.formatNumber(p.quantity, 3) : '—'}</td>
-        </tr>
-    `).join('');
+    // Filter to COST price type changes and show most recent first (up to 10)
+    const costRecords = records
+        .filter(r => r.price_type === 'COST')
+        .slice(0, 10);
+
+    if (costRecords.length === 0) {
+        container.innerHTML = `<p class="text-muted small p-3 mb-0">No cost price changes recorded.</p>`;
+        return;
+    }
+
+    const rows = costRecords.map(r => {
+        const oldPrice = r.old_price != null ? fmt.formatNumber(r.old_price, 4) : '—';
+        const newPrice = r.new_price != null ? fmt.formatNumber(r.new_price, 4) : '—';
+        const date = r.effective_date ? fmt.formatDate(r.effective_date) : '—';
+        const source = r.source_type || '—';
+        const sourceLabel = source === 'PURCHASE_ORDER' ? `PO (${r.source_id || '?'})`
+            : source === 'MANUAL_EDIT' ? 'Manual'
+            : source === 'MANUFACTURING' ? 'Manufacturing'
+            : source === 'INITIAL' ? 'Initial'
+            : source;
+
+        return `
+            <tr>
+                <td><span class="badge bg-light text-dark">${escHtml(sourceLabel)}</span></td>
+                <td class="text-end text-muted"><s>${oldPrice}</s></td>
+                <td class="text-end fw-semibold">${newPrice}</td>
+                <td>${date}</td>
+            </tr>
+        `;
+    }).join('');
 
     container.innerHTML = `
-        <h6 class="text-primary fw-bold mb-2">
-            <i class="fas fa-truck me-1"></i> Supplier Prices
-        </h6>
         <div class="table-responsive">
-            <table class="table table-sm table-bordered">
-                <thead>
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
                     <tr>
-                        <th>Supplier / Source</th>
-                        <th class="text-end">Unit Cost</th>
+                        <th>Source</th>
+                        <th class="text-end">Old Cost</th>
+                        <th class="text-end">New Cost</th>
                         <th>Date</th>
-                        <th class="text-end">Qty</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
@@ -100,7 +100,7 @@ function renderTable(container, prices) {
 }
 
 function escHtml(str) {
-    return String(str)
+    return String(str || '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')

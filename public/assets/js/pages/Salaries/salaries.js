@@ -288,10 +288,12 @@ function renderTable(salaries) {
         const netBc = salary.net_amount_bc != null ? getFormatter().formatNumber(salary.net_amount_bc, 2) : '0.00';
 
         const fmtDate = getFormatter().formatDate;
+        const startStr = salary.period_start || '';
+        const endStr = salary.period_end || '';
         const period = escHtml(
-            (fmtDate(salary.period_start ?? '') || salary.period_start ?? '') +
+            (fmtDate(startStr) || startStr) +
             ' → ' +
-            (fmtDate(salary.period_end ?? '') || salary.period_end ?? '')
+            (fmtDate(endStr) || endStr)
         );
 
         salariesDataTable.row.add([

@@ -319,8 +319,8 @@ function addLineRow(prefill) {
         const costPrice = selectedOption?.dataset?.cost;
         const itemHasExpiry = selectedOption?.dataset?.hasExpiry === '1';
 
-        // Auto-fill cost price from item's stored cost_price
-        if (costPrice && !tr.querySelector('.line-unit-fc').value) {
+        // Auto-fill cost price from item's stored cost_price (always update on item change)
+        if (costPrice) {
             tr.querySelector('.line-unit-fc').value = parseFloat(costPrice).toFixed(2);
             recalcLine(tr);
         }

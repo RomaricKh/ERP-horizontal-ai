@@ -25,9 +25,16 @@ class AuthMiddleware {
     public function handle($requiredPermissions = null): void {
         $headers = getallheaders();
 
+        // Normalize header keys to handle case-insensitivity
+        $normalizedHeaders = [];
+        foreach ($headers as $key => $value) {
+            $normalizedHeaders[strtolower($key)] = $value;
+        }
+
         // Try Authorization header first, fall back to ?token= query parameter (for PDF downloads)
         $token = null;
-        if (!empty($headers['Authorization']) && preg_match('/Bearer\s(\S+)/', $headers['Authorization'], $m)) {
+        $authHeader = $normalizedHeaders['authorization'] ?? null;
+        if (!empty($authHeader) && preg_match('/Bearer\s(\S+)/', $authHeader, $m)) {
             $token = $m[1];
         } elseif (!empty($_GET['token'])) {
             $token = $_GET['token'];
