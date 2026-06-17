@@ -3,7 +3,7 @@
 import { registerPageActions } from '../Core/pageActions.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
 import { calcBc, formatAmount } from '../../utils/currency.js';
-import { populatePayeeSelect } from '../../utils/payeeSelect.js';
+import { populatePayeeSelect, getPeopleIdForPayee } from '../../utils/payeeSelect.js';
 import { attachRateAutoFetch } from '../../utils/exchangeRateHelper.js';
 import { isModuleActive } from '../../services/ModuleService.js';
 
@@ -239,25 +239,22 @@ async function loadServices() {
 
 async function loadItems(customerId) {
     try {
-        // Load all items — includes global items + customer-specific items
         const url = '/api/items';
         const res  = await apiFetch(url);
         const json = await res.json();
         const allItems = json.success ? (json.data?.items ?? []) : [];
 
         if (customerId) {
-            // Get people_id from the selected customer option's data attribute
-            const customerSelect = F.customer();
-            const selectedOption = customerSelect?.options[customerSelect.selectedIndex];
-            const peopleId = selectedOption?.dataset?.peopleId || null;
+            // Resolve people_id from the payee_id using the cached mapping
+            const peopleId = getPeopleIdForPayee(customerId);
 
             if (peopleId) {
                 // Show globals + items belonging to this person
                 itemsList = allItems.filter(item =>
-                    !item.customer_id || String(item.customer_id) === String(peopleId)
+                    !item.customer_id || String(item.customer_id) === peopleId
                 );
             } else {
-                // Couldn't resolve people_id — show all items as fallback
+                // Couldn't resolve — show all items as fallback
                 itemsList = allItems;
             }
         } else {

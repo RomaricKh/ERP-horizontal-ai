@@ -222,69 +222,76 @@ async function fetchInvoices() {
     if (!data.success) return;
     allInvoices = data.data.sales_invoices ?? [];
     renderTable(allInvoices);
-    buildFilters();
 }
 
 function buildFilters() {
-    if (!statusFilterSelect) {
-        const statusHost = inv_container.querySelector('#siStatusFilterHost');
-        if (!statusHost) return;
+    if (statusFilterSelect) return; // Already built
 
-        statusFilterSelect = createMultiSelect({
-            container: statusHost,
-            options: [
-                { value: 'DRAFT', label: 'Draft' },
-                { value: 'DELIVERED', label: 'Delivered' },
-                { value: 'CANCELLED', label: 'Cancelled' },
-                { value: 'UNPAID', label: 'Unpaid' },
-                { value: 'PARTIALLY_PAID', label: 'Partial' },
-                { value: 'PAID', label: 'Paid' },
-            ],
-            placeholder: 'Filter status...',
+    const dtSearch = inv_container.querySelector('.dt-search') || inv_container.querySelector('.dataTables_filter');
+    if (!dtSearch) return;
+
+    const searchParent = dtSearch.parentElement;
+    searchParent.style.display = 'flex';
+    searchParent.style.alignItems = 'flex-start';
+    searchParent.style.gap = '1rem';
+    searchParent.style.flexWrap = 'wrap';
+
+    // Status filter
+    const statusHost = document.createElement('div');
+    statusHost.style.minWidth = '200px';
+    searchParent.insertBefore(statusHost, dtSearch);
+
+    statusFilterSelect = createMultiSelect({
+        container: statusHost,
+        options: [
+            { value: 'DRAFT', label: 'Draft' },
+            { value: 'DELIVERED', label: 'Delivered' },
+            { value: 'CANCELLED', label: 'Cancelled' },
+            { value: 'UNPAID', label: 'Unpaid' },
+            { value: 'PARTIAL', label: 'Partial' },
+            { value: 'SETTLED', label: 'Paid' },
+        ],
+        placeholder: 'Filter status...',
+        onChange: (selected) => {
+            if (!invDataTable) return;
+            if (selected.length === 0) {
+                invDataTable.column(4).search('').draw();
+            } else {
+                const regex = selected.join('|');
+                invDataTable.column(4).search(regex, true, false).draw();
+            }
+        }
+    });
+
+    // Customer filter
+    const customerMap = new Map();
+    allInvoices.forEach(inv => {
+        if (inv.customer_id && inv.customer_name) {
+            customerMap.set(String(inv.customer_id), inv.customer_name);
+        }
+    });
+    const customerOptions = Array.from(customerMap.entries()).map(([value, label]) => ({ value, label }));
+
+    if (customerOptions.length > 1) {
+        const customerHost = document.createElement('div');
+        customerHost.style.minWidth = '200px';
+        searchParent.insertBefore(customerHost, dtSearch);
+
+        customerFilterSelect = createMultiSelect({
+            container: customerHost,
+            options: customerOptions,
+            placeholder: 'Filter customer...',
             onChange: (selected) => {
                 if (!invDataTable) return;
                 if (selected.length === 0) {
-                    invDataTable.column(4).search('').draw();
+                    invDataTable.column(2).search('').draw();
                 } else {
-                    const regex = selected.map(s => s.replace(/_/g, '[ _]')).join('|');
-                    invDataTable.column(4).search(regex, true, false).draw();
+                    const selectedNames = selected.map(v => customerMap.get(v) || v);
+                    const regex = selectedNames.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                    invDataTable.column(2).search(regex, true, false).draw();
                 }
             }
         });
-    }
-
-    if (!customerFilterSelect) {
-        const customerMap = new Map();
-        allInvoices.forEach(inv => {
-            if (inv.customer_id && inv.customer_name) {
-                customerMap.set(String(inv.customer_id), inv.customer_name);
-            }
-        });
-        const customerOptions = Array.from(customerMap.entries()).map(([value, label]) => ({ value, label }));
-
-        if (customerOptions.length > 1) {
-            const customerHost = inv_container.querySelector('#siCustomerFilterHost');
-            if (customerHost) {
-                customerFilterSelect = createMultiSelect({
-                    container: customerHost,
-                    options: customerOptions,
-                    placeholder: 'Filter customer...',
-                    onChange: (selected) => {
-                        if (!invDataTable) return;
-                        if (selected.length === 0) {
-                            invDataTable.column(2).search('').draw();
-                        } else {
-                            const selectedNames = selected.map(v => {
-                                const entry = [...customerMap.entries()].find(([k]) => k === v);
-                                return entry ? entry[1] : v;
-                            });
-                            const regex = selectedNames.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-                            invDataTable.column(2).search(regex, true, false).draw();
-                        }
-                    }
-                });
-            }
-        }
     }
 }
 
@@ -344,6 +351,9 @@ function renderTable(invoices) {
                 { targets: 9, className: 'text-center', orderable: false, searchable: false }
             ]
         });
+
+        // Build filters next to the search box (after DataTable DOM is ready)
+        buildFilters();
     }
 
     invDataTable.clear();
@@ -361,7 +371,10 @@ function renderTable(invoices) {
         let paymentBadge = '';
         if (inv.status === 'DELIVERED' && inv.payment_status) {
             const pBadgeClass = PAYMENT_STATUS_BADGE[inv.payment_status] || 'secondary';
-            paymentBadge = ` <span class="badge bg-${escHtml(pBadgeClass)}">${escHtml((inv.payment_status || '').replace('_', ' '))}</span>`;
+            const pLabel = inv.payment_status === 'PARTIALLY_PAID' ? 'PARTIAL'
+                         : inv.payment_status === 'PAID' ? 'SETTLED'
+                         : inv.payment_status;
+            paymentBadge = ` <span class="badge bg-${escHtml(pBadgeClass)}">${escHtml(pLabel)}</span>`;
         }
 
         const totalFc = inv.total_amount_fc != null ? getFormatter().formatNumber(inv.total_amount_fc, 2) : '0.00';

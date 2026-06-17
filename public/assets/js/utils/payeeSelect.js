@@ -1,5 +1,17 @@
 import { apiFetch } from '../Auth/apiFetch.js';
 
+// Cache the payee→people mapping for use by other modules
+let payeeToPeopleMap = new Map();
+
+/**
+ * Get the people_id for a given payee_id.
+ * @param {string|number} payeeId
+ * @returns {string|null}
+ */
+export function getPeopleIdForPayee(payeeId) {
+    return payeeToPeopleMap.get(String(payeeId)) || null;
+}
+
 /**
  * Fetches people from the API and populates a <select> element
  * with entries that have a payee_id.
@@ -16,6 +28,12 @@ export async function populatePayeeSelect(selectEl, options = {}) {
     const json = await res.json();
 
     const payees = (json.data?.people || []).filter(p => p.payee_id != null);
+
+    // Build the payee→people mapping
+    payeeToPeopleMap = new Map();
+    for (const p of payees) {
+        payeeToPeopleMap.set(String(p.payee_id), String(p.id));
+    }
 
     // Filter by payee type if specified
     const filtered = options.typeFilter
