@@ -240,11 +240,15 @@ async function fetchPurchaseOrders() {
 
 function buildFilters() {
     // Wait for DataTable to render so we can find the search box area
-    setTimeout(() => {
+    const tryBuild = () => {
         const dtSearch = po_container.querySelector('.dt-search')
             || po_container.querySelector('.dataTables_filter')
             || po_container.querySelector('input[type="search"]')?.closest('div');
-        if (!dtSearch) return;
+        if (!dtSearch) {
+            // Retry after a short delay if not ready yet
+            setTimeout(tryBuild, 100);
+            return;
+        }
 
         const searchParent = dtSearch.parentElement;
         searchParent.style.display = 'flex';
@@ -305,7 +309,8 @@ function buildFilters() {
                 });
             }
         }
-    }, 50);
+    };
+    setTimeout(tryBuild, 50);
 }
 
 function getFilteredPOs() {

@@ -226,11 +226,14 @@ async function fetchInvoices() {
 }
 
 function buildFilters() {
-    setTimeout(() => {
+    const tryBuild = () => {
         const dtSearch = inv_container.querySelector('.dt-search')
             || inv_container.querySelector('.dataTables_filter')
             || inv_container.querySelector('input[type="search"]')?.closest('div');
-        if (!dtSearch) return;
+        if (!dtSearch) {
+            setTimeout(tryBuild, 100);
+            return;
+        }
 
         const searchParent = dtSearch.parentElement;
         searchParent.style.display = 'flex';
@@ -286,7 +289,8 @@ function buildFilters() {
                 });
             }
         }
-    }, 50);
+    };
+    setTimeout(tryBuild, 50);
 }
 
 function getFilteredInvoices() {

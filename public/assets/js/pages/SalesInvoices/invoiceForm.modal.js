@@ -262,13 +262,29 @@ async function loadItems(customerId) {
 
 function refreshLineItemDropdowns() {
     const tbody = F.linesBody();
+    const validItemIds = new Set(itemsList.map(i => String(i.id)));
+
     tbody.querySelectorAll('tr').forEach(tr => {
+        const lineType = tr.dataset.lineType || 'item';
+        if (lineType !== 'item') return; // Don't touch service lines
+
         const select = tr.querySelector('.line-item-select');
         if (!select) return;
+
         const currentValue = select.value;
+
+        // If the current item is no longer valid for this customer, remove the line
+        if (currentValue && !validItemIds.has(currentValue)) {
+            tr.remove();
+            return;
+        }
+
+        // Rebuild options keeping current selection
         const currentText = select.options[select.selectedIndex]?.textContent || '';
         select.innerHTML = buildItemOptions(currentValue, currentText);
     });
+
+    recalcGrandTotal();
 }
 
 async function fetchAndFill(invoiceId) {

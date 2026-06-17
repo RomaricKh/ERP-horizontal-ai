@@ -116,7 +116,15 @@ class CollectionsController extends BaseController {
                 COALESCE(
                     (SELECT SUM(ca.amount_fc) FROM collection_allocations ca WHERE ca.reference_type = 'SALES_INVOICE' AND ca.reference_id = si.id),
                     0
-                ) AS allocated_fc
+                ) AS allocated_fc,
+                COALESCE(
+                    (SELECT SUM(cn.total_amount_bc) FROM credit_notes cn WHERE cn.sales_invoice_id = si.id AND cn.status = 'ISSUED'),
+                    0
+                ) AS credit_notes_bc,
+                COALESCE(
+                    (SELECT SUM(cn.total_amount_fc) FROM credit_notes cn WHERE cn.sales_invoice_id = si.id AND cn.status = 'ISSUED'),
+                    0
+                ) AS credit_notes_fc
             FROM sales_invoices si
             WHERE si.customer_id = :payee_id
               AND si.business_id = :business_id
@@ -128,19 +136,21 @@ class CollectionsController extends BaseController {
 
         $documents = [];
         foreach ($rows as $row) {
-            $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
+            $effectiveTotalBc = (float) $row['total_amount_bc'] - (float) $row['credit_notes_bc'];
+            $effectiveTotalFc = (float) $row['total_amount_fc'] - (float) $row['credit_notes_fc'];
+            $remaining = $effectiveTotalBc - (float) $row['allocated_bc'];
             if ($remaining > 0.001) {
                 $documents[] = [
                     'id'             => (int) $row['id'],
                     'doc_number'     => $row['doc_number'],
                     'doc_date'       => $row['doc_date'],
                     'reference_type' => 'SALES_INVOICE',
-                    'total_bc'       => (float) $row['total_amount_bc'],
-                    'total_fc'       => (float) $row['total_amount_fc'],
+                    'total_bc'       => round($effectiveTotalBc, 2),
+                    'total_fc'       => round($effectiveTotalFc, 2),
                     'allocated_bc'   => (float) $row['allocated_bc'],
                     'allocated_fc'   => (float) $row['allocated_fc'],
                     'remaining_bc'   => round($remaining, 2),
-                    'remaining_fc'   => round((float) $row['total_amount_fc'] - (float) $row['allocated_fc'], 2),
+                    'remaining_fc'   => round($effectiveTotalFc - (float) $row['allocated_fc'], 2),
                 ];
             }
         }

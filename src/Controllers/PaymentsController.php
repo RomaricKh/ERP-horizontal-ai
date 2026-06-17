@@ -105,7 +105,7 @@ class PaymentsController extends BaseController {
     private function getOutstandingDocumentsForPayee(int $payeeId, int $businessId, \PDO $db): array {
         $documents = [];
 
-        // RECEIVED Purchase Orders
+        // RECEIVED Purchase Orders (accounting for debit notes)
         $stmt = $db->prepare("
             SELECT
                 po.id,
@@ -121,7 +121,15 @@ class PaymentsController extends BaseController {
                 COALESCE(
                     (SELECT SUM(pa.amount_fc) FROM payment_allocations pa WHERE pa.reference_type = 'PURCHASE_ORDER' AND pa.reference_id = po.id),
                     0
-                ) AS allocated_fc
+                ) AS allocated_fc,
+                COALESCE(
+                    (SELECT SUM(dn.total_amount_bc) FROM debit_notes dn WHERE dn.purchase_order_id = po.id AND dn.status = 'ISSUED'),
+                    0
+                ) AS debit_notes_bc,
+                COALESCE(
+                    (SELECT SUM(dn.total_amount_fc) FROM debit_notes dn WHERE dn.purchase_order_id = po.id AND dn.status = 'ISSUED'),
+                    0
+                ) AS debit_notes_fc
             FROM purchase_orders po
             WHERE po.supplier_id = :payee_id
               AND po.business_id = :business_id
@@ -132,19 +140,21 @@ class PaymentsController extends BaseController {
         $poRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         foreach ($poRows as $row) {
-            $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
+            $effectiveTotalBc = (float) $row['total_amount_bc'] - (float) $row['debit_notes_bc'];
+            $effectiveTotalFc = (float) $row['total_amount_fc'] - (float) $row['debit_notes_fc'];
+            $remaining = $effectiveTotalBc - (float) $row['allocated_bc'];
             if ($remaining > 0.001) {
                 $documents[] = [
                     'id'             => (int) $row['id'],
                     'doc_number'     => $row['doc_number'],
                     'doc_date'       => $row['doc_date'],
                     'reference_type' => 'PURCHASE_ORDER',
-                    'total_bc'       => (float) $row['total_amount_bc'],
-                    'total_fc'       => (float) $row['total_amount_fc'],
+                    'total_bc'       => round($effectiveTotalBc, 2),
+                    'total_fc'       => round($effectiveTotalFc, 2),
                     'allocated_bc'   => (float) $row['allocated_bc'],
                     'allocated_fc'   => (float) $row['allocated_fc'],
                     'remaining_bc'   => round($remaining, 2),
-                    'remaining_fc'   => round((float) $row['total_amount_fc'] - (float) $row['allocated_fc'], 2),
+                    'remaining_fc'   => round($effectiveTotalFc - (float) $row['allocated_fc'], 2),
                 ];
             }
         }
