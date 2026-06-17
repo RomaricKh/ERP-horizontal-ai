@@ -234,12 +234,11 @@ async function fetchPurchaseOrders() {
     const data = await res.json();
     if (!data.success) return;
     allPOs = data.data.purchase_orders ?? [];
+    renderTable(allPOs);
     buildFilters();
-    renderTable(getFilteredPOs());
 }
 
 function buildFilters() {
-    // Build status filter
     if (!statusFilterSelect) {
         const statusHost = po_container.querySelector('#poStatusFilterHost');
         if (!statusHost) return;
@@ -259,13 +258,18 @@ function buildFilters() {
             options: statusOptions,
             placeholder: 'Filter status...',
             onChange: (selected) => {
-                selectedStatuses = selected;
-                renderTable(getFilteredPOs());
+                if (!poDataTable) return;
+                if (selected.length === 0) {
+                    poDataTable.column(4).search('').draw();
+                } else {
+                    // Search the status column (4) with regex
+                    const regex = selected.map(s => s.replace(/_/g, '[ _]')).join('|');
+                    poDataTable.column(4).search(regex, true, false).draw();
+                }
             }
         });
     }
 
-    // Build supplier filter
     if (!supplierFilterSelect) {
         const supplierMap = new Map();
         allPOs.forEach(po => {
@@ -283,8 +287,17 @@ function buildFilters() {
                     options: supplierOptions,
                     placeholder: 'Filter supplier...',
                     onChange: (selected) => {
-                        selectedSuppliers = selected;
-                        renderTable(getFilteredPOs());
+                        if (!poDataTable) return;
+                        if (selected.length === 0) {
+                            poDataTable.column(2).search('').draw();
+                        } else {
+                            const selectedNames = selected.map(v => {
+                                const entry = [...supplierMap.entries()].find(([k]) => k === v);
+                                return entry ? entry[1] : v;
+                            });
+                            const regex = selectedNames.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                            poDataTable.column(2).search(regex, true, false).draw();
+                        }
                     }
                 });
             }

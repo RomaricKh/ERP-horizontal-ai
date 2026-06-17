@@ -221,8 +221,8 @@ async function fetchInvoices() {
     const data = await res.json();
     if (!data.success) return;
     allInvoices = data.data.sales_invoices ?? [];
+    renderTable(allInvoices);
     buildFilters();
-    renderTable(getFilteredInvoices());
 }
 
 function buildFilters() {
@@ -242,8 +242,13 @@ function buildFilters() {
             ],
             placeholder: 'Filter status...',
             onChange: (selected) => {
-                selectedStatuses = selected;
-                renderTable(getFilteredInvoices());
+                if (!invDataTable) return;
+                if (selected.length === 0) {
+                    invDataTable.column(4).search('').draw();
+                } else {
+                    const regex = selected.map(s => s.replace(/_/g, '[ _]')).join('|');
+                    invDataTable.column(4).search(regex, true, false).draw();
+                }
             }
         });
     }
@@ -265,8 +270,17 @@ function buildFilters() {
                     options: customerOptions,
                     placeholder: 'Filter customer...',
                     onChange: (selected) => {
-                        selectedCustomers = selected;
-                        renderTable(getFilteredInvoices());
+                        if (!invDataTable) return;
+                        if (selected.length === 0) {
+                            invDataTable.column(2).search('').draw();
+                        } else {
+                            const selectedNames = selected.map(v => {
+                                const entry = [...customerMap.entries()].find(([k]) => k === v);
+                                return entry ? entry[1] : v;
+                            });
+                            const regex = selectedNames.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                            invDataTable.column(2).search(regex, true, false).draw();
+                        }
                     }
                 });
             }
