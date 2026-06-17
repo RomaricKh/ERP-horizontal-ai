@@ -3,7 +3,7 @@
 import { registerPageActions } from '../Core/pageActions.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
 import { calcBc, formatAmount } from '../../utils/currency.js';
-import { populatePayeeSelect, getPeopleIdForPayee } from '../../utils/payeeSelect.js';
+import { populatePayeeSelect } from '../../utils/payeeSelect.js';
 import { attachRateAutoFetch } from '../../utils/exchangeRateHelper.js';
 import { isModuleActive } from '../../services/ModuleService.js';
 
@@ -68,13 +68,15 @@ export async function mount({ modalRoot: root, data }) {
     }
 
     // Re-fetch items whenever the customer selection changes
-    F.customer().addEventListener('change', async () => {
+    const customerChangeHandler = async () => {
         const customerId = F.customer().value || null;
         if (itemsModuleActive) {
             await loadItems(customerId);
             refreshLineItemDropdowns();
         }
-    });
+    };
+    F.customer().addEventListener('change', customerChangeHandler);
+    F.customer().addEventListener('input', customerChangeHandler);
 
     if (currentInvoiceId) {
         await fetchAndFill(currentInvoiceId);
@@ -239,28 +241,15 @@ async function loadServices() {
 
 async function loadItems(customerId) {
     try {
-        const url = '/api/items';
+        let url = '/api/items';
+        if (customerId) {
+            url += `?customer_payee_id=${encodeURIComponent(customerId)}`;
+        } else {
+            url += '?global_only=1';
+        }
         const res  = await apiFetch(url);
         const json = await res.json();
-        const allItems = json.success ? (json.data?.items ?? []) : [];
-
-        if (customerId) {
-            // Resolve people_id from the payee_id using the cached mapping
-            const peopleId = getPeopleIdForPayee(customerId);
-
-            if (peopleId) {
-                // Show globals + items belonging to this person
-                itemsList = allItems.filter(item =>
-                    !item.customer_id || String(item.customer_id) === peopleId
-                );
-            } else {
-                // Couldn't resolve — show all items as fallback
-                itemsList = allItems;
-            }
-        } else {
-            // No customer selected — show only global items
-            itemsList = allItems.filter(item => !item.customer_id);
-        }
+        itemsList  = json.success ? (json.data?.items ?? []) : [];
     } catch (err) {
         console.error('loadItems failed:', err);
         itemsList = [];
