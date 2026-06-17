@@ -21,18 +21,41 @@ class SalesInvoicesController extends BaseController {
     public function index(): void {
         try {
             $this->auth();
+            $ctx = \App\Support\AuthContext::get();
+            $db = \App\Config\Database::getConnection();
             $invoices = $this->service->list();
-            // Include computed payment_status and amounts for each invoice
+
             foreach ($invoices as &$invoice) {
+                $invId = (int) $invoice['id'];
+
                 try {
-                    $invoice['payment_status'] = $this->service->computePaymentStatus((int) $invoice['id']);
+                    $invoice['payment_status'] = $this->service->computePaymentStatus($invId);
                 } catch (\Throwable $e) {
                     $invoice['payment_status'] = null;
                 }
-                $remaining = $this->service->computeRemainingAmountFc((int) $invoice['id']);
+
+                // Get actual collections (from collection_allocations)
+                $collStmt = $db->prepare("
+                    SELECT COALESCE(SUM(ca.amount_fc), 0)
+                    FROM collection_allocations ca
+                    WHERE ca.reference_type = 'SALES_INVOICE' AND ca.reference_id = :inv_id
+                ");
+                $collStmt->execute(['inv_id' => $invId]);
+                $invoice['amount_collected_fc'] = (float) $collStmt->fetchColumn();
+
+                // Get credit note returns (ISSUED only)
+                $cnStmt = $db->prepare("
+                    SELECT COALESCE(SUM(total_amount_fc), 0)
+                    FROM credit_notes
+                    WHERE sales_invoice_id = :inv_id AND business_id = :bid AND status = 'ISSUED'
+                ");
+                $cnStmt->execute(['inv_id' => $invId, 'bid' => $ctx->business_id]);
+                $invoice['returns_fc'] = (float) $cnStmt->fetchColumn();
+
+                // Balance = total - returns - collected
                 $totalFc = (float) ($invoice['total_amount_fc'] ?? 0);
-                $invoice['amount_paid_fc'] = round($totalFc - $remaining, 2);
-                $invoice['balance_fc'] = $remaining;
+                $invoice['balance_fc'] = round($totalFc - $invoice['returns_fc'] - $invoice['amount_collected_fc'], 2);
+                if ($invoice['balance_fc'] < 0) $invoice['balance_fc'] = 0;
             }
             unset($invoice);
             $this->json(true, ['sales_invoices' => $invoices]);
@@ -100,6 +123,19 @@ class SalesInvoicesController extends BaseController {
             $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
             $this->serverError('Failed to delete sales invoice');
+        }
+    }
+
+    // POST /sales-invoices/{id}/duplicate
+    public function duplicate(int $id): void {
+        try {
+            $this->auth();
+            $newId = $this->service->duplicate($id);
+            $this->json(true, ['id' => $newId], null, 201);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to duplicate invoice: ' . $e->getMessage());
         }
     }
 

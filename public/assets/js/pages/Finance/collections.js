@@ -55,7 +55,22 @@ export async function mount() {
             const rowData = collectionsDataTable.row(tr).data();
             const id      = rowData[0];
             if (!id) return;
-            await showAllocationDetail(id, rowData);
+
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/Finance/collectionAllocations.html',
+                controller: '../pages/Finance/collectionAllocations.modal.js',
+                data: {
+                    collection_id: id,
+                    collection: {
+                        slip_number: rowData[1],
+                        slip_date: rowData[2],
+                        payee_name: rowData[3],
+                        amount_fc: rowData[5],
+                    }
+                },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
         },
 
         'collections.delete': async ({ el }) => {
@@ -164,67 +179,4 @@ function renderTable(collections) {
 
     collectionsDataTable.draw(false);
     collectionsDataTable.columns.adjust();
-}
-
-async function showAllocationDetail(collectionId, rowData) {
-    const fmt = getFormatter();
-
-    try {
-        const res = await apiFetch(`/api/collections/${collectionId}/allocations`);
-        const json = await res.json();
-        if (!json.success) return;
-
-        const allocations = json.data?.allocations ?? [];
-
-        // Populate header
-        const headerEl = document.getElementById('collectionAllocDetailHeader');
-        if (headerEl) {
-            headerEl.innerHTML = `
-                <div class="d-flex justify-content-between">
-                    <span><strong>Collection:</strong> ${escHtml(rowData[1])}</span>
-                    <span><strong>Amount:</strong> ${rowData[6]}</span>
-                    <span><strong>Date:</strong> ${rowData[2]}</span>
-                </div>
-            `;
-        }
-
-        // Populate body
-        const tbody = document.getElementById('collectionAllocDetailBody');
-        if (tbody) {
-            if (allocations.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No allocations recorded</td></tr>`;
-            } else {
-                tbody.innerHTML = '';
-                allocations.forEach(alloc => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${escHtml(alloc.doc_number || `Invoice #${alloc.reference_id}`)}</td>
-                        <td class="text-end">${fmt.formatNumber(alloc.amount_bc, 2)}</td>
-                        <td class="text-end">${fmt.formatNumber(alloc.amount_fc, 2)}</td>
-                        <td>${alloc.doc_status ? `<span class="badge bg-${getStatusColor(alloc.doc_status)}">${alloc.doc_status}</span>` : '—'}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            }
-        }
-
-        // Show the modal
-        const modalEl = document.getElementById('collectionAllocDetailModal');
-        if (modalEl) {
-            const modal = new bootstrap.Modal(modalEl);
-            modal.show();
-        }
-    } catch (err) {
-        console.error('showAllocationDetail failed:', err);
-    }
-}
-
-function getStatusColor(status) {
-    const map = {
-        'CLOSED': 'success',
-        'PAID': 'success',
-        'DELIVERED': 'info',
-        'PARTIALLY_PAID': 'warning',
-    };
-    return map[status] || 'secondary';
 }

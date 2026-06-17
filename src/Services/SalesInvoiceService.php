@@ -93,15 +93,16 @@ class SalesInvoiceService {
         $this->db->beginTransaction();
         try {
             $invoiceId = $this->repo->create([
-                'business_id'    => $ctx->business_id,
-                'customer_id'    => isset($data['customer_id']) && $data['customer_id'] !== '' ? (int) $data['customer_id'] : null,
-                'invoice_number' => $invoiceNumber,
-                'invoice_date'   => $data['invoice_date'],
-                'due_date'       => $data['due_date'] ?? null,
-                'currency'       => trim($data['currency']),
-                'exchange_rate'  => $resolvedRate,
-                'notes'          => $data['notes'] ?? null,
-                'created_by'     => $ctx->user_id,
+                'business_id'      => $ctx->business_id,
+                'customer_id'      => isset($data['customer_id']) && $data['customer_id'] !== '' ? (int) $data['customer_id'] : null,
+                'invoice_number'   => $invoiceNumber,
+                'invoice_date'     => $data['invoice_date'],
+                'due_date'         => $data['due_date'] ?? null,
+                'currency'         => trim($data['currency']),
+                'exchange_rate'    => $resolvedRate,
+                'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
+                'notes'            => $data['notes'] ?? null,
+                'created_by'       => $ctx->user_id,
             ]);
 
             foreach ($lines as $line) {
@@ -741,6 +742,44 @@ class SalesInvoiceService {
     public function generateInvoiceNumber(): string {
         $ctx = AuthContext::get();
         return $this->repo->generateInvoiceNumber($ctx->business_id);
+    }
+
+    /**
+     * Duplicate an existing sales invoice.
+     * Creates a new DRAFT invoice with the same header data and lines, today's date, and a new number.
+     *
+     * @param int $sourceId The ID of the invoice to duplicate
+     * @return int The new invoice ID
+     * @throws \RuntimeException if the source invoice is not found
+     */
+    public function duplicate(int $sourceId): int {
+        $source = $this->getById($sourceId);
+        $lines  = $source['lines'] ?? [];
+
+        $duplicateLines = [];
+        foreach ($lines as $line) {
+            $duplicateLines[] = [
+                'item_id'          => $line['item_id'] ?? null,
+                'service_id'       => $line['service_id'] ?? null,
+                'quantity'         => $line['quantity'],
+                'unit_price_fc'    => $line['unit_price_fc'],
+                'unit_price_bc'    => $line['unit_price_bc'],
+                'tax_rate'         => $line['tax_rate'] ?? 0,
+                'discount_percent' => $line['discount_percent'] ?? 0,
+            ];
+        }
+
+        $newData = [
+            'customer_id'      => $source['customer_id'] ?? null,
+            'invoice_date'     => date('Y-m-d'),
+            'due_date'         => null,
+            'currency'         => $source['currency'],
+            'exchange_rate'    => $source['exchange_rate'],
+            'discount_percent' => $source['discount_percent'] ?? 0,
+            'notes'            => ($source['notes'] ?? '') . ' (duplicated)',
+        ];
+
+        return $this->create($newData, $duplicateLines);
     }
 
     /**

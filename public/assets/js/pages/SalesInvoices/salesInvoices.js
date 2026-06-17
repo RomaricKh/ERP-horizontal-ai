@@ -6,6 +6,7 @@ import { MODAL_SCOPE, openModal, closeModalsInContainer, confirm, alert } from '
 import { createDataTable } from '../../templates/datatables.design.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
 import { getFormatter } from '../../i18n/translationClient.js';
+import { createMultiSelect } from '../../components/multiSelect.js';
 
 function escHtml(s) {
     const d = document.createElement('div');
@@ -13,14 +14,13 @@ function escHtml(s) {
     return d.innerHTML;
 }
 
-/** Map status → Bootstrap badge class */
 const STATUS_BADGE = {
     DRAFT:     'secondary',
     DELIVERED: 'primary',
+    PAID:      'success',
     CANCELLED: 'danger',
 };
 
-/** Map Payment_Status → Bootstrap badge class */
 const PAYMENT_STATUS_BADGE = {
     UNPAID:         'warning',
     PARTIALLY_PAID: 'info',
@@ -32,6 +32,11 @@ let unregister;
 let invUpdatedHandler;
 let collectionsUpdatedHandler;
 let invDataTable = null;
+let allInvoices = [];
+let statusFilterSelect = null;
+let customerFilterSelect = null;
+let selectedStatuses = [];
+let selectedCustomers = [];
 
 export async function mount() {
     await fetchInvoices();
@@ -46,45 +51,45 @@ export async function mount() {
 
         'invoice.create': async () => {
             await openModal({
-                scope:      MODAL_SCOPE.PAGE,
-                template:   'html/SalesInvoices/invoiceForm.html',
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/SalesInvoices/invoiceForm.html',
                 controller: '../pages/SalesInvoices/invoiceForm.modal.js',
-                data:       {},
-                options:    { backdrop: false, keyboard: true, focus: true }
+                data: {},
+                options: { backdrop: false, keyboard: true, focus: true }
             });
         },
 
         'invoice.view': async ({ el }) => {
-            const tr      = el.closest('tr');
+            const tr = el.closest('tr');
             const rowData = invDataTable.row(tr).data();
-            const id      = rowData[0];
+            const id = rowData[0];
             if (!id) return;
             await openModal({
-                scope:      MODAL_SCOPE.PAGE,
-                template:   'html/SalesInvoices/invoiceForm.html',
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/SalesInvoices/invoiceForm.html',
                 controller: '../pages/SalesInvoices/invoiceForm.modal.js',
-                data:       { invoice_id: id },
-                options:    { backdrop: false, keyboard: true, focus: true }
+                data: { invoice_id: id },
+                options: { backdrop: false, keyboard: true, focus: true }
             });
         },
 
         'invoice.delete': async ({ el }) => {
-            const tr      = el.closest('tr');
+            const tr = el.closest('tr');
             const rowData = invDataTable.row(tr).data();
-            const id      = rowData[0];
+            const id = rowData[0];
             if (!id) return;
 
             const confirmed = await confirm({
-                title:   'Delete Sales Invoice',
+                title: 'Delete Sales Invoice',
                 message: 'Delete this sales invoice? This action cannot be undone.'
             });
             if (!confirmed) return;
 
             try {
-                const res  = await apiFetch(`/api/sales-invoices/${id}`, { method: 'DELETE' });
+                const res = await apiFetch(`/api/sales-invoices/${id}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
-                    await alert({ title: 'Error', alertText: data.message || 'Failed to delete sales invoice' });
+                    await alert({ title: 'Error', alertText: data.message || 'Failed to delete' });
                 } else {
                     await fetchInvoices();
                 }
@@ -94,7 +99,7 @@ export async function mount() {
         },
 
         'invoice.deliver': async ({ el }) => {
-            await changeStatus(el, 'DELIVERED', 'Mark this invoice as delivered? This will deduct stock for each line item.');
+            await changeStatus(el, 'DELIVERED', 'Mark this invoice as delivered? Stock will be deducted.');
         },
 
         'invoice.cancel': async ({ el }) => {
@@ -104,30 +109,34 @@ export async function mount() {
         'invoice.collect': async ({ el }) => {
             const tr = el.closest('tr');
             const rowData = invDataTable.row(tr).data();
-            const invoiceId = rowData[0];
-            if (!invoiceId) return;
+            const id = rowData[0];
+            if (!id) return;
 
-            const res = await apiFetch(`/api/sales-invoices/${invoiceId}`);
-            const json = await res.json();
-            if (!json.success) return;
-            const inv = json.data.sales_invoice;
+            try {
+                const res = await apiFetch(`/api/sales-invoices/${id}`);
+                const json = await res.json();
+                if (!json.success) return;
+                const inv = json.data.sales_invoice;
 
-            await openModal({
-                scope: MODAL_SCOPE.PAGE,
-                template: 'html/Finance/collectionForm.html',
-                controller: '../pages/Finance/collectionForm.modal.js',
-                data: {
-                    prefill: {
-                        payee_id: inv.customer_payee_id,
-                        reference_type: 'SALES_INVOICE',
-                        reference_id: String(inv.id),
-                        currency: inv.currency,
-                        exchange_rate: inv.exchange_rate,
-                        amount_fc: inv.remaining_amount_fc,
-                    }
-                },
-                options: { backdrop: false, keyboard: true, focus: true }
-            });
+                await openModal({
+                    scope: MODAL_SCOPE.PAGE,
+                    template: 'html/Finance/collectionForm.html',
+                    controller: '../pages/Finance/collectionForm.modal.js',
+                    data: {
+                        prefill: {
+                            payee_id: inv.customer_payee_id,
+                            reference_type: 'SALES_INVOICE',
+                            reference_id: String(inv.id),
+                            currency: inv.currency,
+                            exchange_rate: inv.exchange_rate,
+                            amount_fc: inv.remaining_amount_fc || inv.balance_fc,
+                        }
+                    },
+                    options: { backdrop: false, keyboard: true, focus: true }
+                });
+            } catch (err) {
+                console.error('Collect failed:', err);
+            }
         },
 
         'invoice.download-pdf': async ({ el }) => {
@@ -135,8 +144,6 @@ export async function mount() {
             const rowData = invDataTable.row(tr).data();
             const id = rowData[0];
             if (!id) return;
-
-            // Open PDF download in a new tab/window
             const token = getToken();
             window.open(`/api/sales-invoices/${id}/pdf?token=${encodeURIComponent(token)}`, '_blank');
         },
@@ -146,14 +153,32 @@ export async function mount() {
             const rowData = invDataTable.row(tr).data();
             const id = rowData[0];
             if (!id) return;
+            window.location.hash = `#/invoices/credit-notes?invoice_id=${id}`;
+        },
 
-            await openModal({
-                scope:      MODAL_SCOPE.PAGE,
-                template:   'html/SalesInvoices/creditNoteForm.html',
-                controller: '../pages/SalesInvoices/creditNoteForm.modal.js',
-                data:       { invoice_id: id },
-                options:    { backdrop: false, keyboard: true, focus: true }
+        'invoice.duplicate': async ({ el }) => {
+            const tr = el.closest('tr');
+            const rowData = invDataTable.row(tr).data();
+            const id = rowData[0];
+            if (!id) return;
+
+            const confirmed = await confirm({
+                title: 'Duplicate Invoice',
+                message: 'Create a new DRAFT invoice with the same line items?'
             });
+            if (!confirmed) return;
+
+            try {
+                const res = await apiFetch(`/api/sales-invoices/${id}/duplicate`, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    await alert({ title: 'Error', alertText: data.message || 'Failed to duplicate' });
+                } else {
+                    await fetchInvoices();
+                }
+            } catch (err) {
+                console.error('Duplicate failed:', err);
+            }
         },
     });
 }
@@ -169,8 +194,15 @@ export function unmount() {
     }
     unregister?.();
     unregister = null;
+    statusFilterSelect?.destroy?.();
+    customerFilterSelect?.destroy?.();
+    statusFilterSelect = null;
+    customerFilterSelect = null;
     invDataTable?.destroy();
     invDataTable = null;
+    allInvoices = [];
+    selectedStatuses = [];
+    selectedCustomers = [];
     closeModalsInContainer(inv_container);
 }
 
@@ -179,34 +211,117 @@ export async function render(container) {
     const html = await fetch('html/SalesInvoices/salesInvoices.html').then(r => r.text());
     container.innerHTML = html;
 
-    // Hide create button if no permission
-    container.querySelectorAll('[data-action]').forEach(el => {
-        if (el.dataset.action === 'invoice.create' && !hasPermission('invoices.create')) {
-            el.remove();
-        }
-    });
+    if (!hasPermission('invoices.create')) {
+        container.querySelectorAll('[data-action="invoice.create"]').forEach(el => el.remove());
+    }
 }
 
 async function fetchInvoices() {
-    const res  = await apiFetch('/api/sales-invoices', {method: 'GET'});
+    const res = await apiFetch('/api/sales-invoices');
     const data = await res.json();
     if (!data.success) return;
-    renderTable(data.data.sales_invoices ?? []);
+    allInvoices = data.data.sales_invoices ?? [];
+    buildFilters();
+    renderTable(getFilteredInvoices());
+}
+
+function buildFilters() {
+    setTimeout(() => {
+        const dtSearch = inv_container.querySelector('.dt-search') || inv_container.querySelector('.dataTables_filter');
+        if (!dtSearch) return;
+
+        const searchParent = dtSearch.parentElement;
+        searchParent.style.display = 'flex';
+        searchParent.style.alignItems = 'flex-start';
+        searchParent.style.gap = '0.75rem';
+        searchParent.style.flexWrap = 'wrap';
+
+        if (!statusFilterSelect) {
+            const statusHost = document.createElement('div');
+            statusHost.style.minWidth = '170px';
+            searchParent.insertBefore(statusHost, dtSearch);
+
+            statusFilterSelect = createMultiSelect({
+                container: statusHost,
+                options: [
+                    { value: 'DRAFT', label: 'Draft' },
+                    { value: 'DELIVERED', label: 'Delivered' },
+                    { value: 'CANCELLED', label: 'Cancelled' },
+                    { value: 'UNPAID', label: 'Unpaid' },
+                    { value: 'PARTIALLY_PAID', label: 'Partial' },
+                    { value: 'PAID', label: 'Paid' },
+                ],
+                placeholder: 'Filter status...',
+                onChange: (selected) => {
+                    selectedStatuses = selected;
+                    renderTable(getFilteredInvoices());
+                }
+            });
+        }
+
+        if (!customerFilterSelect) {
+            const customerMap = new Map();
+            allInvoices.forEach(inv => {
+                if (inv.customer_id && inv.customer_name) {
+                    customerMap.set(String(inv.customer_id), inv.customer_name);
+                }
+            });
+            const customerOptions = Array.from(customerMap.entries()).map(([value, label]) => ({ value, label }));
+
+            if (customerOptions.length > 1) {
+                const customerHost = document.createElement('div');
+                customerHost.style.minWidth = '170px';
+                searchParent.insertBefore(customerHost, dtSearch);
+
+                customerFilterSelect = createMultiSelect({
+                    container: customerHost,
+                    options: customerOptions,
+                    placeholder: 'Filter customer...',
+                    onChange: (selected) => {
+                        selectedCustomers = selected;
+                        renderTable(getFilteredInvoices());
+                    }
+                });
+            }
+        }
+    }, 50);
+}
+
+function getFilteredInvoices() {
+    let filtered = allInvoices;
+
+    if (selectedStatuses.length > 0) {
+        const docStatuses = selectedStatuses.filter(s => ['DRAFT', 'DELIVERED', 'CANCELLED'].includes(s));
+        const payStatuses = selectedStatuses.filter(s => ['UNPAID', 'PARTIALLY_PAID', 'PAID'].includes(s));
+
+        filtered = filtered.filter(inv => {
+            const matchDoc = docStatuses.length === 0 || docStatuses.includes(inv.status);
+            const matchPay = payStatuses.length === 0 || payStatuses.includes(inv.payment_status);
+            if (docStatuses.length > 0 && payStatuses.length > 0) return matchDoc && matchPay;
+            return matchDoc || matchPay;
+        });
+    }
+
+    if (selectedCustomers.length > 0) {
+        filtered = filtered.filter(inv => selectedCustomers.includes(String(inv.customer_id)));
+    }
+
+    return filtered;
 }
 
 async function changeStatus(el, newStatus, confirmMessage) {
-    const tr      = el.closest('tr');
+    const tr = el.closest('tr');
     const rowData = invDataTable.row(tr).data();
-    const id      = rowData[0];
+    const id = rowData[0];
     if (!id) return;
 
     const confirmed = await confirm({ title: 'Confirm', message: confirmMessage });
     if (!confirmed) return;
 
     try {
-        const res  = await apiFetch(`/api/sales-invoices/${id}/status`, {
+        const res = await apiFetch(`/api/sales-invoices/${id}/status`, {
             method: 'POST',
-            body:   JSON.stringify({ status: newStatus })
+            body: JSON.stringify({ status: newStatus })
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -224,25 +339,9 @@ function renderTable(invoices) {
         invDataTable = createDataTable('#salesInvoicesTable', {
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
-                { targets: 10, visible: false, searchable: false },
                 { targets: '_all', className: 'text-nowrap' },
                 { targets: 9, className: 'text-center', orderable: false, searchable: false }
-            ],
-            createdRow: function(row, data) {
-                // data[10] is the raw due_date value
-                const dueDateRaw = data[10];
-                if (dueDateRaw) {
-                    const today = new Date().toISOString().slice(0, 10);
-                    if (dueDateRaw < today) {
-                        const daysOverdue = Math.floor((new Date(today) - new Date(dueDateRaw)) / 86400000);
-                        if (daysOverdue > 60) {
-                            row.classList.add('table-danger');
-                        } else if (daysOverdue > 0) {
-                            row.classList.add('table-warning');
-                        }
-                    }
-                }
-            }
+            ]
         });
     }
 
@@ -252,87 +351,103 @@ function renderTable(invoices) {
     const canDelete  = hasPermission('invoices.delete');
     const canDeliver = hasPermission('invoices.approve');
     const canCollect = hasPermission('collections.create');
-    const today      = new Date().toISOString().slice(0, 10);
+    const canCreate  = hasPermission('invoices.create');
 
     invoices.forEach(inv => {
-        const badgeClass  = STATUS_BADGE[inv.status] || 'secondary';
+        const badgeClass = STATUS_BADGE[inv.status] || 'secondary';
         const statusBadge = `<span class="badge bg-${escHtml(badgeClass)}">${escHtml(inv.status)}</span>`;
 
-        // Display computed Payment_Status badge for DELIVERED invoices
         let paymentBadge = '';
         if (inv.status === 'DELIVERED' && inv.payment_status) {
             const pBadgeClass = PAYMENT_STATUS_BADGE[inv.payment_status] || 'secondary';
-            paymentBadge = ` <span class="badge bg-${escHtml(pBadgeClass)}">${escHtml(inv.payment_status)}</span>`;
+            paymentBadge = ` <span class="badge bg-${escHtml(pBadgeClass)}">${escHtml((inv.payment_status || '').replace('_', ' '))}</span>`;
         }
 
-        const totalFc  = inv.total_amount_fc != null ? getFormatter().formatNumber(inv.total_amount_fc, 2) : '0.00';
-        const paidFc   = inv.amount_paid_fc != null ? getFormatter().formatNumber(inv.amount_paid_fc, 2) : '0.00';
+        const totalFc = inv.total_amount_fc != null ? getFormatter().formatNumber(inv.total_amount_fc, 2) : '0.00';
+        const returnsFc = inv.returns_fc != null && inv.returns_fc > 0 ? getFormatter().formatNumber(inv.returns_fc, 2) : '—';
+        const collectedFc = inv.amount_collected_fc != null ? getFormatter().formatNumber(inv.amount_collected_fc, 2) : '0.00';
         const balanceFc = inv.balance_fc != null ? getFormatter().formatNumber(inv.balance_fc, 2) : '0.00';
 
-        // Due date display with overdue highlighting
-        let dueDateDisplay = '—';
-        let isOverdue = false;
-        if (inv.due_date) {
-            dueDateDisplay = getFormatter().formatDate(inv.due_date);
-            if (inv.status === 'DELIVERED' && inv.due_date < today) {
-                isOverdue = true;
-                dueDateDisplay = `<span class="text-danger fw-bold">${dueDateDisplay}</span>`;
-            }
-        }
+        // Build actions with overflow
+        const actionItems = buildActionItems(inv, { canView, canDelete, canDeliver, canCollect, canCreate });
+        const actions = renderActions(actionItems);
 
-        // Build workflow action buttons based on current status
-        let actions = '';
-
-        if (canView) {
-            actions += `<button data-action="invoice.view" class="btn btn-light btn-circle btn-sm me-1" title="View / Edit">
-                            <i class="fas fa-eye text-info"></i></button>`;
-        }
-
-        if (canDeliver && inv.status === 'DRAFT') {
-            actions += `<button data-action="invoice.deliver" class="btn btn-light btn-circle btn-sm me-1" title="Mark Delivered">
-                            <i class="fas fa-shipping-fast text-primary"></i></button>`;
-        }
-
-        if ((inv.status === 'DRAFT' || inv.status === 'DELIVERED') && canDeliver) {
-            actions += `<button data-action="invoice.cancel" class="btn btn-light btn-circle btn-sm me-1" title="Cancel">
-                            <i class="fas fa-ban text-warning"></i></button>`;
-        }
-
-        if (canDelete && inv.status === 'DRAFT') {
-            actions += `<button data-action="invoice.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">
-                            <i class="fas fa-trash text-danger"></i></button>`;
-        }
-
-        if (canCollect && inv.status === 'DELIVERED' && inv.payment_status !== 'PAID') {
-            actions += `<button data-action="invoice.collect" class="btn btn-light btn-circle btn-sm me-1" title="Create Collection Slip">
-                            <i class="fas fa-receipt text-secondary"></i></button>`;
-        }
-
-        if (canView) {
-            actions += `<button data-action="invoice.download-pdf" class="btn btn-light btn-circle btn-sm me-1" title="Download PDF">
-                            <i class="fas fa-file-pdf text-danger"></i></button>`;
-        }
-
-        if (canView && (inv.status === 'DELIVERED' || inv.status === 'PAID')) {
-            actions += `<button data-action="invoice.credit-note" class="btn btn-light btn-circle btn-sm me-1" title="Issue Credit Note">
-                            <i class="fas fa-undo text-warning"></i></button>`;
-        }
-
-        const rowNode = invDataTable.row.add([
+        invDataTable.row.add([
             inv.id,
-            escHtml(inv.invoice_number ?? ''),
-            escHtml(inv.customer_name  ?? '—'),
-            getFormatter().formatDate(inv.invoice_date ?? ''),
-            dueDateDisplay,
+            escHtml(inv.invoice_number || ''),
+            escHtml(inv.customer_name || '—'),
+            getFormatter().formatDate(inv.invoice_date || ''),
             statusBadge + paymentBadge,
-            totalFc,
-            paidFc,
-            balanceFc,
-            actions,
-            inv.due_date || ''
-        ]).node();
+            `${escHtml(inv.currency || '')} ${totalFc}`,
+            returnsFc === '—' ? '—' : `${escHtml(inv.currency || '')} ${returnsFc}`,
+            `${escHtml(inv.currency || '')} ${collectedFc}`,
+            `${escHtml(inv.currency || '')} ${balanceFc}`,
+            actions
+        ]);
     });
 
     invDataTable.draw(false);
     invDataTable.columns.adjust();
+}
+
+function buildActionItems(inv, perms) {
+    const items = [];
+
+    if (perms.canView) {
+        items.push({ action: 'invoice.view', icon: 'fa-eye text-info', label: 'View', primary: true });
+    }
+    if (perms.canDeliver && inv.status === 'DRAFT') {
+        items.push({ action: 'invoice.deliver', icon: 'fa-shipping-fast text-primary', label: 'Deliver', primary: true });
+    }
+    if (perms.canCollect && inv.status === 'DELIVERED' && inv.payment_status !== 'PAID') {
+        items.push({ action: 'invoice.collect', icon: 'fa-receipt text-success', label: 'Collect', primary: true });
+    }
+
+    // Secondary
+    if (perms.canDeliver && (inv.status === 'DRAFT' || inv.status === 'DELIVERED')) {
+        items.push({ action: 'invoice.cancel', icon: 'fa-ban text-warning', label: 'Cancel' });
+    }
+    if (perms.canView) {
+        items.push({ action: 'invoice.download-pdf', icon: 'fa-file-pdf text-danger', label: 'Download PDF' });
+    }
+    if (perms.canView && (inv.status === 'DELIVERED' || inv.status === 'PAID')) {
+        items.push({ action: 'invoice.credit-note', icon: 'fa-undo text-warning', label: 'Credit Notes' });
+    }
+    if (perms.canCreate) {
+        items.push({ action: 'invoice.duplicate', icon: 'fa-copy text-secondary', label: 'Duplicate' });
+    }
+    if (perms.canDelete && inv.status === 'DRAFT') {
+        items.push({ action: 'invoice.delete', icon: 'fa-trash text-danger', label: 'Delete', divider: true });
+    }
+
+    return items;
+}
+
+function renderActions(items) {
+    if (items.length === 0) return '';
+
+    const primary = items.filter(i => i.primary).slice(0, 3);
+    const overflow = items.filter(i => !i.primary || items.filter(x => x.primary).indexOf(i) >= 3);
+
+    let html = primary.map(item =>
+        `<button data-action="${item.action}" class="btn btn-light btn-circle btn-sm me-1" title="${escHtml(item.label)}">
+            <i class="fas ${item.icon}"></i></button>`
+    ).join('');
+
+    if (overflow.length > 0) {
+        html += `<div class="dropdown d-inline-block">
+            <button class="btn btn-light btn-circle btn-sm" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="dynamic" title="More">
+                <i class="fas fa-ellipsis-v"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                ${overflow.map(item => {
+                    const divider = item.divider ? '<li><hr class="dropdown-divider"></li>' : '';
+                    return `${divider}<li><button class="dropdown-item small" data-action="${item.action}">
+                        <i class="fas ${item.icon} me-2"></i>${escHtml(item.label)}</button></li>`;
+                }).join('')}
+            </ul>
+        </div>`;
+    }
+
+    return html;
 }

@@ -96,21 +96,22 @@ class PurchaseOrderRepository {
             INSERT INTO purchase_orders
               (business_id, supplier_id, po_number, po_date, status,
                currency, exchange_rate, total_amount_fc, total_amount_bc,
-               notes, created_at, updated_at, created_by)
+               discount_percent, notes, created_at, updated_at, created_by)
             VALUES
               (:business_id, :supplier_id, :po_number, :po_date, 'DRAFT',
                :currency, :exchange_rate, 0, 0,
-               :notes, NOW(), NOW(), :created_by)
+               :discount_percent, :notes, NOW(), NOW(), :created_by)
         ");
         $stmt->execute([
-            'business_id'   => $data['business_id'],
-            'supplier_id'   => $data['supplier_id'] ?? null,
-            'po_number'     => $data['po_number'],
-            'po_date'       => $data['po_date'],
-            'currency'      => $data['currency'],
-            'exchange_rate' => $data['exchange_rate'],
-            'notes'         => $data['notes'] ?? null,
-            'created_by'    => $data['created_by'],
+            'business_id'      => $data['business_id'],
+            'supplier_id'      => $data['supplier_id'] ?? null,
+            'po_number'        => $data['po_number'],
+            'po_date'          => $data['po_date'],
+            'currency'         => $data['currency'],
+            'exchange_rate'    => $data['exchange_rate'],
+            'discount_percent' => $data['discount_percent'] ?? 0,
+            'notes'            => $data['notes'] ?? null,
+            'created_by'       => $data['created_by'],
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -241,16 +242,20 @@ class PurchaseOrderRepository {
      * Recalculate and update total_amount_fc, total_amount_bc, tax_total_fc, tax_total_bc
      * by summing all po_details lines for the given PO.
      *
-     * total_amount includes the line totals (subtotal) — tax totals are stored separately.
+     * Applies header-level discount_percent to the line subtotal before adding tax.
+     * Formula: total_amount = subtotal × (1 - discount_percent/100)
+     * Grand total (what's owed) = total_amount + tax_total
+     *
      * Accepts an optional $db parameter for use inside transactions.
      */
     public function recalculateTotals(int $id, ?PDO $db = null): void {
         $conn = $db ?? $this->db;
 
+        // Get line subtotals and tax totals
         $stmt = $conn->prepare("
             SELECT
-                COALESCE(SUM(total_price_fc), 0) AS total_fc,
-                COALESCE(SUM(total_price_bc), 0) AS total_bc,
+                COALESCE(SUM(total_price_fc), 0) AS subtotal_fc,
+                COALESCE(SUM(total_price_bc), 0) AS subtotal_bc,
                 COALESCE(SUM(tax_amount_fc), 0)  AS tax_fc,
                 COALESCE(SUM(tax_amount_bc), 0)  AS tax_bc
             FROM po_details
@@ -258,6 +263,21 @@ class PurchaseOrderRepository {
         ");
         $stmt->execute(['po_id' => $id]);
         $totals = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Get the header-level discount percent
+        $discStmt = $conn->prepare("SELECT discount_percent FROM purchase_orders WHERE id = :id");
+        $discStmt->execute(['id' => $id]);
+        $discountPercent = (float) ($discStmt->fetchColumn() ?: 0);
+
+        $subtotalFc = (float) $totals['subtotal_fc'];
+        $subtotalBc = (float) $totals['subtotal_bc'];
+        $taxFc = (float) $totals['tax_fc'];
+        $taxBc = (float) $totals['tax_bc'];
+
+        // Apply global discount to subtotal (tax is not discounted — it's already per-line)
+        $discountMultiplier = 1 - ($discountPercent / 100);
+        $totalFc = round($subtotalFc * $discountMultiplier, 2);
+        $totalBc = round($subtotalBc * $discountMultiplier, 2);
 
         $upd = $conn->prepare("
             UPDATE purchase_orders
@@ -269,10 +289,10 @@ class PurchaseOrderRepository {
             WHERE id = :id
         ");
         $upd->execute([
-            'total_fc' => $totals['total_fc'],
-            'total_bc' => $totals['total_bc'],
-            'tax_fc'   => $totals['tax_fc'],
-            'tax_bc'   => $totals['tax_bc'],
+            'total_fc' => $totalFc + $taxFc,
+            'total_bc' => $totalBc + $taxBc,
+            'tax_fc'   => $taxFc,
+            'tax_bc'   => $taxBc,
             'id'       => $id,
         ]);
     }

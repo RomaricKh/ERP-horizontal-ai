@@ -200,4 +200,44 @@ class CreditNoteService
             throw $e;
         }
     }
+
+    /**
+     * Delete a credit note.
+     * Only DRAFT status is allowed.
+     *
+     * @throws \RuntimeException if not found or not DRAFT
+     */
+    public function delete(int $id): void
+    {
+        $ctx  = AuthContext::get();
+        $note = $this->repo->findById($id, $ctx->business_id);
+        if (!$note) {
+            throw new \RuntimeException('Credit note not found');
+        }
+        if ($note['status'] !== 'DRAFT') {
+            throw new \RuntimeException('Only DRAFT credit notes can be deleted. Issued notes cannot be reversed.');
+        }
+
+        $this->db->beginTransaction();
+        try {
+            // Delete lines first
+            $stmt = $this->db->prepare("DELETE FROM credit_note_items WHERE credit_note_id = :id");
+            $stmt->execute(['id' => $id]);
+
+            // Delete the credit note header
+            $stmt = $this->db->prepare("DELETE FROM credit_notes WHERE id = :id AND business_id = :business_id");
+            $stmt->execute(['id' => $id, 'business_id' => $ctx->business_id]);
+
+            $this->audit->log(
+                'DELETE', 'credit_notes', $id, 'DELETE',
+                $note, null,
+                $ctx->user_id, $ctx->tenant_id, $ctx->business_id
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
 }

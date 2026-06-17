@@ -21,6 +21,7 @@ export const routes = [
     {path: '#/purchase-orders', auth: true, permission: 'po.view', module: 'purchase_orders', load: () => import('../pages/PurchaseOrders/purchaseOrders.js')},
     {path: '#/purchase-orders/debit-notes', auth: true, permission: 'po.view', module: 'purchase_orders', load: () => import('../pages/PurchaseOrders/debitNotes.js')},
     {path: '#/invoices', auth: true, permission: 'invoices.view', module: 'sales_invoices', load: () => import('../pages/SalesInvoices/salesInvoices.js')},
+    {path: '#/invoices/credit-notes', auth: true, permission: 'invoices.view', module: 'sales_invoices', load: () => import('../pages/SalesInvoices/creditNotes.js')},
     {path: '#/payments', auth: true, permission: 'payments.view', module: 'payments', load: () => import('../pages/Finance/payments.js')},
     {path: '#/collections', auth: true, permission: 'collections.view', module: 'collections', load: () => import('../pages/Finance/collections.js')},
     {path: '#/ar-aging', auth: true, permission: 'invoices.view', module: 'sales_invoices', load: () => import('../pages/Finance/arAging.js')},

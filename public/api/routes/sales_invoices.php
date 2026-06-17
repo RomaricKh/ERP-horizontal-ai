@@ -65,6 +65,12 @@ $router->get('/sales-invoices/{id}',
     ['invoices.view']
 );
 
+// POST /sales-invoices/{id}/duplicate
+$router->post('/sales-invoices/{id}/duplicate',
+    fn($id) => (new SalesInvoicesController())->duplicate((int)$id),
+    ['invoices.create']
+);
+
 // PUT /sales-invoices/{id}
 $router->put('/sales-invoices/{id}',
     fn($id) => (new SalesInvoicesController())->update((int)$id),
@@ -84,7 +90,7 @@ $router->delete('/sales-invoices/{id}',
 // POST /credit-notes/{id}/issue — must be before /{id} GET
 $router->post('/credit-notes/{id}/issue',
     fn($id) => (new CreditNoteController())->issue((int)$id),
-    ['invoices.manage']
+    ['invoices.edit']
 );
 
 // GET /credit-notes
@@ -96,11 +102,17 @@ $router->get('/credit-notes',
 // POST /credit-notes
 $router->post('/credit-notes',
     fn() => (new CreditNoteController())->store(),
-    ['invoices.manage']
+    ['invoices.edit']
 );
 
 // GET /credit-notes/{id}
 $router->get('/credit-notes/{id}',
     fn($id) => (new CreditNoteController())->show((int)$id),
     ['invoices.view']
+);
+
+// DELETE /credit-notes/{id}
+$router->delete('/credit-notes/{id}',
+    fn($id) => (new CreditNoteController())->delete((int)$id),
+    ['invoices.edit']
 );

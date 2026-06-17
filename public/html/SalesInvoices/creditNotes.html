@@ -1,0 +1,40 @@
+<!-- Page Heading -->
+<h1 class="h3 mb-2 text-gray-800">Credit Notes</h1>
+<p class="mb-4 text-muted" id="cnSubtitle">
+    Manage customer returns.
+    <a href="#/invoices" class="ms-2"><i class="fas fa-arrow-left me-1"></i>Back to Invoices</a>
+</p>
+
+<!-- Credit Notes DataTable -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-undo me-1"></i> Credit Notes
+        </h6>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" data-action="cn.create" title="Create a new credit note">
+                <i class="fas fa-plus me-1"></i>New Credit Note
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover row-border"
+                   id="creditNotesTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>CN #</th>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Currency</th>
+                        <th>Total (BC)</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>

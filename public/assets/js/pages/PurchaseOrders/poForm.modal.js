@@ -22,9 +22,11 @@ const F = {
     currency:     () => document.getElementById('inputPoCurrency'),
     exchangeRate: () => document.getElementById('inputPoExchangeRate'),
     notes:        () => document.getElementById('inputPoNotes'),
+    globalDiscount: () => document.getElementById('inputPoGlobalDiscount'),
     linesBody:    () => document.getElementById('poLinesBody'),
     subtotalFc:   () => document.getElementById('poSubtotalFc'),
     subtotalBc:   () => document.getElementById('poSubtotalBc'),
+    afterDiscountFc: () => document.getElementById('poAfterDiscountFc'),
     taxTotalFc:   () => document.getElementById('poTaxTotalFc'),
     taxTotalBc:   () => document.getElementById('poTaxTotalBc'),
     grandTotalFc: () => document.getElementById('poGrandTotalFc'),
@@ -72,6 +74,9 @@ export async function mount({ modalRoot: root, data }) {
     // Recalculate BC when exchange rate changes
     F.exchangeRate().addEventListener('input', () => recalcAllLines());
 
+    // Recalculate when global discount changes
+    F.globalDiscount()?.addEventListener('input', () => recalcGrandTotal());
+
     // Auto-fetch exchange rate when currency changes
     cleanupRateAutoFetch = attachRateAutoFetch(F.currency(), F.exchangeRate());
 
@@ -116,13 +121,14 @@ export async function mount({ modalRoot: root, data }) {
 
             const lines = collectLines();
             const payload = {
-                supplier_id:   F.supplier().value     || null,
-                po_number:     F.poNumber().value.trim(),
-                po_date:       F.poDate().value,
-                currency:      F.currency().value,
-                exchange_rate: parseFloat(F.exchangeRate().value),
-                notes:         F.notes().value.trim() || null,
-                lines:         lines,
+                supplier_id:      F.supplier().value     || null,
+                po_number:        F.poNumber().value.trim(),
+                po_date:          F.poDate().value,
+                currency:         F.currency().value,
+                exchange_rate:    parseFloat(F.exchangeRate().value),
+                discount_percent: parseFloat(F.globalDiscount()?.value) || 0,
+                notes:            F.notes().value.trim() || null,
+                lines:            lines,
             };
 
             try {
@@ -201,6 +207,7 @@ async function fetchAndFill(poId) {
         F.currency().value     = po.currency       ?? '';
         F.exchangeRate().value = po.exchange_rate  ?? '';
         F.notes().value        = po.notes          ?? '';
+        if (F.globalDiscount()) F.globalDiscount().value = po.discount_percent ?? '0';
 
         // Render existing lines
         const lines = po.lines ?? [];
@@ -383,12 +390,19 @@ function recalcGrandTotal() {
         taxBc      += lineTaxBc;
     });
 
+    // Apply global discount
+    const globalDiscount = parseFloat(F.globalDiscount()?.value) || 0;
+    const discountMultiplier = 1 - (globalDiscount / 100);
+    const afterDiscountFc = round2(subtotalFc * discountMultiplier);
+    const afterDiscountBc = round2(subtotalBc * discountMultiplier);
+
     F.subtotalFc().textContent  = formatAmount(subtotalFc);
     F.subtotalBc().textContent  = formatAmount(subtotalBc);
+    if (F.afterDiscountFc()) F.afterDiscountFc().textContent = formatAmount(afterDiscountFc);
     F.taxTotalFc().textContent  = formatAmount(taxFc);
     F.taxTotalBc().textContent  = formatAmount(taxBc);
-    F.grandTotalFc().textContent = formatAmount(round2(subtotalFc + taxFc));
-    F.grandTotalBc().textContent = formatAmount(round2(subtotalBc + taxBc));
+    F.grandTotalFc().textContent = formatAmount(round2(afterDiscountFc + taxFc));
+    F.grandTotalBc().textContent = formatAmount(round2(afterDiscountBc + taxBc));
 }
 
 function collectLines() {

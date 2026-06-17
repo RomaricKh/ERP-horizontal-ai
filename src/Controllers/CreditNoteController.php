@@ -74,4 +74,18 @@ class CreditNoteController extends BaseController
             $this->serverError('Failed to issue credit note: ' . $e->getMessage());
         }
     }
+
+    // DELETE /credit-notes/{id}
+    public function delete(int $id): void
+    {
+        try {
+            $this->auth();
+            $this->service->delete($id);
+            $this->json(true, ['id' => $id]);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to delete credit note: ' . $e->getMessage());
+        }
+    }
 }

@@ -63,6 +63,7 @@ class SalesInvoiceRepository {
                 si.status,
                 si.currency,
                 si.exchange_rate,
+                si.discount_percent,
                 si.total_amount_fc,
                 si.total_amount_bc,
                 si.notes,
@@ -98,23 +99,24 @@ class SalesInvoiceRepository {
         $stmt = $this->db->prepare("
             INSERT INTO sales_invoices
               (business_id, customer_id, invoice_number, invoice_date, due_date, status,
-               currency, exchange_rate, total_amount_fc, total_amount_bc,
+               currency, exchange_rate, discount_percent, total_amount_fc, total_amount_bc,
                notes, created_at, updated_at, created_by)
             VALUES
               (:business_id, :customer_id, :invoice_number, :invoice_date, :due_date, 'DRAFT',
-               :currency, :exchange_rate, 0, 0,
+               :currency, :exchange_rate, :discount_percent, 0, 0,
                :notes, NOW(), NOW(), :created_by)
         ");
         $stmt->execute([
-            'business_id'    => $data['business_id'],
-            'customer_id'    => $data['customer_id'] ?? null,
-            'invoice_number' => $data['invoice_number'],
-            'invoice_date'   => $data['invoice_date'],
-            'due_date'       => $data['due_date'] ?? null,
-            'currency'       => $data['currency'],
-            'exchange_rate'  => $data['exchange_rate'],
-            'notes'          => $data['notes'] ?? null,
-            'created_by'     => $data['created_by'],
+            'business_id'      => $data['business_id'],
+            'customer_id'      => $data['customer_id'] ?? null,
+            'invoice_number'   => $data['invoice_number'],
+            'invoice_date'     => $data['invoice_date'],
+            'due_date'         => $data['due_date'] ?? null,
+            'currency'         => $data['currency'],
+            'exchange_rate'    => $data['exchange_rate'],
+            'discount_percent' => $data['discount_percent'] ?? 0,
+            'notes'            => $data['notes'] ?? null,
+            'created_by'       => $data['created_by'],
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -243,10 +245,11 @@ class SalesInvoiceRepository {
     public function recalculateTotals(int $id, ?PDO $db = null): void {
         $conn = $db ?? $this->db;
 
+        // 1. Sum line subtotals and tax
         $stmt = $conn->prepare("
             SELECT
-                COALESCE(SUM(total_price_fc), 0) AS total_fc,
-                COALESCE(SUM(total_price_bc), 0) AS total_bc,
+                COALESCE(SUM(total_price_fc), 0) AS subtotal_fc,
+                COALESCE(SUM(total_price_bc), 0) AS subtotal_bc,
                 COALESCE(SUM(tax_amount_fc), 0)  AS tax_fc,
                 COALESCE(SUM(tax_amount_bc), 0)  AS tax_bc
             FROM si_details
@@ -254,6 +257,24 @@ class SalesInvoiceRepository {
         ");
         $stmt->execute(['invoice_id' => $id]);
         $totals = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $subtotalFc = (float) $totals['subtotal_fc'];
+        $subtotalBc = (float) $totals['subtotal_bc'];
+        $taxFc      = (float) $totals['tax_fc'];
+        $taxBc      = (float) $totals['tax_bc'];
+
+        // 2. Fetch global discount_percent from invoice header
+        $discStmt = $conn->prepare("SELECT discount_percent FROM sales_invoices WHERE id = :id");
+        $discStmt->execute(['id' => $id]);
+        $discountPercent = (float) ($discStmt->fetchColumn() ?: 0);
+
+        // 3. Apply global discount to subtotals
+        $totalFc = round($subtotalFc * (1 - $discountPercent / 100), 2);
+        $totalBc = round($subtotalBc * (1 - $discountPercent / 100), 2);
+
+        // 4. Grand total = discounted subtotal + tax
+        $grandTotalFc = $totalFc + $taxFc;
+        $grandTotalBc = $totalBc + $taxBc;
 
         $upd = $conn->prepare("
             UPDATE sales_invoices
@@ -265,10 +286,10 @@ class SalesInvoiceRepository {
             WHERE id = :id
         ");
         $upd->execute([
-            'total_fc' => $totals['total_fc'],
-            'total_bc' => $totals['total_bc'],
-            'tax_fc'   => $totals['tax_fc'],
-            'tax_bc'   => $totals['tax_bc'],
+            'total_fc' => $grandTotalFc,
+            'total_bc' => $grandTotalBc,
+            'tax_fc'   => $taxFc,
+            'tax_bc'   => $taxBc,
             'id'       => $id,
         ]);
     }

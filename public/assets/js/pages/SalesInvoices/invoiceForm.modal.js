@@ -122,6 +122,10 @@ export async function mount({ modalRoot: root, data }) {
     // Recalculate BC when exchange rate changes
     F.exchangeRate().addEventListener('input', () => recalcAllLines());
 
+    // Recalculate when global discount changes
+    const globalDiscInput = document.getElementById('inputInvoiceGlobalDiscount');
+    if (globalDiscInput) globalDiscInput.addEventListener('input', () => recalcGrandTotal());
+
     // Auto-fetch exchange rate when currency changes
     cleanupRateAutoFetch = attachRateAutoFetch(F.currency(), F.exchangeRate());
 
@@ -144,14 +148,15 @@ export async function mount({ modalRoot: root, data }) {
 
             const lines   = collectLines();
             const payload = {
-                customer_id:    F.customer().value      || null,
-                invoice_number: F.invoiceNumber().value.trim(),
-                invoice_date:   F.invoiceDate().value,
-                due_date:       F.dueDate().value || null,
-                currency:       F.currency().value,
-                exchange_rate:  parseFloat(F.exchangeRate().value),
-                notes:          F.notes().value.trim() || null,
-                lines:          lines,
+                customer_id:      F.customer().value      || null,
+                invoice_number:   F.invoiceNumber().value.trim(),
+                invoice_date:     F.invoiceDate().value,
+                due_date:         F.dueDate().value || null,
+                currency:         F.currency().value,
+                exchange_rate:    parseFloat(F.exchangeRate().value),
+                discount_percent: parseFloat(document.getElementById('inputInvoiceGlobalDiscount')?.value) || 0,
+                notes:            F.notes().value.trim() || null,
+                lines:            lines,
             };
 
             try {
@@ -275,6 +280,10 @@ async function fetchAndFill(invoiceId) {
         F.currency().value     = inv.currency       ?? '';
         F.exchangeRate().value = inv.exchange_rate  ?? '';
         F.notes().value        = inv.notes          ?? '';
+
+        // Load global discount
+        const globalDiscEl = document.getElementById('inputInvoiceGlobalDiscount');
+        if (globalDiscEl) globalDiscEl.value = inv.discount_percent ?? '0';
 
         // Render existing lines
         const lines = inv.lines ?? [];
@@ -576,12 +585,21 @@ function recalcGrandTotal() {
         taxBc      += lineTaxBc;
     });
 
+    // Apply global discount
+    const globalDiscountEl = document.getElementById('inputInvoiceGlobalDiscount');
+    const globalDiscount = parseFloat(globalDiscountEl?.value) || 0;
+    const discountMultiplier = 1 - (globalDiscount / 100);
+    const afterDiscountFc = round2(subtotalFc * discountMultiplier);
+    const afterDiscountBc = round2(subtotalBc * discountMultiplier);
+
     F.subtotalFc().textContent  = formatAmount(subtotalFc);
     F.subtotalBc().textContent  = formatAmount(subtotalBc);
+    const afterDiscEl = document.getElementById('invoiceAfterDiscountFc');
+    if (afterDiscEl) afterDiscEl.textContent = formatAmount(afterDiscountFc);
     F.taxTotalFc().textContent  = formatAmount(taxFc);
     F.taxTotalBc().textContent  = formatAmount(taxBc);
-    F.grandTotalFc().textContent = formatAmount(round2(subtotalFc + taxFc));
-    F.grandTotalBc().textContent = formatAmount(round2(subtotalBc + taxBc));
+    F.grandTotalFc().textContent = formatAmount(round2(afterDiscountFc + taxFc));
+    F.grandTotalBc().textContent = formatAmount(round2(afterDiscountBc + taxBc));
 }
 
 function collectLines() {

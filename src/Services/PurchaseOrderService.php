@@ -86,14 +86,15 @@ class PurchaseOrderService {
         $this->db->beginTransaction();
         try {
             $poId = $this->repo->create([
-                'business_id'   => $ctx->business_id,
-                'supplier_id'   => isset($data['supplier_id']) && $data['supplier_id'] !== '' ? (int) $data['supplier_id'] : null,
-                'po_number'     => $poNumber,
-                'po_date'       => $data['po_date'],
-                'currency'      => trim($data['currency']),
-                'exchange_rate' => $resolvedRate,
-                'notes'         => $data['notes'] ?? null,
-                'created_by'    => $ctx->user_id,
+                'business_id'      => $ctx->business_id,
+                'supplier_id'      => isset($data['supplier_id']) && $data['supplier_id'] !== '' ? (int) $data['supplier_id'] : null,
+                'po_number'        => $poNumber,
+                'po_date'          => $data['po_date'],
+                'currency'         => trim($data['currency']),
+                'exchange_rate'    => $resolvedRate,
+                'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
+                'notes'            => $data['notes'] ?? null,
+                'created_by'       => $ctx->user_id,
             ]);
 
             foreach ($lines as $line) {
@@ -178,22 +179,24 @@ class PurchaseOrderService {
             // Update header
             $stmt = $this->db->prepare("
                 UPDATE purchase_orders
-                SET supplier_id   = :supplier_id,
-                    po_date       = :po_date,
-                    currency      = :currency,
-                    exchange_rate = :exchange_rate,
-                    notes         = :notes,
-                    updated_at    = NOW()
+                SET supplier_id      = :supplier_id,
+                    po_date          = :po_date,
+                    currency         = :currency,
+                    exchange_rate    = :exchange_rate,
+                    discount_percent = :discount_percent,
+                    notes            = :notes,
+                    updated_at       = NOW()
                 WHERE id = :id AND business_id = :business_id AND status = 'DRAFT'
             ");
             $stmt->execute([
-                'supplier_id'  => isset($data['supplier_id']) && $data['supplier_id'] !== '' ? (int) $data['supplier_id'] : ($po['supplier_id'] ?? null),
-                'po_date'      => $data['po_date'] ?? $po['po_date'],
-                'currency'     => $currency,
-                'exchange_rate' => $resolvedRate,
-                'notes'        => array_key_exists('notes', $data) ? ($data['notes'] ?: null) : $po['notes'],
-                'id'           => $id,
-                'business_id'  => $ctx->business_id,
+                'supplier_id'      => isset($data['supplier_id']) && $data['supplier_id'] !== '' ? (int) $data['supplier_id'] : ($po['supplier_id'] ?? null),
+                'po_date'          => $data['po_date'] ?? $po['po_date'],
+                'currency'         => $currency,
+                'exchange_rate'    => $resolvedRate,
+                'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : ($po['discount_percent'] ?? 0),
+                'notes'            => array_key_exists('notes', $data) ? ($data['notes'] ?: null) : $po['notes'],
+                'id'               => $id,
+                'business_id'      => $ctx->business_id,
             ]);
 
             // Replace lines if provided
