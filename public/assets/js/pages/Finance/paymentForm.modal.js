@@ -66,7 +66,7 @@ export async function mount({ modalRoot: root, data }) {
     }
 
     // Auto-calculate amount_bc when amount_fc or exchange_rate changes
-    F.amountFc().addEventListener('input', () => { recalcBc(); updateAllocationTotals(); });
+    F.amountFc().addEventListener('input', () => { recalcBc(); updateAllocationTotals(); handleAutoFillFIFO(); });
     F.exchangeRate().addEventListener('input', recalcBc);
 
     // Auto-fetch exchange rate when currency changes

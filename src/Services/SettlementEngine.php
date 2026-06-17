@@ -12,12 +12,11 @@ class SettlementEngine {
 
     /**
      * Evaluate supplier settlement after a payment slip is created.
-     * Uses allocation-based logic: a PO is CLOSED when
-     * SUM(payment_allocations.amount_bc) WHERE reference_type='PURCHASE_ORDER' AND reference_id = po.id >= po.total_amount_bc
+     * A PO is considered settled when allocations + debit notes cover the full amount.
      *
      * @param int $payeeId   The supplier's payee ID (payees.id)
      * @param int $businessId The current business ID
-     * @return array Array of settled purchase order IDs (newly CLOSED)
+     * @return array Array of settled purchase order IDs
      */
     public function evaluateSupplierSettlement(int $payeeId, int $businessId): array {
         // Find all RECEIVED POs for this supplier in this business
@@ -40,8 +39,18 @@ class SettlementEngine {
             $totalAllocated = $this->sumAllocationsForDocument('PURCHASE_ORDER', (int) $po['id']);
             $totalAmount = (float) $po['total_amount_bc'];
 
-            // PO is settled when allocations cover the full amount (or amount is zero)
-            if ($totalAmount <= 0 || $totalAllocated >= $totalAmount) {
+            // Subtract issued debit notes from effective total
+            $dnStmt = $this->db->prepare("
+                SELECT COALESCE(SUM(total_amount_bc), 0)
+                FROM debit_notes WHERE purchase_order_id = :po_id AND status = 'ISSUED'
+            ");
+            $dnStmt->execute(['po_id' => (int) $po['id']]);
+            $debitNotesTotal = (float) $dnStmt->fetchColumn();
+
+            $effectiveTotal = $totalAmount - $debitNotesTotal;
+
+            // PO is settled when allocations cover the effective amount
+            if ($effectiveTotal <= 0 || $totalAllocated >= $effectiveTotal) {
                 $settledIds[] = (int) $po['id'];
             }
         }
@@ -51,8 +60,7 @@ class SettlementEngine {
 
     /**
      * Evaluate customer settlement after a collection slip is created.
-     * Uses allocation-based logic: an invoice is PAID when
-     * SUM(collection_allocations.amount_bc) WHERE reference_id = invoice.id >= invoice.total_amount_bc
+     * An invoice is PAID when collections + credit notes cover the full amount.
      *
      * @param int $payeeId   The customer's payee ID (payees.id)
      * @param int $businessId The current business ID
@@ -79,8 +87,18 @@ class SettlementEngine {
             $totalAllocated = $this->sumCollectionAllocationsForDocument((int) $invoice['id']);
             $totalAmount = (float) $invoice['total_amount_bc'];
 
-            // Invoice is settled when allocations cover the full amount (or amount is zero)
-            if ($totalAmount <= 0 || $totalAllocated >= $totalAmount) {
+            // Subtract issued credit notes from effective total
+            $cnStmt = $this->db->prepare("
+                SELECT COALESCE(SUM(total_amount_bc), 0)
+                FROM credit_notes WHERE sales_invoice_id = :inv_id AND status = 'ISSUED'
+            ");
+            $cnStmt->execute(['inv_id' => (int) $invoice['id']]);
+            $creditNotesTotal = (float) $cnStmt->fetchColumn();
+
+            $effectiveTotal = $totalAmount - $creditNotesTotal;
+
+            // Invoice is settled when allocations cover the effective amount
+            if ($effectiveTotal <= 0 || $totalAllocated >= $effectiveTotal) {
                 $settledIds[] = (int) $invoice['id'];
             }
         }
@@ -163,7 +181,7 @@ class SettlementEngine {
 
     /**
      * Get unpaid/partially-paid invoices for a customer, ordered by date ASC (FIFO).
-     * Returns each invoice with its remaining balance.
+     * Returns each invoice with its remaining balance (accounting for credit notes).
      */
     private function getUnpaidInvoicesForCustomer(int $payeeId, int $businessId): array {
         $stmt = $this->db->prepare("
@@ -174,7 +192,11 @@ class SettlementEngine {
                 COALESCE(
                     (SELECT SUM(ca.amount_bc) FROM collection_allocations ca WHERE ca.reference_type = 'SALES_INVOICE' AND ca.reference_id = si.id),
                     0
-                ) AS allocated_bc
+                ) AS allocated_bc,
+                COALESCE(
+                    (SELECT SUM(cn.total_amount_bc) FROM credit_notes cn WHERE cn.sales_invoice_id = si.id AND cn.status = 'ISSUED'),
+                    0
+                ) AS credit_notes_bc
             FROM sales_invoices si
             WHERE si.customer_id = :payee_id
               AND si.business_id = :business_id
@@ -189,7 +211,8 @@ class SettlementEngine {
 
         $result = [];
         foreach ($rows as $row) {
-            $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
+            $effectiveTotal = (float) $row['total_amount_bc'] - (float) $row['credit_notes_bc'];
+            $remaining = $effectiveTotal - (float) $row['allocated_bc'];
             if ($remaining > 0) {
                 $row['remaining_bc'] = $remaining;
                 $result[] = $row;
@@ -205,7 +228,7 @@ class SettlementEngine {
     private function getUnpaidDocumentsForSupplier(int $payeeId, int $businessId): array {
         $documents = [];
 
-        // 1. RECEIVED Purchase Orders
+        // 1. RECEIVED Purchase Orders (subtract issued debit notes from effective total)
         $stmt = $this->db->prepare("
             SELECT
                 po.id,
@@ -215,7 +238,11 @@ class SettlementEngine {
                 COALESCE(
                     (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'PURCHASE_ORDER' AND pa.reference_id = po.id),
                     0
-                ) AS allocated_bc
+                ) AS allocated_bc,
+                COALESCE(
+                    (SELECT SUM(dn.total_amount_bc) FROM debit_notes dn WHERE dn.purchase_order_id = po.id AND dn.status = 'ISSUED'),
+                    0
+                ) AS debit_notes_bc
             FROM purchase_orders po
             WHERE po.supplier_id = :payee_id
               AND po.business_id = :business_id
@@ -229,7 +256,8 @@ class SettlementEngine {
         $poRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($poRows as $row) {
-            $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
+            $effectiveTotal = (float) $row['total_amount_bc'] - (float) $row['debit_notes_bc'];
+            $remaining = $effectiveTotal - (float) $row['allocated_bc'];
             if ($remaining > 0) {
                 $row['remaining_bc'] = $remaining;
                 $documents[] = $row;

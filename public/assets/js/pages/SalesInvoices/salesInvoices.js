@@ -227,7 +227,9 @@ async function fetchInvoices() {
 
 function buildFilters() {
     setTimeout(() => {
-        const dtSearch = inv_container.querySelector('.dt-search') || inv_container.querySelector('.dataTables_filter');
+        const dtSearch = inv_container.querySelector('.dt-search')
+            || inv_container.querySelector('.dataTables_filter')
+            || inv_container.querySelector('input[type="search"]')?.closest('div');
         if (!dtSearch) return;
 
         const searchParent = dtSearch.parentElement;

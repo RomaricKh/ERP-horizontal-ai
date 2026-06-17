@@ -241,7 +241,9 @@ async function fetchPurchaseOrders() {
 function buildFilters() {
     // Wait for DataTable to render so we can find the search box area
     setTimeout(() => {
-        const dtSearch = po_container.querySelector('.dt-search') || po_container.querySelector('.dataTables_filter');
+        const dtSearch = po_container.querySelector('.dt-search')
+            || po_container.querySelector('.dataTables_filter')
+            || po_container.querySelector('input[type="search"]')?.closest('div');
         if (!dtSearch) return;
 
         const searchParent = dtSearch.parentElement;

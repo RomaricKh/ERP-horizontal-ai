@@ -239,15 +239,21 @@ async function loadServices() {
 
 async function loadItems(customerId) {
     try {
-        let url;
-        if (customerId) {
-            url = `/api/items/for-customer/${customerId}`;
-        } else {
-            url = '/api/items/for-customer';
-        }
+        // Load all items — includes global items + customer-specific items
+        const url = '/api/items';
         const res  = await apiFetch(url);
         const json = await res.json();
-        itemsList  = json.success ? (json.data?.items ?? []) : [];
+        const allItems = json.success ? (json.data?.items ?? []) : [];
+
+        // Filter: show items that are global (customer_id is null) OR belong to this customer
+        if (customerId) {
+            itemsList = allItems.filter(item =>
+                !item.customer_id || String(item.customer_id) === String(customerId)
+            );
+        } else {
+            // No customer selected — show only global items
+            itemsList = allItems.filter(item => !item.customer_id);
+        }
     } catch (err) {
         console.error('loadItems failed:', err);
         itemsList = [];
