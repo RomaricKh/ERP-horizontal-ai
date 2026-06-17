@@ -119,6 +119,14 @@ export async function mount() {
                 data: { equity_type: 'WITHDRAWAL', partner_id: partnerId },
                 options: { backdrop: false, keyboard: true, focus: true }
             });
+        },
+
+        'partnerShares.equity-history': async ({ el }) => {
+            const tr = el.closest('tr');
+            const rowData = dataTable.row(tr).data();
+            const partnerId = rowData[0];
+            if (!partnerId) return;
+            window.location.hash = `#/partner-equity?partner_id=${partnerId}`;
         }
     });
 }
@@ -176,6 +184,8 @@ function renderTable(shares) {
                             <i class="fas fa-plus-circle text-success"></i></button>`;
             actions += `<button data-action="partnerShares.withdraw" class="btn btn-light btn-circle btn-sm me-1" title="Withdraw">
                             <i class="fas fa-minus-circle text-warning"></i></button>`;
+            actions += `<button data-action="partnerShares.equity-history" class="btn btn-light btn-circle btn-sm me-1" title="Equity History">
+                            <i class="fas fa-history text-secondary"></i></button>`;
             actions += `<button data-action="partnerShares.edit" class="btn btn-light btn-circle btn-sm me-1" title="Edit">
                             <i class="fas fa-edit text-info"></i></button>`;
             actions += `<button data-action="partnerShares.delete" class="btn btn-light btn-circle btn-sm me-1" title="Delete">

@@ -193,6 +193,185 @@ class PartnerEquityService {
         return $id;
     }
 
+    /**
+     * Reverse an existing partner equity entry.
+     *
+     * Creates an OPPOSITE entry (CONTRIBUTION → WITHDRAWAL, WITHDRAWAL → CONTRIBUTION)
+     * for the same amount, with a corresponding opposite slip and capital adjustment.
+     *
+     * @param int      $equityId  The equity entry ID to reverse
+     * @param int|null $accountId Optional account ID (uses original slip's account if null)
+     * @return int The new reversal entry ID
+     * @throws \InvalidArgumentException if entry not found
+     * @throws \RuntimeException on processing errors
+     */
+    public function reverse(int $equityId, ?int $accountId = null): int {
+        $ctx        = AuthContext::get();
+        $businessId = $ctx->business_id;
+
+        // Find the original equity entry
+        $entries = $this->equityRepo->findAll($businessId);
+        $original = null;
+        foreach ($entries as $entry) {
+            if ((int) $entry['id'] === $equityId) {
+                $original = $entry;
+                break;
+            }
+        }
+
+        if (!$original) {
+            throw new \InvalidArgumentException('Equity entry not found.');
+        }
+
+        $originalType = $original['equity_type'];
+        $amount       = (float) $original['amount'];
+        $partnerId    = (int) $original['partner_id'];
+
+        // Determine opposite type
+        $reverseType = ($originalType === 'CONTRIBUTION') ? 'WITHDRAWAL' : 'CONTRIBUTION';
+
+        // Find the partner's share record
+        $shareRecord = $this->findPartnerShare($partnerId, $businessId);
+        if (!$shareRecord) {
+            throw new \InvalidArgumentException(
+                'Partner does not have an active share record in this business.'
+            );
+        }
+
+        // For reversal of CONTRIBUTION (becomes WITHDRAWAL): check invested capital
+        if ($reverseType === 'WITHDRAWAL') {
+            $currentCapital = (float) $shareRecord['invested_capital'];
+            if ($amount > $currentCapital) {
+                throw new \InvalidArgumentException(
+                    'Reversal amount (' . $amount . ') exceeds current invested capital (' . $currentCapital . ').'
+                );
+            }
+        }
+
+        // Determine account ID from original slip if not provided
+        if ($accountId === null) {
+            if ($original['slip_type'] === 'COLLECTION_SLIP' && $original['slip_id']) {
+                $stmt = $this->db->prepare("SELECT account_id, currency, exchange_rate FROM collection_slips WHERE id = :id");
+                $stmt->execute(['id' => $original['slip_id']]);
+                $slipData = $stmt->fetch(\PDO::FETCH_ASSOC);
+                $accountId    = $slipData ? (int) $slipData['account_id'] : null;
+                $currency     = $slipData['currency'] ?? 'USD';
+                $exchangeRate = (float) ($slipData['exchange_rate'] ?? 1.0);
+            } elseif ($original['slip_type'] === 'PAYMENT_SLIP' && $original['slip_id']) {
+                $stmt = $this->db->prepare("SELECT account_id, currency, exchange_rate FROM payment_slips WHERE id = :id");
+                $stmt->execute(['id' => $original['slip_id']]);
+                $slipData = $stmt->fetch(\PDO::FETCH_ASSOC);
+                $accountId    = $slipData ? (int) $slipData['account_id'] : null;
+                $currency     = $slipData['currency'] ?? 'USD';
+                $exchangeRate = (float) ($slipData['exchange_rate'] ?? 1.0);
+            }
+        }
+
+        // Defaults if we couldn't resolve from the original slip
+        $currency     = $currency ?? 'USD';
+        $exchangeRate = $exchangeRate ?? 1.0;
+        $amountBc     = round($amount * $exchangeRate, 2);
+
+        $notes = "Reversal of entry #{$equityId}";
+
+        // Capital adjustment is opposite of the reversal type
+        $capitalAdjustment = ($reverseType === 'CONTRIBUTION') ? $amount : -$amount;
+
+        $this->db->beginTransaction();
+        try {
+            $slipType = null;
+            $slipId   = null;
+
+            if ($reverseType === 'CONTRIBUTION') {
+                // Reversal creates a collection slip (money IN)
+                $slipData = [
+                    'business_id'   => $businessId,
+                    'account_id'    => $accountId,
+                    'payee_id'      => $partnerId,
+                    'slip_number'   => 'PC-REV-' . $businessId . '-' . $partnerId . '-' . time(),
+                    'slip_date'     => date('Y-m-d'),
+                    'currency'      => $currency,
+                    'exchange_rate' => $exchangeRate,
+                    'amount_fc'     => $amount,
+                    'amount_bc'     => $amountBc,
+                    'method'        => 'TRANSFER',
+                    'notes'         => $notes,
+                    'created_by'    => $ctx->user_id,
+                ];
+                $slipId   = $this->collectionRepo->create($slipData);
+                $slipType = 'COLLECTION_SLIP';
+
+                if ($accountId) {
+                    $accountRepo = new \App\Repository\AccountRepository($this->db);
+                    $accountRepo->updateBalance($accountId, +$amountBc, $this->db, +$amount);
+                }
+            } else {
+                // Reversal creates a payment slip (money OUT)
+                $slipData = [
+                    'business_id'    => $businessId,
+                    'account_id'     => $accountId,
+                    'payee_id'       => $partnerId,
+                    'payment_number' => 'PW-REV-' . $businessId . '-' . $partnerId . '-' . time(),
+                    'payment_date'   => date('Y-m-d'),
+                    'currency'       => $currency,
+                    'exchange_rate'  => $exchangeRate,
+                    'amount_fc'      => $amount,
+                    'amount_bc'      => $amountBc,
+                    'method'         => 'TRANSFER',
+                    'notes'          => $notes,
+                    'created_by'     => $ctx->user_id,
+                ];
+                $slipId   = $this->paymentRepo->create($slipData);
+                $slipType = 'PAYMENT_SLIP';
+
+                if ($accountId) {
+                    $accountRepo = new \App\Repository\AccountRepository($this->db);
+                    $accountRepo->updateBalance($accountId, -$amountBc, $this->db, -$amount);
+                }
+            }
+
+            // Insert the reversal equity record
+            $record = [
+                'business_id' => $businessId,
+                'partner_id'  => $partnerId,
+                'equity_type' => $reverseType,
+                'amount'      => $amount,
+                'slip_type'   => $slipType,
+                'slip_id'     => $slipId,
+                'notes'       => $notes,
+            ];
+
+            $id = $this->equityRepo->insert($record);
+
+            // Update invested_capital on the partner's share record
+            $this->shareRepo->updateInvestedCapital(
+                (int) $shareRecord['id'],
+                $businessId,
+                $capitalAdjustment
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        // Audit log
+        $this->audit->log(
+            'CREATE',
+            'partner_equity',
+            $id,
+            'REVERSE',
+            ['reversed_entry_id' => $equityId],
+            $record,
+            $ctx->user_id,
+            $ctx->tenant_id,
+            $ctx->business_id
+        );
+
+        return $id;
+    }
+
     /* =====================================================================
      * Private helpers
      * ===================================================================== */

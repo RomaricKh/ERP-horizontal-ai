@@ -98,12 +98,20 @@
                 <option value="DECLINING_BALANCE" data-i18n="assets.method_declining_balance">Declining Balance</option>
               </select>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-3">
               <label class="form-label small text-muted" for="inputAssetUsefulLife"><span data-i18n="assets.useful_life">Useful Life (years)</span> <span class="text-danger">*</span></label>
               <div class="input-group">
                 <input class="form-control" id="inputAssetUsefulLife" type="number"
                        step="1" min="1" placeholder="e.g. 5" required>
                 <span class="input-group-text">years</span>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small text-muted" for="inputAssetSalvageValue"><span data-i18n="assets.salvage_value">Salvage Value</span></label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-coins"></i></span>
+                <input class="form-control" id="inputAssetSalvageValue" type="number"
+                       step="0.01" min="0" placeholder="0.00">
               </div>
             </div>
           </div>

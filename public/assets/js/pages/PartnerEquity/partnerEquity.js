@@ -2,7 +2,7 @@
 
 import { hasPermission } from '../../Auth/auth.js';
 import { registerPageActions } from '../Core/pageActions.js';
-import { MODAL_SCOPE, openModal, closeModalsInContainer } from '../../components/modals.js';
+import { MODAL_SCOPE, openModal, closeModalsInContainer, confirm, alert } from '../../components/modals.js';
 import { createDataTable } from '../../templates/datatables.design.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
 import { getFormatter } from '../../i18n/translationClient.js';
@@ -59,6 +59,31 @@ export async function mount() {
                 data: { equity_type: 'WITHDRAWAL' },
                 options: { backdrop: false, keyboard: true, focus: true }
             });
+        },
+        'partnerEquity.reverse': async ({ el }) => {
+            const id = el.dataset.id || el.closest('[data-id]')?.dataset.id;
+            if (!id) return;
+
+            const confirmed = await confirm({
+                title: 'Reverse Entry',
+                message: `Are you sure you want to reverse equity entry #${id}? This will create an opposite entry for the same amount.`
+            });
+            if (!confirmed) return;
+
+            try {
+                const res = await apiFetch(`/api/partner-equity/${id}/reverse`, {
+                    method: 'POST',
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    await alert({ title: 'Error', alertText: data.message || 'Failed to reverse entry' });
+                } else {
+                    await fetchEquityEntries();
+                }
+            } catch (err) {
+                console.error('Reverse equity entry failed:', err);
+            }
         }
     });
 }
@@ -134,7 +159,8 @@ function renderTable(entries) {
     if (!equityDataTable) {
         equityDataTable = createDataTable('#partnerEquityTable', {
             columnDefs: [
-                { targets: '_all', className: 'text-nowrap' }
+                { targets: '_all', className: 'text-nowrap' },
+                { targets: 6, className: 'text-center', orderable: false, searchable: false }
             ],
             order: [[5, 'desc']]
         });
@@ -159,6 +185,8 @@ function renderTable(entries) {
 
         const date = fmt.formatDate(entry.created_at ?? '') || (entry.created_at ?? '');
 
+        const actions = `<button data-action="partnerEquity.reverse" data-id="${entry.id}" class="btn btn-light btn-circle btn-sm" title="Reverse"><i class="fas fa-undo text-warning"></i></button>`;
+
         equityDataTable.row.add([
             escHtml(entry.partner_name ?? '—'),
             typeBadge,
@@ -167,7 +195,8 @@ function renderTable(entries) {
                 : `<span class="text-danger">-${amount}</span>`,
             slipRef,
             escHtml(entry.notes ?? ''),
-            date
+            date,
+            actions
         ]);
     });
 

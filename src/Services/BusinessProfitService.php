@@ -188,6 +188,73 @@ class BusinessProfitService {
     }
 
     /**
+     * Recalculate a DRAFT profit record using its existing period dates.
+     *
+     * Re-computes revenue, cogs, expenses, salaries, net profit,
+     * safety_net_amount and distributable_profit using the stored safety_net_percent.
+     *
+     * @throws \RuntimeException if record not found
+     * @throws \InvalidArgumentException if record is not DRAFT
+     */
+    public function recalculate(int $id): void {
+        $ctx        = AuthContext::get();
+        $businessId = $ctx->business_id;
+
+        $before = $this->profitRepo->findById($id, $businessId);
+        if (!$before) {
+            throw new \RuntimeException('Profit record not found');
+        }
+
+        if ($before['status'] !== 'DRAFT') {
+            throw new \InvalidArgumentException('Only DRAFT profit records can be recalculated');
+        }
+
+        $periodStart      = $before['period_start'];
+        $periodEnd        = $before['period_end'];
+        $safetyNetPercent = (float) $before['safety_net_percent'];
+
+        // Re-compute all values
+        $totalRevenue   = $this->computeRevenue($businessId, $periodStart, $periodEnd);
+        $totalCogs      = $this->computeCogs($businessId, $periodStart, $periodEnd);
+        $grossProfit    = round($totalRevenue - $totalCogs, 2);
+        $expenseAmount  = $this->computeExpenses($businessId, $periodStart, $periodEnd);
+        $salaryExpenses = $this->computeSalaries($businessId, $periodStart, $periodEnd);
+        $totalExpenses  = round($expenseAmount + $salaryExpenses, 2);
+        $netProfit      = round($grossProfit - $totalExpenses, 2);
+
+        // Safety net
+        $safetyNetAmount     = round($netProfit * $safetyNetPercent / 100, 2);
+        $distributableProfit = round($netProfit - $safetyNetAmount, 2);
+
+        $updateData = [
+            'total_revenue'        => $totalRevenue,
+            'total_cogs'           => $totalCogs,
+            'gross_profit'         => $grossProfit,
+            'total_expenses'       => $totalExpenses,
+            'salary_expenses'      => $salaryExpenses,
+            'net_profit'           => $netProfit,
+            'safety_net_percent'   => $safetyNetPercent,
+            'safety_net_amount'    => $safetyNetAmount,
+            'distributable_profit' => $distributableProfit,
+            'status'               => 'DRAFT',
+        ];
+
+        $this->profitRepo->update($id, $businessId, $updateData);
+
+        $this->audit->log(
+            'UPDATE',
+            'business_profit',
+            $id,
+            'RECALCULATE',
+            $before,
+            $updateData,
+            $ctx->user_id,
+            $ctx->tenant_id,
+            $ctx->business_id
+        );
+    }
+
+    /**
      * Delete a profit record (only allowed on DRAFT records).
      */
     public function delete(int $id): void {
@@ -263,11 +330,17 @@ class BusinessProfitService {
      * Creates payment slips via the allocation system (reference_type = 'PARTNER_PROFIT').
      * Links profit_distributions.payment_slip_id to each created slip.
      *
+     * @param int $id The profit record ID
+     * @param int|null $accountId The account to pay partners from (required)
      * @return array Distribution details
      */
-    public function distribute(int $id): array {
+    public function distribute(int $id, ?int $accountId = null): array {
         $ctx        = AuthContext::get();
         $businessId = $ctx->business_id;
+
+        if (!$accountId) {
+            throw new \InvalidArgumentException('Account ID is required to distribute profit. Select the source account.');
+        }
 
         $before = $this->profitRepo->findById($id, $businessId);
         if (!$before) {
@@ -276,6 +349,13 @@ class BusinessProfitService {
 
         if ($before['status'] !== 'FINALIZED') {
             throw new \InvalidArgumentException('Only FINALIZED profit records can be distributed');
+        }
+
+        // Verify account exists
+        $accountRepo = new \App\Repository\AccountRepository($this->db);
+        $account = $accountRepo->findById($accountId, $businessId);
+        if (!$account) {
+            throw new \InvalidArgumentException('Selected account not found');
         }
 
         // Get partner shares for this business
@@ -298,11 +378,11 @@ class BusinessProfitService {
                 // Create payment slip for this partner
                 $paymentData = [
                     'business_id'    => $businessId,
-                    'account_id'     => null,
+                    'account_id'     => $accountId,
                     'payee_id'       => $share['partner_id'],
                     'payment_number' => $this->generatePaymentNumber($businessId, $share['partner_id'], $id),
                     'payment_date'   => date('Y-m-d'),
-                    'currency'       => 'USD',
+                    'currency'       => $account['currency'],
                     'exchange_rate'  => 1.0000,
                     'amount_fc'      => $distributionAmount,
                     'amount_bc'      => $distributionAmount,
@@ -312,6 +392,9 @@ class BusinessProfitService {
                 ];
 
                 $paymentId = $this->paymentRepo->create($paymentData);
+
+                // Deduct from account balance
+                $accountRepo->updateBalance($accountId, -$distributionAmount, $this->db, -$distributionAmount);
 
                 // Create payment allocation for the profit distribution
                 $allocStmt = $this->db->prepare("
@@ -375,14 +458,15 @@ class BusinessProfitService {
      * ===================================================================== */
 
     /**
-     * Revenue = sum of PAID invoices total_amount_bc in period.
+     * Revenue = sum of DELIVERED and PAID invoices total_amount_bc in period.
+     * (DELIVERED is the terminal fulfillment state; PAID is set by collection settlement)
      */
     private function computeRevenue(int $businessId, string $start, string $end): float {
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(total_amount_bc), 0)
             FROM sales_invoices
             WHERE business_id = :business
-              AND status = 'PAID'
+              AND status IN ('DELIVERED', 'PAID')
               AND invoice_date >= :start
               AND invoice_date <= :end
         ");
@@ -391,7 +475,7 @@ class BusinessProfitService {
     }
 
     /**
-     * COGS = sum of (si_details.quantity * items.cost_price) for PAID invoices in period.
+     * COGS = sum of (si_details.quantity * items.cost_price) for DELIVERED/PAID invoices in period.
      */
     private function computeCogs(int $businessId, string $start, string $end): float {
         $stmt = $this->db->prepare("
@@ -400,7 +484,7 @@ class BusinessProfitService {
             JOIN sales_invoices si ON si.id = sd.sales_invoice_id
             LEFT JOIN items i ON i.id = sd.item_id
             WHERE si.business_id = :business
-              AND si.status = 'PAID'
+              AND si.status IN ('DELIVERED', 'PAID')
               AND si.invoice_date >= :start
               AND si.invoice_date <= :end
               AND sd.item_id IS NOT NULL
@@ -432,8 +516,8 @@ class BusinessProfitService {
             SELECT COALESCE(SUM(net_amount_bc), 0)
             FROM salaries
             WHERE business_id = :business
-              AND salary_date >= :start
-              AND salary_date <= :end
+              AND period_start >= :start
+              AND period_start <= :end
         ");
         $stmt->execute(['business' => $businessId, 'start' => $start, 'end' => $end]);
         return (float) $stmt->fetchColumn();

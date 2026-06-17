@@ -113,4 +113,20 @@ class AssetsController extends BaseController {
             $this->serverError('Failed to depreciate asset');
         }
     }
+
+    // POST /assets/{id}/dispose
+    public function dispose(int $id): void {
+        try {
+            $this->auth();
+            $data = $this->input(['disposal_date', 'disposal_proceeds']);
+            $asset = $this->service->dispose($id, $data);
+            $this->json(true, ['asset' => $asset]);
+        } catch (\InvalidArgumentException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to dispose asset: ' . $e->getMessage());
+        }
+    }
 }

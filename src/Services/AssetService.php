@@ -102,6 +102,7 @@ class AssetService {
             'accumulated_depreciation' => 0,
             'depreciation_method'      => $data['depreciation_method'],
             'useful_life'              => (int) $data['useful_life'],
+            'salvage_value'            => (float) ($data['salvage_value'] ?? 0),
             'notes'                    => $data['notes'] ?? null,
         ];
 
@@ -153,6 +154,7 @@ class AssetService {
             'asset_type'          => $data['asset_type'] ?? $before['asset_type'],
             'depreciation_method' => $data['depreciation_method'] ?? $before['depreciation_method'],
             'useful_life'         => $data['useful_life'] ?? $before['useful_life'],
+            'salvage_value'       => $data['salvage_value'] ?? $before['salvage_value'],
             'notes'               => $data['notes'] ?? $before['notes'],
         ];
 
@@ -221,6 +223,10 @@ class AssetService {
             throw new \RuntimeException('Asset not found');
         }
 
+        if (($asset['status'] ?? 'ACTIVE') === 'DISPOSED') {
+            throw new \InvalidArgumentException('Cannot depreciate a disposed asset');
+        }
+
         if ($asset['asset_type'] === 'CURRENT') {
             throw new \InvalidArgumentException('Cannot depreciate CURRENT type assets');
         }
@@ -230,21 +236,29 @@ class AssetService {
         $accumulatedDepreciation = (float) $asset['accumulated_depreciation'];
         $usefulLife             = (int) $asset['useful_life'];
         $method                 = $asset['depreciation_method'];
+        $salvageValue           = (float) ($asset['salvage_value'] ?? 0);
+
+        // Maximum depreciable amount respects salvage value
+        $maxDepreciation = $valueBc - $salvageValue;
 
         // Calculate annual depreciation based on method
         if ($method === 'STRAIGHT_LINE') {
-            $annualDepreciation = $valueBc / $usefulLife;
+            $annualDepreciation = ($valueBc - $salvageValue) / $usefulLife;
         } else { // DECLINING_BALANCE
             $annualDepreciation = $currentValueBc * (2 / $usefulLife);
+            // Cap so current_value_bc doesn't go below salvage_value
+            if (($currentValueBc - $annualDepreciation) < $salvageValue) {
+                $annualDepreciation = $currentValueBc - $salvageValue;
+            }
         }
 
         $annualDepreciation = round($annualDepreciation, 2);
 
         // Apply depreciation with cap
         $newAccumulated = $accumulatedDepreciation + $annualDepreciation;
-        if ($newAccumulated >= $valueBc) {
-            $newAccumulated = $valueBc;
-            $newCurrentValue = 0;
+        if ($newAccumulated >= $maxDepreciation) {
+            $newAccumulated = $maxDepreciation;
+            $newCurrentValue = $salvageValue;
         } else {
             $newCurrentValue = round($valueBc - $newAccumulated, 2);
         }
@@ -286,6 +300,65 @@ class AssetService {
         );
 
         // Return the updated asset
+        return $this->repo->findById($id, $ctx->business_id);
+    }
+
+    /**
+     * Dispose of an asset (sell, scrap, or write off).
+     *
+     * Records disposal date, proceeds, and calculates gain/loss.
+     * Gain/Loss = proceeds - current_value_bc
+     * Marks asset as DISPOSED (no further depreciation allowed).
+     *
+     * @param int   $id       Asset ID
+     * @param array $data     Required: disposal_date. Optional: disposal_proceeds (default 0)
+     * @return array The updated asset record
+     * @throws \RuntimeException if not found or already disposed
+     */
+    public function dispose(int $id, array $data): array {
+        $ctx = AuthContext::get();
+
+        $asset = $this->repo->findById($id, $ctx->business_id);
+        if (!$asset) {
+            throw new \RuntimeException('Asset not found');
+        }
+
+        if (($asset['status'] ?? 'ACTIVE') === 'DISPOSED') {
+            throw new \RuntimeException('Asset is already disposed');
+        }
+
+        if (empty($data['disposal_date'])) {
+            throw new \InvalidArgumentException('Disposal date is required');
+        }
+
+        $currentValueBc    = (float) ($asset['current_value_bc'] ?? 0);
+        $disposalProceeds  = isset($data['disposal_proceeds']) ? (float) $data['disposal_proceeds'] : 0;
+        $disposalGainLoss  = round($disposalProceeds - $currentValueBc, 2);
+
+        $stmt = $this->db->prepare("
+            UPDATE assets
+            SET status              = 'DISPOSED',
+                disposal_date       = :disposal_date,
+                disposal_proceeds   = :disposal_proceeds,
+                disposal_gain_loss  = :disposal_gain_loss,
+                updated_at          = NOW()
+            WHERE id = :id AND business_id = :business
+        ");
+        $stmt->execute([
+            'disposal_date'      => $data['disposal_date'],
+            'disposal_proceeds'  => $disposalProceeds,
+            'disposal_gain_loss' => $disposalGainLoss,
+            'id'                 => $id,
+            'business'           => $ctx->business_id,
+        ]);
+
+        $this->audit->log(
+            'UPDATE', 'assets', $id, 'DISPOSE',
+            ['status' => 'ACTIVE', 'current_value_bc' => $currentValueBc],
+            ['status' => 'DISPOSED', 'disposal_date' => $data['disposal_date'], 'disposal_proceeds' => $disposalProceeds, 'gain_loss' => $disposalGainLoss],
+            $ctx->user_id, $ctx->tenant_id, $ctx->business_id
+        );
+
         return $this->repo->findById($id, $ctx->business_id);
     }
 }

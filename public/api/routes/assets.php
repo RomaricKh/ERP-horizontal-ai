@@ -18,6 +18,12 @@ $router->post('/assets/{id}/depreciate',
     ['assets.manage']
 );
 
+// POST /assets/{id}/dispose
+$router->post('/assets/{id}/dispose',
+    fn($id) => (new AssetsController())->dispose((int)$id),
+    ['assets.manage']
+);
+
 /* =====================================================================
  * ASSETS
  * ===================================================================== */

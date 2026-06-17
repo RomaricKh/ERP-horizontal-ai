@@ -93,12 +93,29 @@ $router->post('/business-profit/{id}/finalize',
     ['partners.manage']
 );
 
-// POST /business-profit/{id}/distribute
-$router->post('/business-profit/{id}/distribute',
+// POST /business-profit/{id}/recalculate
+$router->post('/business-profit/{id}/recalculate',
     function ($id) {
         $service = new BusinessProfitService(Database::getConnection());
         try {
-            $distributions = $service->distribute((int)$id);
+            $service->recalculate((int)$id);
+            echo json_encode(['success' => true, 'data' => ['id' => (int)$id]]);
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    },
+    ['partners.manage']
+);
+
+// POST /business-profit/{id}/distribute
+$router->post('/business-profit/{id}/distribute',
+    function ($id) {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $service = new BusinessProfitService(Database::getConnection());
+        try {
+            $accountId = isset($input['account_id']) ? (int) $input['account_id'] : null;
+            $distributions = $service->distribute((int)$id, $accountId);
             echo json_encode(['success' => true, 'data' => ['distributions' => $distributions]]);
         } catch (\RuntimeException | \InvalidArgumentException $e) {
             http_response_code(422);

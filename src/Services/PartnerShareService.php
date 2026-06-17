@@ -160,9 +160,10 @@ class PartnerShareService {
 
     /**
      * Delete a partner share record.
+     * Guards: reject if equity entries or profit distributions exist.
      * Logs via AuditService.
      *
-     * @throws \RuntimeException if record not found
+     * @throws \RuntimeException if record not found or has related records
      */
     public function delete(int $id): void {
         $ctx = AuthContext::get();
@@ -170,6 +171,27 @@ class PartnerShareService {
         $before = $this->repo->findById($id, $ctx->business_id);
         if (!$before) {
             throw new \RuntimeException('Partner share not found');
+        }
+
+        // Guard: check for equity entries
+        $equityStmt = $this->db->prepare("
+            SELECT COUNT(*) FROM partner_equity
+            WHERE partner_id = :partner_id AND business_id = :business_id
+        ");
+        $equityStmt->execute(['partner_id' => $before['partner_id'], 'business_id' => $ctx->business_id]);
+        if ((int) $equityStmt->fetchColumn() > 0) {
+            throw new \RuntimeException('Cannot delete: partner has equity entries (contributions/withdrawals). Remove them first.');
+        }
+
+        // Guard: check for profit distributions
+        $distStmt = $this->db->prepare("
+            SELECT COUNT(*) FROM profit_distributions
+            WHERE partner_id = :partner_id
+              AND business_profit_id IN (SELECT id FROM business_profit WHERE business_id = :business_id)
+        ");
+        $distStmt->execute(['partner_id' => $before['partner_id'], 'business_id' => $ctx->business_id]);
+        if ((int) $distStmt->fetchColumn() > 0) {
+            throw new \RuntimeException('Cannot delete: partner has profit distributions. This is a permanent record.');
         }
 
         $this->repo->delete($id, $ctx->business_id);

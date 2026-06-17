@@ -94,27 +94,47 @@ class BusinessProfitRepository {
 
     /**
      * Update a profit record scoped to business.
-     * Allowed fields: safety_net_percent, safety_net_amount, distributable_profit, status.
+     * Core fields: safety_net_percent, safety_net_amount, distributable_profit, status.
+     * Optional computed fields: total_revenue, total_cogs, gross_profit, total_expenses, salary_expenses, net_profit.
      */
     public function update(int $id, int $businessId, array $data): void {
-        $stmt = $this->db->prepare("
-            UPDATE business_profit
-            SET safety_net_percent  = :safety_net_percent,
-                safety_net_amount   = :safety_net_amount,
-                distributable_profit = :distributable_profit,
-                status              = :status,
-                updated_at          = NOW()
-            WHERE id          = :id
-              AND business_id = :business
-        ");
-        $stmt->execute([
-            'safety_net_percent'   => $data['safety_net_percent'],
-            'safety_net_amount'    => $data['safety_net_amount'],
-            'distributable_profit' => $data['distributable_profit'],
-            'status'               => $data['status'],
-            'id'                   => $id,
-            'business'             => $businessId,
-        ]);
+        $allowedFields = [
+            'safety_net_percent',
+            'safety_net_amount',
+            'distributable_profit',
+            'status',
+            'total_revenue',
+            'total_cogs',
+            'gross_profit',
+            'total_expenses',
+            'salary_expenses',
+            'net_profit',
+        ];
+
+        $setClauses = [];
+        $params     = [];
+
+        foreach ($allowedFields as $field) {
+            if (array_key_exists($field, $data)) {
+                $setClauses[]       = "{$field} = :{$field}";
+                $params[$field]     = $data[$field];
+            }
+        }
+
+        if (empty($setClauses)) {
+            throw new \InvalidArgumentException('No valid fields to update');
+        }
+
+        $setClauses[] = "updated_at = NOW()";
+        $params['id']       = $id;
+        $params['business'] = $businessId;
+
+        $sql = "UPDATE business_profit SET " . implode(', ', $setClauses) .
+               " WHERE id = :id AND business_id = :business";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
         if ($stmt->rowCount() === 0) {
             throw new \RuntimeException('Profit record not found or not allowed');
         }

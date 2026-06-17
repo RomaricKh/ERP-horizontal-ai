@@ -113,14 +113,51 @@ export async function mount() {
             const id = rowData[0];
             if (!id) return;
 
+            // Load accounts for selection
+            let accounts = [];
+            try {
+                const accRes = await apiFetch('/api/accounts');
+                const accJson = await accRes.json();
+                accounts = accJson.success ? (accJson.data?.accounts ?? []) : [];
+            } catch (e) { /* ignore */ }
+
+            if (accounts.length === 0) {
+                await alert({ title: 'Error', alertText: 'No business accounts found. Create an account first.' });
+                return;
+            }
+
+            // If only one account, use it directly; otherwise use first but inform user
+            const selectedAccount = accounts[0];
+            const fmt = getFormatter();
+            const balanceDisplay = fmt.formatNumber(selectedAccount.balance_fc ?? selectedAccount.balance ?? 0, 2);
+
+            let confirmMessage;
+            if (accounts.length === 1) {
+                confirmMessage = `Distribute profit to partners from:\n\n` +
+                    `Account: ${selectedAccount.name}\n` +
+                    `Currency: ${selectedAccount.currency}\n` +
+                    `Current Balance: ${balanceDisplay}\n\n` +
+                    `This action cannot be undone.`;
+            } else {
+                confirmMessage = `Distribute profit to partners from:\n\n` +
+                    `Account: ${selectedAccount.name}\n` +
+                    `Currency: ${selectedAccount.currency}\n` +
+                    `Current Balance: ${balanceDisplay}\n\n` +
+                    `(${accounts.length} accounts available — using the primary account)\n\n` +
+                    `This action cannot be undone.`;
+            }
+
             const confirmed = await confirm({
                 title: 'Distribute Profit',
-                message: 'Distribute this profit to partners based on their ownership percentages? This action cannot be undone.'
+                message: confirmMessage
             });
             if (!confirmed) return;
 
             try {
-                const res = await apiFetch(`/api/business-profit/${id}/distribute`, { method: 'POST' });
+                const res = await apiFetch(`/api/business-profit/${id}/distribute`, {
+                    method: 'POST',
+                    body: JSON.stringify({ account_id: selectedAccount.id })
+                });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
                     await alert({ title: 'Error', alertText: data.message || 'Failed to distribute profit' });
@@ -148,6 +185,24 @@ export async function mount() {
                 showDetailModal(data.data);
             } catch (err) {
                 console.error('Load profit details failed:', err);
+            }
+        },
+
+        'profit.recalculate': async ({ el }) => {
+            const tr = el.closest('tr');
+            const rowData = profitDataTable.row(tr).data();
+            const id = rowData[0];
+            if (!id) return;
+            try {
+                const res = await apiFetch(`/api/business-profit/${id}/recalculate`, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    await alert({ title: 'Error', alertText: data.message || 'Failed to recalculate' });
+                } else {
+                    await fetchProfitRecords();
+                }
+            } catch (err) {
+                console.error('Recalculate failed:', err);
             }
         }
     });
@@ -249,6 +304,8 @@ function buildActionButtons(record, canManage) {
                     <i class="fas fa-eye text-secondary"></i></button>`;
 
     if (status === 'DRAFT') {
+        actions += `<button data-action="profit.recalculate" class="btn btn-light btn-circle btn-sm me-1" title="Recalculate">
+                        <i class="fas fa-sync text-primary"></i></button>`;
         actions += `<button data-action="profit.edit" class="btn btn-light btn-circle btn-sm me-1" title="Edit">
                         <i class="fas fa-edit text-info"></i></button>`;
         actions += `<button data-action="profit.finalize" class="btn btn-light btn-circle btn-sm me-1" title="Finalize">

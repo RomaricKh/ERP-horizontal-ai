@@ -34,6 +34,7 @@ export async function mount({ modalRoot: root, data }) {
                 asset_type: form.querySelector('#inputAssetType').value,
                 depreciation_method: form.querySelector('#inputAssetDepreciationMethod').value,
                 useful_life: parseInt(form.querySelector('#inputAssetUsefulLife').value) || null,
+                salvage_value: parseFloat(form.querySelector('#inputAssetSalvageValue')?.value) || 0,
                 notes: form.querySelector('#inputAssetNotes').value.trim() || null
             };
 
@@ -116,6 +117,7 @@ async function fetchAndFillAsset(id) {
         form.querySelector('#inputAssetExchangeRate').value = asset.exchange_rate ?? '';
         form.querySelector('#inputAssetDepreciationMethod').value = asset.depreciation_method ?? '';
         form.querySelector('#inputAssetUsefulLife').value = asset.useful_life ?? '';
+        form.querySelector('#inputAssetSalvageValue').value = asset.salvage_value ?? '0';
         form.querySelector('#inputAssetNotes').value = asset.notes ?? '';
 
         // Disable fields that cannot be modified after creation

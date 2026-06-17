@@ -1245,6 +1245,7 @@ CREATE TABLE IF NOT EXISTS `assets` (
   `value_bc` decimal(12,2) NOT NULL,
   `depreciation_method` enum('STRAIGHT_LINE','DECLINING_BALANCE') DEFAULT 'STRAIGHT_LINE',
   `useful_life` int DEFAULT NULL,
+  `salvage_value` decimal(12,2) NOT NULL DEFAULT '0.00',
   `accumulated_depreciation` decimal(12,2) DEFAULT '0.00',
   `current_value_bc` decimal(12,2) DEFAULT NULL,
   `notes` text,
