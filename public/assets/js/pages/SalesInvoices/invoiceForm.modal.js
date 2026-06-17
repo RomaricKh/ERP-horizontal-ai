@@ -241,15 +241,20 @@ async function loadServices() {
 
 async function loadItems(customerId) {
     try {
-        let url = '/api/items';
-        if (customerId) {
-            url += `?customer_payee_id=${encodeURIComponent(customerId)}`;
-        } else {
-            url += '?global_only=1';
-        }
+        // Use path-based endpoint to avoid query param issues with Apache rewrite
+        const url = customerId
+            ? `/api/items/for-payee/${customerId}`
+            : '/api/items';
         const res  = await apiFetch(url);
         const json = await res.json();
-        itemsList  = json.success ? (json.data?.items ?? []) : [];
+        const allItems = json.success ? (json.data?.items ?? []) : [];
+
+        // If no customer selected, filter to global only (client-side fallback)
+        if (!customerId) {
+            itemsList = allItems.filter(item => !item.customer_id);
+        } else {
+            itemsList = allItems;
+        }
     } catch (err) {
         console.error('loadItems failed:', err);
         itemsList = [];

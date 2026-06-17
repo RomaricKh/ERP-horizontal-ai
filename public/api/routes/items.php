@@ -33,6 +33,11 @@ $router->get('/items/stock',
 
 /* ========= ITEMS ========= */
 
+$router->get('/items/for-payee/{payeeId}',
+    fn($payeeId) => (new ItemsController())->indexForPayee((int)$payeeId),
+    ['items.view']
+);
+
 $router->get('/items',
     fn() => (new ItemsController())->index(),
     ['items.view']

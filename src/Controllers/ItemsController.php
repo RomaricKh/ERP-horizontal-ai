@@ -67,46 +67,47 @@ class ItemsController extends BaseController {
     // ── ITEMS ─────────────────────────────────────────────────────────────────
 
     // GET /items
+    // GET /items
     public function index(): void {
         try {
             $this->auth();
 
-            // Parse query params from the raw query string (in case $_GET is affected by rewrite)
             $queryParams = [];
             if (!empty($_SERVER['QUERY_STRING'])) {
                 parse_str($_SERVER['QUERY_STRING'], $queryParams);
             }
-            // Merge with $_GET as fallback
             $queryParams = array_merge($_GET, $queryParams);
 
             $excludeTypes = $queryParams['exclude_types'] ?? null;
             $includeInactive = isset($queryParams['include_inactive']) && $queryParams['include_inactive'] === '1';
             $items = $this->service->listForCurrentBusiness($excludeTypes, $includeInactive);
+            $this->json(true, ['items' => $items]);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to fetch items');
+        }
+    }
 
-            // Optional: filter by customer payee_id (show global + customer-specific items)
-            $customerPayeeId = isset($queryParams['customer_payee_id']) ? (int) $queryParams['customer_payee_id'] : null;
-            if ($customerPayeeId) {
-                // Resolve payee_id → people_id
-                $db = \App\Config\Database::getConnection();
-                $stmt = $db->prepare("SELECT people_id FROM payees WHERE id = :id LIMIT 1");
-                $stmt->execute(['id' => $customerPayeeId]);
-                $peopleId = $stmt->fetchColumn();
+    // GET /items/for-payee/{payeeId} — items visible to a specific customer (global + customer-specific)
+    public function indexForPayee(int $payeeId): void {
+        try {
+            $this->auth();
+            $items = $this->service->listForCurrentBusiness(null, false);
 
-                if ($peopleId) {
-                    $items = array_values(array_filter($items, function($item) use ($peopleId) {
-                        return empty($item['customer_id']) || (int)$item['customer_id'] === (int)$peopleId;
-                    }));
-                }
-            } elseif (isset($queryParams['global_only']) && $queryParams['global_only'] === '1') {
-                // Only show items without a customer_id
-                $items = array_values(array_filter($items, function($item) {
-                    return empty($item['customer_id']);
+            // Resolve payee_id → people_id
+            $db = \App\Config\Database::getConnection();
+            $stmt = $db->prepare("SELECT people_id FROM payees WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $payeeId]);
+            $peopleId = $stmt->fetchColumn();
+
+            if ($peopleId) {
+                $items = array_values(array_filter($items, function($item) use ($peopleId) {
+                    return empty($item['customer_id']) || (int)$item['customer_id'] === (int)$peopleId;
                 }));
             }
 
             $this->json(true, ['items' => $items]);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to fetch items');
+            $this->serverError('Failed to fetch items for payee');
         }
     }
 
