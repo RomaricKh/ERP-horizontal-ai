@@ -245,11 +245,21 @@ async function loadItems(customerId) {
         const json = await res.json();
         const allItems = json.success ? (json.data?.items ?? []) : [];
 
-        // Filter: show items that are global (customer_id is null) OR belong to this customer
         if (customerId) {
-            itemsList = allItems.filter(item =>
-                !item.customer_id || String(item.customer_id) === String(customerId)
-            );
+            // Get people_id from the selected customer option's data attribute
+            const customerSelect = F.customer();
+            const selectedOption = customerSelect?.options[customerSelect.selectedIndex];
+            const peopleId = selectedOption?.dataset?.peopleId || null;
+
+            if (peopleId) {
+                // Show globals + items belonging to this person
+                itemsList = allItems.filter(item =>
+                    !item.customer_id || String(item.customer_id) === String(peopleId)
+                );
+            } else {
+                // Couldn't resolve people_id — show all items as fallback
+                itemsList = allItems;
+            }
         } else {
             // No customer selected — show only global items
             itemsList = allItems.filter(item => !item.customer_id);

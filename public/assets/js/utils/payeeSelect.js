@@ -36,6 +36,7 @@ export async function populatePayeeSelect(selectEl, options = {}) {
         const option = document.createElement('option');
         option.value = payee.payee_id;
         option.textContent = payee.name;
+        option.dataset.peopleId = payee.id; // people.id for customer-item matching
         selectEl.appendChild(option);
     }
 }

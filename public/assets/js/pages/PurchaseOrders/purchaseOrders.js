@@ -239,65 +239,45 @@ async function fetchPurchaseOrders() {
 }
 
 function buildFilters() {
-    // Wait for DataTable to render so we can find the search box area
-    const tryBuild = () => {
-        const dtSearch = po_container.querySelector('.dt-search')
-            || po_container.querySelector('.dataTables_filter')
-            || po_container.querySelector('input[type="search"]')?.closest('div');
-        if (!dtSearch) {
-            // Retry after a short delay if not ready yet
-            setTimeout(tryBuild, 100);
-            return;
-        }
+    // Build status filter
+    if (!statusFilterSelect) {
+        const statusHost = po_container.querySelector('#poStatusFilterHost');
+        if (!statusHost) return;
 
-        const searchParent = dtSearch.parentElement;
-        searchParent.style.display = 'flex';
-        searchParent.style.alignItems = 'flex-start';
-        searchParent.style.gap = '0.75rem';
-        searchParent.style.flexWrap = 'wrap';
+        const statusOptions = [
+            { value: 'DRAFT', label: 'Draft' },
+            { value: 'APPROVED', label: 'Approved' },
+            { value: 'RECEIVED', label: 'Received' },
+            { value: 'CANCELLED', label: 'Cancelled' },
+            { value: 'UNPAID', label: 'Unpaid' },
+            { value: 'PARTIALLY_PAID', label: 'Partial' },
+            { value: 'PAID', label: 'Paid' },
+        ];
 
-        // Build status filter (multiSelect) if not already built
-        if (!statusFilterSelect) {
-            const statusHost = document.createElement('div');
-            statusHost.style.minWidth = '180px';
-            searchParent.insertBefore(statusHost, dtSearch);
+        statusFilterSelect = createMultiSelect({
+            container: statusHost,
+            options: statusOptions,
+            placeholder: 'Filter status...',
+            onChange: (selected) => {
+                selectedStatuses = selected;
+                renderTable(getFilteredPOs());
+            }
+        });
+    }
 
-            const statusOptions = [
-                { value: 'DRAFT', label: 'Draft' },
-                { value: 'APPROVED', label: 'Approved' },
-                { value: 'RECEIVED', label: 'Received' },
-                { value: 'CANCELLED', label: 'Cancelled' },
-                { value: 'UNPAID', label: 'Unpaid' },
-                { value: 'PARTIALLY_PAID', label: 'Partial' },
-                { value: 'PAID', label: 'Paid' },
-            ];
+    // Build supplier filter
+    if (!supplierFilterSelect) {
+        const supplierMap = new Map();
+        allPOs.forEach(po => {
+            if (po.supplier_id && po.supplier_name) {
+                supplierMap.set(String(po.supplier_id), po.supplier_name);
+            }
+        });
+        const supplierOptions = Array.from(supplierMap.entries()).map(([value, label]) => ({ value, label }));
 
-            statusFilterSelect = createMultiSelect({
-                container: statusHost,
-                options: statusOptions,
-                placeholder: 'Filter status...',
-                onChange: (selected) => {
-                    selectedStatuses = selected;
-                    renderTable(getFilteredPOs());
-                }
-            });
-        }
-
-        // Build supplier filter (multiSelect) if not already built
-        if (!supplierFilterSelect) {
-            const supplierMap = new Map();
-            allPOs.forEach(po => {
-                if (po.supplier_id && po.supplier_name) {
-                    supplierMap.set(String(po.supplier_id), po.supplier_name);
-                }
-            });
-            const supplierOptions = Array.from(supplierMap.entries()).map(([value, label]) => ({ value, label }));
-
-            if (supplierOptions.length > 1) {
-                const supplierHost = document.createElement('div');
-                supplierHost.style.minWidth = '180px';
-                searchParent.insertBefore(supplierHost, dtSearch);
-
+        if (supplierOptions.length > 1) {
+            const supplierHost = po_container.querySelector('#poSupplierFilterHost');
+            if (supplierHost) {
                 supplierFilterSelect = createMultiSelect({
                     container: supplierHost,
                     options: supplierOptions,
@@ -309,8 +289,7 @@ function buildFilters() {
                 });
             }
         }
-    };
-    setTimeout(tryBuild, 50);
+    }
 }
 
 function getFilteredPOs() {

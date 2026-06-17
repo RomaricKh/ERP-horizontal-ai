@@ -226,58 +226,40 @@ async function fetchInvoices() {
 }
 
 function buildFilters() {
-    const tryBuild = () => {
-        const dtSearch = inv_container.querySelector('.dt-search')
-            || inv_container.querySelector('.dataTables_filter')
-            || inv_container.querySelector('input[type="search"]')?.closest('div');
-        if (!dtSearch) {
-            setTimeout(tryBuild, 100);
-            return;
-        }
+    if (!statusFilterSelect) {
+        const statusHost = inv_container.querySelector('#siStatusFilterHost');
+        if (!statusHost) return;
 
-        const searchParent = dtSearch.parentElement;
-        searchParent.style.display = 'flex';
-        searchParent.style.alignItems = 'flex-start';
-        searchParent.style.gap = '0.75rem';
-        searchParent.style.flexWrap = 'wrap';
+        statusFilterSelect = createMultiSelect({
+            container: statusHost,
+            options: [
+                { value: 'DRAFT', label: 'Draft' },
+                { value: 'DELIVERED', label: 'Delivered' },
+                { value: 'CANCELLED', label: 'Cancelled' },
+                { value: 'UNPAID', label: 'Unpaid' },
+                { value: 'PARTIALLY_PAID', label: 'Partial' },
+                { value: 'PAID', label: 'Paid' },
+            ],
+            placeholder: 'Filter status...',
+            onChange: (selected) => {
+                selectedStatuses = selected;
+                renderTable(getFilteredInvoices());
+            }
+        });
+    }
 
-        if (!statusFilterSelect) {
-            const statusHost = document.createElement('div');
-            statusHost.style.minWidth = '170px';
-            searchParent.insertBefore(statusHost, dtSearch);
+    if (!customerFilterSelect) {
+        const customerMap = new Map();
+        allInvoices.forEach(inv => {
+            if (inv.customer_id && inv.customer_name) {
+                customerMap.set(String(inv.customer_id), inv.customer_name);
+            }
+        });
+        const customerOptions = Array.from(customerMap.entries()).map(([value, label]) => ({ value, label }));
 
-            statusFilterSelect = createMultiSelect({
-                container: statusHost,
-                options: [
-                    { value: 'DRAFT', label: 'Draft' },
-                    { value: 'DELIVERED', label: 'Delivered' },
-                    { value: 'CANCELLED', label: 'Cancelled' },
-                    { value: 'UNPAID', label: 'Unpaid' },
-                    { value: 'PARTIALLY_PAID', label: 'Partial' },
-                    { value: 'PAID', label: 'Paid' },
-                ],
-                placeholder: 'Filter status...',
-                onChange: (selected) => {
-                    selectedStatuses = selected;
-                    renderTable(getFilteredInvoices());
-                }
-            });
-        }
-
-        if (!customerFilterSelect) {
-            const customerMap = new Map();
-            allInvoices.forEach(inv => {
-                if (inv.customer_id && inv.customer_name) {
-                    customerMap.set(String(inv.customer_id), inv.customer_name);
-                }
-            });
-            const customerOptions = Array.from(customerMap.entries()).map(([value, label]) => ({ value, label }));
-
-            if (customerOptions.length > 1) {
-                const customerHost = document.createElement('div');
-                customerHost.style.minWidth = '170px';
-                searchParent.insertBefore(customerHost, dtSearch);
-
+        if (customerOptions.length > 1) {
+            const customerHost = inv_container.querySelector('#siCustomerFilterHost');
+            if (customerHost) {
                 customerFilterSelect = createMultiSelect({
                     container: customerHost,
                     options: customerOptions,
@@ -289,8 +271,7 @@ function buildFilters() {
                 });
             }
         }
-    };
-    setTimeout(tryBuild, 50);
+    }
 }
 
 function getFilteredInvoices() {
