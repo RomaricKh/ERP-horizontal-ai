@@ -248,7 +248,7 @@ function buildFilters() {
             { value: 'DELIVERED', label: 'Delivered' },
             { value: 'CANCELLED', label: 'Cancelled' },
             { value: 'UNPAID', label: 'Unpaid' },
-            { value: 'PARTIAL', label: 'Partial' },
+            { value: 'PARTIALLY PAID', label: 'Partially Paid' },
             { value: 'SETTLED', label: 'Paid' },
         ],
         placeholder: 'Filter status...',
@@ -371,7 +371,7 @@ function renderTable(invoices) {
         let paymentBadge = '';
         if (inv.status === 'DELIVERED' && inv.payment_status) {
             const pBadgeClass = PAYMENT_STATUS_BADGE[inv.payment_status] || 'secondary';
-            const pLabel = inv.payment_status === 'PARTIALLY_PAID' ? 'PARTIAL'
+            const pLabel = inv.payment_status === 'PARTIALLY_PAID' ? 'PARTIALLY PAID'
                          : inv.payment_status === 'PAID' ? 'SETTLED'
                          : inv.payment_status;
             paymentBadge = ` <span class="badge bg-${escHtml(pBadgeClass)}">${escHtml(pLabel)}</span>`;
