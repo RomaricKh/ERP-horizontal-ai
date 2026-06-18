@@ -90,7 +90,8 @@ export const MENU_CONFIG = [
             { id: 'goToExchangeRates',  label: 'Exchange Rates',  i18nKey: 'nav.exchange_rates',  icon: 'fas fa-fw fa-exchange-alt',  hash: '#/exchange-rates', permission: 'exchange-rates.manage', module: 'exchange_rates' },
             { id: 'goToAssets',         label: 'Assets',          i18nKey: 'nav.assets',          icon: 'fas fa-fw fa-landmark',      hash: '#/assets',         permission: 'assets.manage',         module: 'assets' },
             { id: 'goToPartnerShares',  label: 'Partner Shares',  i18nKey: 'nav.partner_shares',  icon: 'fas fa-fw fa-chart-pie',     hash: '#/partner-shares', permission: 'partners.manage',       module: 'partners' },
-            { id: 'goToPartnerEquity',  label: 'Partner Equity',  i18nKey: 'nav.partner_equity',  icon: 'fas fa-fw fa-handshake',     hash: '#/partner-equity', permission: 'partners.manage',       module: 'partners' }
+            { id: 'goToPartnerEquity',  label: 'Partner Equity',  i18nKey: 'nav.partner_equity',  icon: 'fas fa-fw fa-handshake',     hash: '#/partner-equity', permission: 'partners.manage',       module: 'partners' },
+            { id: 'goToBusinessProfit', label: 'Business Profit', i18nKey: 'nav.business_profit', icon: 'fas fa-fw fa-coins',         hash: '#/business-profit', permission: 'partners.manage',      module: 'partners' }
         ]
     },
     // Reports (analytical)

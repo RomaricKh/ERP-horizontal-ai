@@ -43,6 +43,7 @@ export const routes = [
     // Partner module routes
     {path: '#/partner-equity', auth: true, permission: 'partners.manage', module: 'partners', load: () => import('../pages/PartnerEquity/partnerEquity.js')},
     {path: '#/partner-shares', auth: true, permission: 'partners.manage', module: 'partners', load: () => import('../pages/PartnerShares/partnerShares.js')},
+    {path: '#/business-profit', auth: true, permission: 'partners.manage', module: 'partners', load: () => import('../pages/BusinessProfit/index.js')},
 
     // Tenant Owner routes (visible only to Tenant Owners)
     {path: '#/tenant/tenants', auth: true, tenantOwner: true, load: () => import('../pages/Tenant/tenants.js')},
