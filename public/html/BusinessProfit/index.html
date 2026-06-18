@@ -1,14 +1,13 @@
 <!-- Page Heading -->
-<h1 class="h3 mb-2 text-gray-800" data-i18n="profit.title">Business Profit</h1>
+<h1 class="h3 mb-2 text-gray-800">Business Profit</h1>
 
 <!-- Profit DataTable -->
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-        <h6 class="m-0 font-weight-bold text-primary" data-i18n="profit.heading">Profit Records</h6>
+        <h6 class="m-0 font-weight-bold text-primary">Profit Records</h6>
         <div class="d-flex gap-2">
-            <button class="btn btn-primary btn-icon-split btn-sm"
-                    data-action="profit.create" title="Add a new profit record">
-                <span class="text" data-i18n="profit.add_btn">Add Profit Record</span>
+            <button class="btn btn-success btn-icon-split btn-sm" data-action="profit.create" title="Add a new profit record">
+                <span class="text">Add Profit Record</span>
                 <span class="icon"><i class="fas fa-fw fa-plus"></i></span>
             </button>
         </div>
@@ -19,128 +18,20 @@
                    id="profitTable" width="100%" cellspacing="0">
                 <thead>
                     <tr>
-                        <th data-i18n="common.id">ID</th>
-                        <th data-i18n="profit.period">Period</th>
-                        <th data-i18n="profit.revenue">Revenue</th>
-                        <th data-i18n="profit.cogs">COGS</th>
-                        <th data-i18n="profit.gross_profit">Gross Profit</th>
-                        <th data-i18n="profit.expenses">Expenses</th>
-                        <th data-i18n="profit.net_profit">Net Profit</th>
-                        <th data-i18n="profit.distributable">Distributable</th>
-                        <th data-i18n="common.status">Status</th>
-                        <th class="text-center" data-i18n="common.actions">Actions</th>
+                        <th>ID</th>
+                        <th>Period</th>
+                        <th>Revenue</th>
+                        <th>COGS</th>
+                        <th>Gross Profit</th>
+                        <th>Expenses</th>
+                        <th>Net Profit</th>
+                        <th>Distributable</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
-        </div>
-    </div>
-</div>
-
-<!-- Add/Edit Profit Modal -->
-<div class="modal fade" id="addProfitModal" tabindex="-1" aria-labelledby="profitModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable" role="document">
-        <div class="modal-content text-gray-800">
-            <div class="modal-header">
-                <h5 class="modal-title" id="profitModalTitle" data-i18n="profit.form_title">Profit Record</h5>
-                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="profitForm" novalidate>
-                    <input type="hidden" id="inputProfitId">
-                    <div class="mb-3">
-                        <label class="form-label" for="inputPeriodStart">
-                            <span data-i18n="profit.period_start">Period Start</span>
-                            <span class="text-danger">*</span>
-                        </label>
-                        <input class="form-control" id="inputPeriodStart" type="date" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="inputPeriodEnd">
-                            <span data-i18n="profit.period_end">Period End</span>
-                            <span class="text-danger">*</span>
-                        </label>
-                        <input class="form-control" id="inputPeriodEnd" type="date" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="inputSafetyNetPercent">
-                            <span data-i18n="profit.safety_net_percent">Safety Net %</span>
-                            <span class="text-danger">*</span>
-                        </label>
-                        <input class="form-control" id="inputSafetyNetPercent" type="number"
-                               step="0.01" min="0" max="100" placeholder="0.00" required>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal" data-i18n="common.close">Close</button>
-                <button class="btn btn-primary" type="button" data-action="profit.save" data-i18n="common.save">Save</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Profit Detail Modal (P&L Breakdown + Distribution) -->
-<div class="modal fade" id="profitDetailModal" tabindex="-1" aria-labelledby="profitDetailModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
-        <div class="modal-content text-gray-800">
-            <div class="modal-header">
-                <h5 class="modal-title" id="profitDetailModalTitle" data-i18n="profit.detail_title">Profit Details</h5>
-                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- P&L Breakdown Card -->
-                <div class="card border-left-primary mb-4">
-                    <div class="card-body">
-                        <h6 class="font-weight-bold text-primary mb-3">P&L Breakdown</h6>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Period:</strong> <span id="detailPeriod"></span></p>
-                                <p><strong>Revenue:</strong> <span id="detailRevenue" class="text-success"></span></p>
-                                <p><strong>COGS:</strong> <span id="detailCogs" class="text-danger"></span></p>
-                                <p><strong>Gross Profit:</strong> <span id="detailGrossProfit"></span></p>
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>Expenses:</strong> <span id="detailExpenses" class="text-danger"></span></p>
-                                <p><strong>Salaries:</strong> <span id="detailSalaries" class="text-danger"></span></p>
-                                <p><strong>Net Profit:</strong> <span id="detailNetProfit" class="font-weight-bold"></span></p>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Safety Net %:</strong> <span id="detailSafetyNetPct"></span></p>
-                                <p><strong>Safety Net Amount:</strong> <span id="detailSafetyNetAmt"></span></p>
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>Distributable Profit:</strong> <span id="detailDistributable" class="font-weight-bold text-success"></span></p>
-                                <p><strong>Status:</strong> <span id="detailStatus"></span></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Distribution Breakdown Table (shown when DISTRIBUTED) -->
-                <div id="distributionSection" style="display:none;">
-                    <h6 class="font-weight-bold text-primary mb-3" data-i18n="profit.distribution_breakdown">Distribution Breakdown</h6>
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-sm" id="distributionTable">
-                            <thead>
-                                <tr>
-                                    <th data-i18n="profit.partner_name">Partner Name</th>
-                                    <th data-i18n="profit.share_pct">Share %</th>
-                                    <th data-i18n="profit.amount">Amount</th>
-                                    <th>Payment Slip</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal" data-i18n="common.close">Close</button>
-            </div>
         </div>
     </div>
 </div>

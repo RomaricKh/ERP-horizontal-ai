@@ -2,7 +2,7 @@
 
 import { hasPermission } from '../../Auth/auth.js';
 import { registerPageActions } from '../Core/pageActions.js';
-import { closeModalsInContainer, confirm, alert } from '../../components/modals.js';
+import { MODAL_SCOPE, openModal, closeModalsInContainer, confirm, alert } from '../../components/modals.js';
 import { createDataTable } from '../../templates/datatables.design.js';
 import { apiFetch } from '../../Auth/apiFetch.js';
 import { getFormatter } from '../../i18n/translationClient.js';
@@ -27,9 +27,13 @@ export async function mount() {
     unregister = registerPageActions({
 
         'profit.create': async () => {
-            resetForm();
-            const modal = new bootstrap.Modal(document.getElementById('addProfitModal'));
-            modal.show();
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/BusinessProfit/profitForm.html',
+                controller: '../pages/BusinessProfit/profitForm.modal.js',
+                data: {},
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
         },
 
         'profit.edit': async ({ el }) => {
@@ -38,19 +42,13 @@ export async function mount() {
             const id = rowData[0];
             if (!id) return;
 
-            try {
-                const res = await apiFetch(`/api/business-profit/${id}`);
-                const data = await res.json();
-                if (!res.ok || !data.success) {
-                    await alert({ title: 'Error', alertText: data.message || 'Failed to load profit record' });
-                    return;
-                }
-                populateForm(data.data);
-                const modal = new bootstrap.Modal(document.getElementById('addProfitModal'));
-                modal.show();
-            } catch (err) {
-                console.error('Load profit record failed:', err);
-            }
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/BusinessProfit/profitForm.html',
+                controller: '../pages/BusinessProfit/profitForm.modal.js',
+                data: { profit_id: id },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
         },
 
         'profit.delete': async ({ el }) => {
@@ -76,10 +74,6 @@ export async function mount() {
             } catch (err) {
                 console.error('Delete profit record failed:', err);
             }
-        },
-
-        'profit.save': async () => {
-            await saveProfit();
         },
 
         'profit.finalize': async ({ el }) => {
@@ -175,17 +169,13 @@ export async function mount() {
             const id = rowData[0];
             if (!id) return;
 
-            try {
-                const res = await apiFetch(`/api/business-profit/${id}`);
-                const data = await res.json();
-                if (!res.ok || !data.success) {
-                    await alert({ title: 'Error', alertText: data.message || 'Failed to load profit details' });
-                    return;
-                }
-                showDetailModal(data.data);
-            } catch (err) {
-                console.error('Load profit details failed:', err);
-            }
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/BusinessProfit/profitDetail.html',
+                controller: '../pages/BusinessProfit/profitDetail.modal.js',
+                data: { profit_id: id },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
         },
 
         'profit.recalculate': async ({ el }) => {
@@ -336,111 +326,3 @@ function getStatusBadge(status) {
     }
 }
 
-// ─── Form Handling ───────────────────────────────────────────────────────────
-
-function resetForm() {
-    document.getElementById('inputProfitId').value = '';
-    document.getElementById('inputPeriodStart').value = '';
-    document.getElementById('inputPeriodEnd').value = '';
-    document.getElementById('inputSafetyNetPercent').value = '';
-    document.getElementById('profitForm').classList.remove('was-validated');
-}
-
-function populateForm(record) {
-    document.getElementById('inputProfitId').value = record.id || '';
-    document.getElementById('inputPeriodStart').value = record.period_start || '';
-    document.getElementById('inputPeriodEnd').value = record.period_end || '';
-    document.getElementById('inputSafetyNetPercent').value = record.safety_net_percent || '';
-}
-
-async function saveProfit() {
-    const form = document.getElementById('profitForm');
-    if (!form.checkValidity()) {
-        form.classList.add('was-validated');
-        return;
-    }
-
-    const id = document.getElementById('inputProfitId').value;
-    const payload = {
-        period_start: document.getElementById('inputPeriodStart').value,
-        period_end: document.getElementById('inputPeriodEnd').value,
-        safety_net_percent: parseFloat(document.getElementById('inputSafetyNetPercent').value) || 0
-    };
-
-    try {
-        let res;
-        if (id) {
-            res = await apiFetch(`/api/business-profit/${id}`, {
-                method: 'PUT',
-                body: JSON.stringify(payload)
-            });
-        } else {
-            res = await apiFetch('/api/business-profit', {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-        }
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-            await alert({ title: 'Error', alertText: data.message || 'Failed to save profit record' });
-            return;
-        }
-
-        const modalEl = document.getElementById('addProfitModal');
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        modal?.hide();
-        await fetchProfitRecords();
-    } catch (err) {
-        console.error('Save profit record failed:', err);
-    }
-}
-
-// ─── Detail Modal ────────────────────────────────────────────────────────────
-
-function showDetailModal(record) {
-    const fmt = getFormatter();
-
-    const periodStart = fmt.formatDate(record.period_start ?? '') || record.period_start || '';
-    const periodEnd = fmt.formatDate(record.period_end ?? '') || record.period_end || '';
-
-    document.getElementById('detailPeriod').textContent = `${periodStart} → ${periodEnd}`;
-    document.getElementById('detailRevenue').textContent = fmt.formatNumber(record.total_revenue ?? 0, 2);
-    document.getElementById('detailCogs').textContent = fmt.formatNumber(record.total_cogs ?? 0, 2);
-    document.getElementById('detailGrossProfit').textContent = fmt.formatNumber(record.gross_profit ?? 0, 2);
-    document.getElementById('detailExpenses').textContent = fmt.formatNumber(record.total_expenses ?? 0, 2);
-    document.getElementById('detailSalaries').textContent = fmt.formatNumber(record.salary_expenses ?? 0, 2);
-    document.getElementById('detailNetProfit').textContent = fmt.formatNumber(record.net_profit ?? 0, 2);
-    document.getElementById('detailSafetyNetPct').textContent = fmt.formatNumber(record.safety_net_percent ?? 0, 2) + '%';
-    document.getElementById('detailSafetyNetAmt').textContent = fmt.formatNumber(record.safety_net_amount ?? 0, 2);
-    document.getElementById('detailDistributable').textContent = fmt.formatNumber(record.distributable_profit ?? 0, 2);
-    document.getElementById('detailStatus').innerHTML = getStatusBadge(record.status);
-
-    // Distribution section
-    const distSection = document.getElementById('distributionSection');
-    const tbody = document.querySelector('#distributionTable tbody');
-    tbody.innerHTML = '';
-
-    const distributions = record.distributions || [];
-    if (distributions.length > 0) {
-        distSection.style.display = '';
-        distributions.forEach(dist => {
-            const tr = document.createElement('tr');
-            const slipLink = dist.payment_slip_number
-                ? `<a href="#/finance/payments">${escHtml(dist.payment_slip_number)}</a>`
-                : '—';
-            tr.innerHTML = `
-                <td>${escHtml(dist.partner_name || '—')}</td>
-                <td>${fmt.formatNumber(dist.share_percent, 2)}%</td>
-                <td>${fmt.formatNumber(dist.amount_bc, 2)}</td>
-                <td>${slipLink}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    } else {
-        distSection.style.display = 'none';
-    }
-
-    const modal = new bootstrap.Modal(document.getElementById('profitDetailModal'));
-    modal.show();
-}
