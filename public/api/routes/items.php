@@ -26,6 +26,12 @@ $router->delete('/items/types/{id}',
 
 /* ========= STOCK (must be before /items/{id}) ========= */
 
+// Pending Prices
+$router->get('/items/pending-prices', fn() => (new \App\Controllers\PendingPricesController(App\Config\Database::getConnection()))->index(), ['items.view']);
+$router->post('/items/pending-prices/apply', fn() => (new \App\Controllers\PendingPricesController(App\Config\Database::getConnection()))->apply(), ['items.edit']);
+$router->post('/items/pending-prices/cancel', fn() => (new \App\Controllers\PendingPricesController(App\Config\Database::getConnection()))->cancel(), ['items.edit']);
+
+
 $router->get('/items/stock',
     fn() => (new ItemsController())->stock(),
     ['stock.view']
@@ -70,11 +76,10 @@ $router->post('/items/{id}/reactivate',
 
 /* ========= STOCK PER ITEM ========= */
 
-// GET /items/{id}/price-history
-$router->get('/items/{id}/price-history',
-    fn($id) => (new ItemsController())->priceHistory((int)$id),
-    ['items.view']
-);
+// Price History & Batches
+$router->get('/items/{id}/price-history', fn($id) => (new ItemsController())->priceHistory((int)$id));
+$router->get('/items/{id}/batches', fn($id) => (new ItemsController())->batches((int)$id));
+$router->get('/items/{id}/batch-transactions', fn($id) => (new ItemsController())->batchTransactions((int)$id));
 
 $router->get('/items/{id}/stock-check',
     fn($id) => (new ItemsController())->stockCheck((int)$id),

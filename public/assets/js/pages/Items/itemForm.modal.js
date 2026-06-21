@@ -24,6 +24,8 @@ const F = {
     markup:         () => document.getElementById('inputMarkup'),
     minStock:       () => document.getElementById('inputMinStock'),
     hasExpiry:      () => document.getElementById('inputHasExpiry'),
+    shelfLife:      () => document.getElementById('inputShelfLifeDays'),
+    shelfLifeContainer: () => document.getElementById('shelfLifeContainer'),
 };
 
 // Track original has_expiry value for disable-warning logic
@@ -61,6 +63,17 @@ export async function mount({ modalRoot: root, data }) {
 
     // Auto-markup calculation
     setupMarkupCalculation();
+
+    // Toggle Shelf Life Container
+    const toggleShelfLife = () => {
+        if (F.hasExpiry().checked) {
+            F.shelfLifeContainer().classList.remove('d-none');
+        } else {
+            F.shelfLifeContainer().classList.add('d-none');
+        }
+    };
+    F.hasExpiry().addEventListener('change', toggleShelfLife);
+    toggleShelfLife(); // initial state
 
     unregister = registerPageActions({
         'items.price-history': async () => {
@@ -109,6 +122,7 @@ export async function mount({ modalRoot: root, data }) {
                 markup_enabled: F.markup().value !== '' && parseFloat(F.markup().value) > 0 ? 1 : 0,
                 min_stock:     F.minStock().value !== '' ? parseFloat(F.minStock().value) : null,
                 has_expiry:    hasExpiryChecked ? 1 : 0,
+                shelf_life_days: hasExpiryChecked && F.shelfLife().value !== '' ? parseInt(F.shelfLife().value, 10) : null,
                 customer_id:   F.customerSelect().value ? parseInt(F.customerSelect().value, 10) : null,
             };
 
@@ -280,10 +294,14 @@ async function fetchAndFill(itemId) {
             F.customerSelect().value = item.customer_id;
         }
 
-        // Pre-populate has_expiry toggle
+        // Pre-populate has_expiry toggle and shelf life
         const hasExpiry = parseInt(item.has_expiry, 10) === 1;
         F.hasExpiry().checked = hasExpiry;
         originalHasExpiry = hasExpiry;
+        F.shelfLife().value = item.shelf_life_days ?? '';
+        
+        // Trigger the event manually to show/hide the container
+        F.hasExpiry().dispatchEvent(new Event('change'));
     } catch (err) {
         console.error('fetchAndFill failed:', err);
     }

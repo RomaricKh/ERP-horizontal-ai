@@ -176,11 +176,12 @@ class ItemService {
                 'name'        => trim($input['name']),
                 'sku'         => $input['sku']        ?? null,
                 'unit'        => $input['unit']       ?? null,
-                'cost'        => $input['cost_price'] ?? null,
-                'sale'        => $input['sale_price'] ?? null,
-                'notes'       => $input['notes']      ?? null,
-                'has_expiry'  => isset($input['has_expiry']) ? (int) (bool) $input['has_expiry'] : 0,
-                'created_by'  => $ctx->user_id,
+                'cost'            => $input['cost_price'] ?? null,
+                'sale'            => $input['sale_price'] ?? null,
+                'notes'           => $input['notes']      ?? null,
+                'has_expiry'      => isset($input['has_expiry']) ? (int) (bool) $input['has_expiry'] : 0,
+                'shelf_life_days' => isset($input['shelf_life_days']) ? (int) $input['shelf_life_days'] : null,
+                'created_by'      => $ctx->user_id,
             ]);
 
             $this->audit->log('CREATE', 'items', $id, 'CREATE', null,
@@ -226,7 +227,21 @@ class ItemService {
         $fields = ['name','sku','unit','cost_price','sale_price','min_stock','markup_percent','markup_enabled','notes','item_type_id','has_expiry','shelf_life_days'];
         $changes = [];
         foreach ($fields as $f) {
-            if (array_key_exists($f, $input) && $input[$f] !== $before[$f]) {
+            if (!array_key_exists($f, $input)) continue;
+            
+            $newVal = $input[$f];
+            $oldVal = $before[$f];
+            
+            // Normalize numeric types for accurate comparison (PDO returns decimals as strings)
+            if (in_array($f, ['cost_price', 'sale_price', 'min_stock', 'markup_percent'])) {
+                if ($newVal !== null) $newVal = (float) $newVal;
+                if ($oldVal !== null) $oldVal = (float) $oldVal;
+            } elseif (in_array($f, ['markup_enabled', 'has_expiry', 'item_type_id', 'shelf_life_days'])) {
+                if ($newVal !== null) $newVal = (int) $newVal;
+                if ($oldVal !== null) $oldVal = (int) $oldVal;
+            }
+            
+            if ($newVal !== $oldVal) {
                 $changes[$f] = $input[$f];
             }
         }
@@ -253,24 +268,45 @@ class ItemService {
         }
 
         $costPriceChanged = array_key_exists('cost_price', $changes);
+        $salePriceChanged = array_key_exists('sale_price', $changes);
+        $pendingSalePrice = null;
+
+        if ($salePriceChanged) {
+            $pendingSalePrice = (float) $changes['sale_price'];
+            unset($changes['sale_price']); // Prevent immediate update
+        }
 
         $this->db->beginTransaction();
         try {
-            $this->repo->update($id, $ctx->tenant_id, $changes);
-            $this->audit->log('UPDATE', 'items', $id, 'UPDATE',
-                array_intersect_key($before, $changes), $changes,
-                $ctx->user_id, $ctx->tenant_id, $ctx->business_id);
+            if (!empty($changes)) {
+                $this->repo->update($id, $ctx->tenant_id, $changes);
+                $this->audit->log('UPDATE', 'items', $id, 'UPDATE',
+                    array_intersect_key($before, $changes), $changes,
+                    $ctx->user_id, $ctx->tenant_id, $ctx->business_id);
+            }
 
-            // Record price history for manual edits
+            // Record price history for manual cost edits
             if ($costPriceChanged) {
                 $oldCostPrice = (float) ($before['cost_price'] ?? 0);
                 $newCostPrice = (float) $changes['cost_price'];
                 $this->priceHistoryService->recordManualEdit($id, $ctx->tenant_id, 'COST', $oldCostPrice, $newCostPrice);
             }
-            if (array_key_exists('sale_price', $changes)) {
-                $oldSalePrice = (float) ($before['sale_price'] ?? 0);
-                $newSalePrice = (float) $changes['sale_price'];
-                $this->priceHistoryService->recordManualEdit($id, $ctx->tenant_id, 'SALE', $oldSalePrice, $newSalePrice);
+
+            // Queue manual sale price edits
+            if ($salePriceChanged) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO item_pending_prices
+                    (tenant_id, business_id, item_id, pending_sale_price, source_type, status, created_at, created_by)
+                    VALUES
+                    (:tenant, :business, :item, :pending_sale, 'MANUAL', 'PENDING', NOW(), :user)
+                ");
+                $stmt->execute([
+                    'tenant'       => $ctx->tenant_id,
+                    'business'     => $ctx->business_id,
+                    'item'         => $id,
+                    'pending_sale' => $pendingSalePrice,
+                    'user'         => $ctx->user_id
+                ]);
             }
 
             $this->db->commit();
@@ -284,14 +320,33 @@ class ItemService {
             $manufacturingService = new ManufacturingService($this->db);
             $manufacturingService->recalculateAffectedRecipes($id);
 
-            // Auto-update sale price if markup is enabled on this item
-            $updatedItem = $this->repo->getById($id, $ctx->tenant_id);
-            if ($updatedItem && (int)($updatedItem['markup_enabled'] ?? 0) === 1) {
-                $markupPct = (float)($updatedItem['markup_percent'] ?? 0);
-                $newCost = (float)($changes['cost_price'] ?? $updatedItem['cost_price']);
-                if ($markupPct > 0 && $newCost > 0) {
-                    $newSale = $newCost * (1 + $markupPct / 100);
-                    $this->repo->update($id, $ctx->tenant_id, ['sale_price' => round($newSale, 2)]);
+            // Queue a Pending Price Update if markup is enabled instead of auto-updating
+            // (Only if we haven't already queued a manual sale price change above)
+            if (!$salePriceChanged) {
+                $updatedItem = $this->repo->getById($id, $ctx->tenant_id);
+                if ($updatedItem && (int)($updatedItem['markup_enabled'] ?? 0) === 1) {
+                    $markupPct = (float)($updatedItem['markup_percent'] ?? 0);
+                    $newCost = (float)($changes['cost_price'] ?? $updatedItem['cost_price']);
+                    if ($markupPct > 0 && $newCost > 0) {
+                        $newSale = round($newCost * (1 + $markupPct / 100), 2);
+                        $currentSale = isset($updatedItem['sale_price']) ? (float)$updatedItem['sale_price'] : 0.0;
+                        
+                        if ($newSale !== $currentSale) {
+                            $stmt = $this->db->prepare("
+                                INSERT INTO item_pending_prices
+                                (tenant_id, business_id, item_id, pending_sale_price, source_type, status, created_at, created_by)
+                                VALUES
+                                (:tenant, :business, :item, :pending_sale, 'MANUAL', 'PENDING', NOW(), :user)
+                            ");
+                            $stmt->execute([
+                                'tenant'       => $ctx->tenant_id,
+                                'business'     => $ctx->business_id,
+                                'item'         => $id,
+                                'pending_sale' => $newSale,
+                                'user'         => $ctx->user_id
+                            ]);
+                        }
+                    }
                 }
             }
         }

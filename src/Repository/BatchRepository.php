@@ -160,6 +160,23 @@ class BatchRepository {
         return (int) $this->db->lastInsertId();
     }
 
+    /**
+     * Get all transactions for all batches of a specific item.
+     * Used for displaying batch history with batch details (number, expiry).
+     */
+    public function getTransactionsByItem(int $itemId, int $businessId): array {
+        $stmt = $this->db->prepare("
+            SELECT bt.id, bt.transaction_type AS type, bt.quantity, bt.reference AS reference_type, 
+                   bt.created_at, ib.batch_number, ib.expiry_date
+            FROM batch_transactions bt
+            JOIN item_batches ib ON ib.id = bt.batch_id
+            WHERE ib.item_id = :item_id AND ib.business_id = :business_id
+            ORDER BY bt.created_at DESC
+        ");
+        $stmt->execute(['item_id' => $itemId, 'business_id' => $businessId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     private static function safeUserId(): ?int {
         try {
             return \App\Support\AuthContext::userId();

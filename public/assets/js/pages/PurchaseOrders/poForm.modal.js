@@ -47,6 +47,9 @@ export async function mount({ modalRoot: root, data }) {
     // Load items list for line item selects
     await loadItems();
 
+    // Recalculate expiry dates if the PO date is changed
+    F.poDate().addEventListener('change', recalcExpiryDates);
+
     if (currentPoId) {
         await fetchAndFill(currentPoId);
         // For non-DRAFT POs: render read-only
@@ -262,9 +265,41 @@ async function fetchAndFill(poId) {
         });
 
         recalcGrandTotal();
+        
+        if (po.status === 'DRAFT') {
+            recalcExpiryDates();
+        }
     } catch (err) {
         console.error('fetchAndFill failed:', err);
     }
+}
+
+function recalcExpiryDates() {
+    const poDateStr = F.poDate().value;
+    if (!poDateStr) return;
+    
+    const parts = poDateStr.split('-');
+    const poDateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+
+    const tbody = F.linesBody();
+    tbody.querySelectorAll('tr').forEach(tr => {
+        const itemSelect = tr.querySelector('.line-item-select');
+        const expiryInput = tr.querySelector('.line-expiry-date');
+        const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+        
+        const itemHasExpiry = selectedOption?.dataset?.hasExpiry === '1';
+        const shelfLife = selectedOption?.dataset?.shelfLife;
+        
+        if (itemHasExpiry && shelfLife && shelfLife !== '') {
+            const tempDate = new Date(poDateObj.getTime());
+            tempDate.setDate(tempDate.getDate() + parseInt(shelfLife, 10));
+            
+            const yyyy = tempDate.getFullYear();
+            const mm = String(tempDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(tempDate.getDate()).padStart(2, '0');
+            expiryInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+    });
 }
 
 function buildItemOptions(selectedId) {
@@ -272,7 +307,7 @@ function buildItemOptions(selectedId) {
     itemsList.forEach(item => {
         const sel = String(item.id) === String(selectedId) ? ' selected' : '';
         const expiryTag = item.has_expiry ? ' 📅' : '';
-        opts += `<option value="${item.id}" data-cost="${item.cost_price || ''}" data-has-expiry="${item.has_expiry || 0}"${sel}>${escHtml(item.name)}${expiryTag}</option>`;
+        opts += `<option value="${item.id}" data-cost="${item.cost_price || ''}" data-has-expiry="${item.has_expiry || 0}" data-shelf-life="${item.shelf_life_days || ''}"${sel}>${escHtml(item.name)}${expiryTag}</option>`;
     });
     return opts;
 }
@@ -368,6 +403,7 @@ function addLineRow(prefill) {
         const selectedOption = itemSelect.options[itemSelect.selectedIndex];
         const costPrice = selectedOption?.dataset?.cost;
         const itemHasExpiry = selectedOption?.dataset?.hasExpiry === '1';
+        const shelfLife = selectedOption?.dataset?.shelfLife;
 
         // Auto-fill cost price from item's stored cost_price (always update on item change)
         if (costPrice) {
@@ -378,6 +414,19 @@ function addLineRow(prefill) {
         // Show/hide expiry date input
         if (itemHasExpiry) {
             expiryInput.classList.remove('d-none');
+            // Auto-fill expiry date if shelf life is set
+            if (shelfLife && shelfLife !== '') {
+                const poDate = F.poDate().value || new Date().toISOString().split('T')[0];
+                const parts = poDate.split('-');
+                const poDateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                poDateObj.setDate(poDateObj.getDate() + parseInt(shelfLife, 10));
+                const yyyy = poDateObj.getFullYear();
+                const mm = String(poDateObj.getMonth() + 1).padStart(2, '0');
+                const dd = String(poDateObj.getDate()).padStart(2, '0');
+                expiryInput.value = `${yyyy}-${mm}-${dd}`;
+            } else {
+                expiryInput.value = '';
+            }
         } else {
             expiryInput.classList.add('d-none');
             expiryInput.value = '';

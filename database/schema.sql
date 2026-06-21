@@ -377,6 +377,26 @@ CREATE TABLE IF NOT EXISTS `item_price_history` (
   CONSTRAINT `fk_iph_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS `item_pending_prices` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int NOT NULL,
+  `business_id` int NOT NULL,
+  `item_id` int NOT NULL,
+  `pending_sale_price` decimal(15,4) NOT NULL,
+  `source_type` enum('PURCHASE_ORDER','MANUAL') NOT NULL,
+  `source_id` int DEFAULT NULL,
+  `status` enum('PENDING','APPLIED','CANCELLED') NOT NULL DEFAULT 'PENDING',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_by` int unsigned DEFAULT NULL,
+  `applied_at` datetime DEFAULT NULL,
+  `applied_by` int unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ipp_tenant_business` (`tenant_id`,`business_id`),
+  KEY `idx_ipp_status` (`status`),
+  KEY `fk_ipp_item` (`item_id`),
+  CONSTRAINT `fk_ipp_item` FOREIGN KEY (`item_id`) REFERENCES `items` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `item_batches` (
   `id` int NOT NULL AUTO_INCREMENT,
   `item_id` int NOT NULL,

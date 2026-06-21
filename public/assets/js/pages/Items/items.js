@@ -21,6 +21,7 @@ export async function mount() {
 
     itemsUpdatedHandler = async () => { await fetchItems(); };
     document.addEventListener('items.updated', itemsUpdatedHandler);
+    document.addEventListener('items:prices_updated', itemsUpdatedHandler);
 
     unregister = registerPageActions({
 
@@ -263,6 +264,16 @@ export async function mount() {
                 data: {},
                 options: { backdrop: false, keyboard: true, focus: true }
             });
+        },
+
+        'items.pending-prices': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/Items/pendingPrices.html',
+                controller: '../pages/Items/pendingPrices.modal.js',
+                data: {},
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
         }
     });
 }
@@ -270,6 +281,7 @@ export async function mount() {
 export function unmount() {
     if (itemsUpdatedHandler) {
         document.removeEventListener('items.updated', itemsUpdatedHandler);
+        document.removeEventListener('items:prices_updated', itemsUpdatedHandler);
         itemsUpdatedHandler = null;
     }
     unregister?.();

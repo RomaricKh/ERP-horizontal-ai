@@ -293,6 +293,18 @@ class ItemsController extends BaseController {
         }
     }
 
+    // GET /batches/{id}
+    public function batchTransactions(int $id): void {
+        try {
+            $ctx = $this->auth();
+            $repo = new \App\Repository\BatchRepository(\App\Config\Database::getConnection());
+            $history = $repo->getTransactionsByItem($id, $ctx->business_id);
+            $this->json(true, ['history' => $history]);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to fetch batch transactions');
+        }
+    }
+
     // GET /items/{id}/price-history
     public function priceHistory(int $id): void {
         try {

@@ -85,7 +85,7 @@ class PriceUpdater {
             // Determine currency: use item's currency if available, otherwise from business context
             $currency = !empty($item['currency']) ? $item['currency'] : null;
 
-            // Insert new price history record
+            // Insert new price history record for COST change
             $this->priceRepo->insert([
                 'item_id'     => (int) $itemId,
                 'business_id' => $itemBusinessId,
@@ -107,6 +107,33 @@ class PriceUpdater {
                 $tenantId,
                 $itemBusinessId
             );
+
+            // Queue a Pending Price Update if automatic markup is enabled
+            if (isset($item['markup_enabled']) && (int)$item['markup_enabled'] === 1 && isset($item['markup_percent'])) {
+                $markupPct = (float) $item['markup_percent'];
+                if ($markupPct > 0) {
+                    $newSalePrice = round($newPrice * (1 + $markupPct / 100), 2);
+                    $currentSalePrice = isset($item['sale_price']) ? (float)$item['sale_price'] : 0.0;
+                    
+                    if ($newSalePrice !== $currentSalePrice) {
+                        // Insert into item_pending_prices
+                        $stmt = $this->db->prepare("
+                            INSERT INTO item_pending_prices
+                            (tenant_id, business_id, item_id, pending_sale_price, source_type, source_id, status, created_at, created_by)
+                            VALUES
+                            (:tenant, :business, :item, :pending_sale, 'PURCHASE_ORDER', :po_id, 'PENDING', NOW(), :user)
+                        ");
+                        $stmt->execute([
+                            'tenant'       => $tenantId,
+                            'business'     => $itemBusinessId,
+                            'item'         => $itemId,
+                            'pending_sale' => $newSalePrice,
+                            'po_id'        => $poId,
+                            'user'         => $userId
+                        ]);
+                    }
+                }
+            }
 
             // Trigger cascading recalculation for any recipes using this item as a component
             $manufacturingService = new ManufacturingService($this->db);

@@ -118,6 +118,16 @@
                        data-i18n="items.track_expiry">Track Expiry Dates</label>
               </div>
               <small class="text-muted" data-i18n="items.track_expiry_help">Enable batch-level expiry tracking</small>
+
+              <div id="shelfLifeContainer" class="mt-3 d-none">
+                <label class="form-label small text-muted" for="inputShelfLifeDays">Shelf Life Expectancy (Days)</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
+                  <input class="form-control" id="inputShelfLifeDays" type="number"
+                         step="1" min="0" placeholder="e.g., 365">
+                </div>
+                <small class="text-muted">Used to auto-calculate PO expiry dates</small>
+              </div>
             </div>
           </div>
 

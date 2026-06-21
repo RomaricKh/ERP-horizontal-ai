@@ -6,6 +6,6 @@ use App\Controllers\ItemsController;
 
 // GET /batches/{id}  — list batches for a specific item
 $router->get('/batches/{id}',
-    fn($id) => (new ItemsController())->stockHistory((int)$id),
+    fn($id) => (new ItemsController())->batchTransactions((int)$id),
     ['items.view']
 );

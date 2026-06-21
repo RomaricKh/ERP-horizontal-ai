@@ -111,7 +111,7 @@ class ItemRepository {
         $sql = "
             SELECT i.id, i.name, i.sku, i.unit,
                    i.cost_price, i.sale_price, i.is_active, i.notes,
-                   i.business_id, i.has_expiry, i.customer_id, i.min_stock,
+                   i.business_id, i.has_expiry, i.customer_id, i.min_stock, i.shelf_life_days,
                    {$costFlagSelect},
                    it.name AS type_name,
                    p.name AS customer_name,
@@ -155,13 +155,17 @@ class ItemRepository {
         unset($data['customer_id']);
         $data['customer_id'] = $customerId;
 
+        $shelfLifeDays = array_key_exists('shelf_life_days', $data) ? $data['shelf_life_days'] : null;
+        unset($data['shelf_life_days']);
+        $data['shelf_life_days'] = $shelfLifeDays;
+
         $stmt = $this->db->prepare("
             INSERT INTO items
               (tenant_id, business_id, customer_id, item_type_id, name, sku, unit,
-               cost_price, sale_price, notes, is_active, has_expiry, created_at, created_by)
+               cost_price, sale_price, notes, is_active, has_expiry, shelf_life_days, created_at, created_by)
             VALUES
               (:tenant, :business, :customer_id, :type, :name, :sku, :unit,
-               :cost, :sale, :notes, 1, :has_expiry, NOW(), :created_by)
+               :cost, :sale, :notes, 1, :has_expiry, :shelf_life_days, NOW(), :created_by)
         ");
         $stmt->execute($data);
         return (int) $this->db->lastInsertId();
