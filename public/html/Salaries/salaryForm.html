@@ -20,9 +20,14 @@
           <div class="row g-3">
             <div class="col-md-4">
               <label class="form-label small text-muted" for="inputSalaryEmployee"><span data-i18n="salaries.employee">Employee</span> <span class="text-danger">*</span></label>
-              <select class="form-select" id="inputSalaryEmployee" required>
-                <option value="" data-i18n="salaries.select_employee">— Select employee —</option>
-              </select>
+              <div class="input-group">
+                <select class="form-select" id="inputSalaryEmployee" required>
+                  <option value="" data-i18n="salaries.select_employee">— Select employee —</option>
+                </select>
+                <button class="btn btn-outline-secondary" type="button" data-action="salaries.create-employee" title="New Employee">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
             </div>
             <div class="col-md-4">
               <label class="form-label small text-muted" for="inputSalaryPeriodStart"><span data-i18n="salaries.period_start">Period Start</span> <span class="text-danger">*</span></label>

@@ -6,6 +6,7 @@ import { calcBc, formatAmount } from '../../utils/currency.js';
 import { populatePayeeSelect } from '../../utils/payeeSelect.js';
 import { attachRateAutoFetch } from '../../utils/exchangeRateHelper.js';
 import { renderSupplierPricesPanel } from '../../components/supplierPricesPanel.js';
+import { MODAL_SCOPE, openModal } from '../../components/modals.js';
 
 let modalRoot;
 let unregister;
@@ -84,6 +85,43 @@ export async function mount({ modalRoot: root, data }) {
 
         'po.add-line': () => {
             addLineRow();
+        },
+
+        'po.create-supplier': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.STACKED,
+                template: 'html/People/personForm.html',
+                controller: '../pages/People/personForm.modal.js',
+                data: {
+                    onComplete: async (newPerson) => {
+                        await populatePayeeSelect(F.supplier(), { typeFilter: 'Supplier' });
+                        F.supplier().value = newPerson.id;
+                    }
+                }
+            });
+        },
+
+        'po.create-item': async ({ el }) => {
+            const lineIdx = el.dataset.line;
+            await openModal({
+                scope: MODAL_SCOPE.STACKED,
+                template: 'html/Items/itemForm.html',
+                controller: '../pages/Items/itemForm.modal.js',
+                data: {
+                    onComplete: async (newItem) => {
+                        await loadItems();
+                        document.querySelectorAll('.line-item-select').forEach(sel => {
+                            const currentVal = sel.value;
+                            sel.innerHTML = buildItemOptions(currentVal);
+                        });
+                        const rowSelect = document.querySelector(`.line-item-select[data-line="${lineIdx}"]`);
+                        if (rowSelect) {
+                            rowSelect.value = newItem.id;
+                            rowSelect.dispatchEvent(new Event('change'));
+                        }
+                    }
+                }
+            });
         },
 
         'po.remove-line': ({ el }) => {
@@ -263,9 +301,14 @@ function addLineRow(prefill) {
     tr.dataset.lineIdx = idx;
     tr.innerHTML = `
         <td>
-            <select class="form-select form-select-sm line-item-select" data-line="${idx}">
-                ${buildItemOptions(prefill?.item_id)}
-            </select>
+            <div class="input-group input-group-sm">
+                <select class="form-select line-item-select" data-line="${idx}">
+                    ${buildItemOptions(prefill?.item_id)}
+                </select>
+                <button class="btn btn-outline-secondary" type="button" data-action="po.create-item" data-line="${idx}" title="New Item">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
             <input type="date" class="form-control form-control-sm mt-1 line-expiry-date ${hasExpiry ? '' : 'd-none'}"
                    data-line="${idx}" value="${escHtml(String(expiryDate))}" placeholder="Expiry date"
                    title="Expiry date for this batch">

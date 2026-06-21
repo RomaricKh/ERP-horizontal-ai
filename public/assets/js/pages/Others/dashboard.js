@@ -20,14 +20,32 @@ const MONTH_NAMES = [
 ];
 
 const TYPE_BADGE = {
-    Expense:    'bg-danger',
-    Payment:    'bg-warning text-dark',
-    Collection: 'bg-success',
+    Expense:    'pill-expense',
+    Payment:    'pill-neutral',
+    Collection: 'pill-income',
+    'Credit Note': 'pill-neutral',
     // legacy uppercase keys kept for safety
     EXPENSE:    'bg-danger',
     PAYMENT:    'bg-warning text-dark',
     COLLECTION: 'bg-success',
 };
+
+let myAreaChart = null;
+let myPieChart = null;
+
+function loadChartJs() {
+    return new Promise((resolve, reject) => {
+        if (window.Chart) {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'assets/vendor/chart.js/chart.umd.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load Chart.js'));
+        document.head.appendChild(script);
+    });
+}
 
 export async function render(container) {
     const html = await fetch('html/dashboard.html').then(r => r.text());
@@ -51,13 +69,21 @@ export async function mount() {
         renderLowStock(data.low_stock_items || []);
         renderPeriod(data.year, data.month);
 
+        try {
+            await loadChartJs();
+            renderCharts(data);
+        } catch (e) {
+            console.error(e);
+        }
+
     } catch (err) {
         console.error('Dashboard mount error:', err);
     }
 }
 
 export function unmount() {
-    // nothing to clean up — read-only page, no event listeners registered
+    if (myAreaChart) { myAreaChart.destroy(); myAreaChart = null; }
+    if (myPieChart) { myPieChart.destroy(); myPieChart = null; }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -98,15 +124,14 @@ function renderAccounts(accounts) {
     if (!tbody) return;
 
     if (!accounts.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No accounts found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3">No accounts found.</td></tr>';
         return;
     }
 
     tbody.innerHTML = accounts.map(function(acc) {
         return '<tr>' +
-            '<td>' + escHtml(acc.name) + '</td>' +
-            '<td>' + escHtml(acc.currency) + '</td>' +
-            '<td class="text-end">' + formatAmount(acc.balance) + '</td>' +
+            '<td class="py-3 fw-medium text-gray-800"><i class="fas fa-university text-primary me-2 opacity-50"></i>' + escHtml(acc.name) + '</td>' +
+            '<td class="text-end py-3 fw-bold">' + formatAmount(acc.balance) + '</td>' +
             '</tr>';
     }).join('');
 }
@@ -121,13 +146,13 @@ function renderTransactions(transactions) {
     }
 
     tbody.innerHTML = transactions.map(function(tx) {
-        var badgeClass = TYPE_BADGE[tx.type] || 'bg-secondary';
-        var typeBadge  = '<span class="badge ' + badgeClass + '">' + escHtml(tx.type) + '</span>';
+        var badgeClass = TYPE_BADGE[tx.type] || 'pill-neutral';
+        var typeBadge  = '<span class="status-pill ' + badgeClass + '">' + escHtml(tx.type) + '</span>';
         return '<tr>' +
-            '<td>' + typeBadge + '</td>' +
-            '<td>' + escHtml(getFormatter().formatDate(tx.date || '')) + '</td>' +
-            '<td>' + escHtml(tx.name || tx.description || '—') + '</td>' +
-            '<td class="text-end">' + formatAmount(tx.amount || tx.amount_bc) + '</td>' +
+            '<td class="py-3">' + typeBadge + '</td>' +
+            '<td class="py-3 text-muted">' + escHtml(getFormatter().formatDate(tx.date || '')) + '</td>' +
+            '<td class="py-3 fw-medium text-gray-800">' + escHtml(tx.name || tx.description || '—') + '</td>' +
+            '<td class="text-end py-3 fw-bold">' + formatAmount(tx.amount || tx.amount_bc) + '</td>' +
             '</tr>';
     }).join('');
 }
@@ -143,18 +168,152 @@ function renderLowStock(items) {
     if (!tbody) return;
 
     if (!items.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">All items are sufficiently stocked.</td></tr>';
+        tbody.innerHTML = '<li class="list-group-item text-center text-muted py-3 border-0">All items are sufficiently stocked.</li>';
         return;
     }
 
     tbody.innerHTML = items.map(function(item) {
-        return '<tr class="table-warning">' +
-            '<td>' +
-                '<i class="fas fa-exclamation-triangle text-warning me-1"></i>' +
-                escHtml(item.name) +
-            '</td>' +
-            '<td>' + escHtml(item.sku || '—') + '</td>' +
-            '<td class="text-end">' + getFormatter().formatNumber(item.quantity || 0, 2) + '</td>' +
-            '</tr>';
+        return '<li class="list-group-item d-flex justify-content-between align-items-center py-3 border-bottom-0 border-top">' +
+               '<div><i class="fas fa-exclamation-circle text-warning me-2"></i><strong>' + escHtml(item.name) + '</strong><br>' +
+               '<small class="text-muted">SKU: ' + escHtml(item.sku || '—') + '</small></div>' +
+               '<span class="badge bg-danger rounded-pill">' + formatAmount(item.quantity) + ' QTY</span>' +
+               '</li>';
     }).join('');
+}
+
+function renderCharts(data) {
+    // 1. Area Chart (Earnings Overview)
+    const ctxArea = document.getElementById("myAreaChart");
+    if (ctxArea && data.earnings_overview) {
+        if (myAreaChart) myAreaChart.destroy();
+        
+        const labels = MONTH_NAMES.map(m => m.substring(0, 3));
+        const revenues = data.earnings_overview.map(d => d.revenue);
+
+        myAreaChart = new Chart(ctxArea, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Earnings",
+                    tension: 0.3,
+                    backgroundColor: "rgba(78, 115, 223, 0.05)",
+                    borderColor: "rgba(78, 115, 223, 1)",
+                    pointRadius: 3,
+                    pointBackgroundColor: "rgba(78, 115, 223, 1)",
+                    pointBorderColor: "rgba(78, 115, 223, 1)",
+                    pointHoverRadius: 3,
+                    pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
+                    pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    data: revenues,
+                    fill: true
+                }],
+            },
+            options: {
+                maintainAspectRatio: false,
+                layout: { padding: { left: 10, right: 25, top: 25, bottom: 0 } },
+                scales: {
+                    x: {
+                        grid: { display: false, drawBorder: false },
+                        ticks: { maxTicksLimit: 7 }
+                    },
+                    y: {
+                        ticks: {
+                            maxTicksLimit: 5,
+                            padding: 10,
+                            callback: function(value) { return formatAmount(value); }
+                        },
+                        grid: { color: "rgb(234, 236, 244)", drawBorder: false, borderDash: [2] },
+                        border: { dash: [2] }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: "rgb(255,255,255)",
+                        bodyColor: "#858796",
+                        titleMarginBottom: 10,
+                        titleColor: '#6e707e',
+                        titleFont: { size: 14 },
+                        borderColor: '#dddfeb',
+                        borderWidth: 1,
+                        padding: 15,
+                        displayColors: false,
+                        intersect: false,
+                        mode: 'index',
+                        caretPadding: 10,
+                        callbacks: {
+                            label: function(context) { return 'Earnings: ' + formatAmount(context.raw); }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 2. Donut Chart (Expense Sources)
+    const ctxPie = document.getElementById("myPieChart");
+    if (ctxPie && data.expense_breakdown) {
+        if (myPieChart) myPieChart.destroy();
+        
+        let labels = [];
+        let values = [];
+        const bgColors = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'];
+        const hoverBgColors = ['#2e59d9', '#17a673', '#2c9faf', '#dda20a', '#be2617'];
+
+        data.expense_breakdown.forEach(item => {
+            labels.push(item.category);
+            values.push(item.total);
+        });
+
+        if (values.length === 0) {
+            labels = ["No Expenses"];
+            values = [1];
+        }
+
+        myPieChart = new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: bgColors.slice(0, values.length),
+                    hoverBackgroundColor: hoverBgColors.slice(0, values.length),
+                    hoverBorderColor: "rgba(234, 236, 244, 1)",
+                }],
+            },
+            options: {
+                maintainAspectRatio: false,
+                cutout: '80%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: "rgb(255,255,255)",
+                        bodyColor: "#858796",
+                        borderColor: '#dddfeb',
+                        borderWidth: 1,
+                        padding: 15,
+                        displayColors: false,
+                        caretPadding: 10,
+                        callbacks: {
+                            label: function(context) { return context.label + ': ' + formatAmount(context.raw); }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Build Custom Legend
+        const legendContainer = document.getElementById('pieChartLegend');
+        if (legendContainer && data.expense_breakdown.length > 0) {
+            legendContainer.innerHTML = data.expense_breakdown.map((item, index) => {
+                const color = bgColors[index % bgColors.length];
+                return '<span class="me-2">' +
+                    '<i class="fas fa-circle" style="color: ' + color + ';"></i> ' + escHtml(item.category) +
+                '</span>';
+            }).join('');
+        }
+    }
 }

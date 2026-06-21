@@ -20,9 +20,14 @@
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label small text-muted" for="inputInvoiceCustomer" data-i18n="common.customer">Customer</label>
-              <select class="form-select" id="inputInvoiceCustomer">
-                <option value="" data-i18n="invoices.select_customer">— Select customer —</option>
-              </select>
+              <div class="input-group">
+                <select class="form-select" id="inputInvoiceCustomer">
+                  <option value="" data-i18n="invoices.select_customer">— Select customer —</option>
+                </select>
+                <button class="btn btn-outline-secondary" type="button" data-action="invoice.create-customer" title="New Customer">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
             </div>
             <div class="col-md-6">
               <label class="form-label small text-muted" for="inputInvoiceNumber"><span data-i18n="invoices.invoice_number">Invoice #</span></label>

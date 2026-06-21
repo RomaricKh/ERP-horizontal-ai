@@ -214,6 +214,17 @@ export async function render(container) {
     if (!hasPermission('invoices.create')) {
         container.querySelectorAll('[data-action="invoice.create"]').forEach(el => el.remove());
     }
+
+    // Handle Quick Action param
+    const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+    if (urlParams.get('action') === 'new' && hasPermission('invoices.create')) {
+        setTimeout(() => {
+            const btn = container.querySelector('[data-action="invoice.create"]');
+            if (btn) btn.click();
+            // Clear URL param without reloading to prevent opening modal on refresh
+            window.history.replaceState(null, '', window.location.pathname + '#/invoices');
+        }, 100);
+    }
 }
 
 async function fetchInvoices() {

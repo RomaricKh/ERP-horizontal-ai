@@ -151,6 +151,17 @@ export async function render(container) {
         const perm = permMap[action];
         if (perm && !hasPermission(perm)) el.remove();
     });
+
+    // Handle Quick Action param
+    const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+    if (urlParams.get('action') === 'new' && hasPermission('expenses.create')) {
+        setTimeout(() => {
+            const btn = container.querySelector('[data-action="expenses.create"]');
+            if (btn) btn.click();
+            // Clear URL param without reloading to prevent opening modal on refresh
+            window.history.replaceState(null, '', window.location.pathname + '#/expenses');
+        }, 100);
+    }
 }
 
 async function fetchExpenses() {

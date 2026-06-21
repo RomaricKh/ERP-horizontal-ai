@@ -6,6 +6,7 @@ import { calcBc, formatAmount } from '../../utils/currency.js';
 import { populatePayeeSelect } from '../../utils/payeeSelect.js';
 import { attachRateAutoFetch } from '../../utils/exchangeRateHelper.js';
 import { isModuleActive } from '../../services/ModuleService.js';
+import { MODAL_SCOPE, openModal } from '../../components/modals.js';
 
 let modalRoot;
 let unregister;
@@ -135,6 +136,44 @@ export async function mount({ modalRoot: root, data }) {
 
         'invoice.add-line': () => {
             addLineRow();
+        },
+
+        'invoice.create-customer': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.STACKED,
+                template: 'html/People/personForm.html',
+                controller: '../pages/People/personForm.modal.js',
+                data: {
+                    onComplete: async (newPerson) => {
+                        await populatePayeeSelect(F.customer(), { typeFilter: 'Customer' });
+                        F.customer().value = newPerson.id;
+                        F.customer().dispatchEvent(new Event('change'));
+                    }
+                }
+            });
+        },
+
+        'invoice.create-service': async ({ el }) => {
+            const lineIdx = el.dataset.line;
+            await openModal({
+                scope: MODAL_SCOPE.STACKED,
+                template: 'html/Services/serviceForm.html',
+                controller: '../pages/Services/serviceForm.modal.js',
+                data: {
+                    onComplete: async (newService) => {
+                        await loadServices();
+                        document.querySelectorAll('.line-service-select').forEach(sel => {
+                            const currentVal = sel.value;
+                            sel.innerHTML = buildServiceOptions(currentVal);
+                        });
+                        const rowSelect = document.querySelector(`.line-service-select[data-line="${lineIdx}"]`);
+                        if (rowSelect) {
+                            rowSelect.value = newService.id;
+                            rowSelect.dispatchEvent(new Event('change'));
+                        }
+                    }
+                }
+            });
         },
 
         'invoice.remove-line': ({ el }) => {
@@ -395,7 +434,7 @@ function addLineRow(prefill) {
            </td>`
         : '';
 
-    // Build item selector cell
+    // Build item selector cell (no quick add button)
     const showItemCell = itemsModuleActive;
     const itemCellHidden = (lineType === 'service') ? ' style="display:none;"' : '';
     const itemCell = showItemCell
@@ -406,14 +445,19 @@ function addLineRow(prefill) {
            </td>`
         : '';
 
-    // Build service selector cell
+    // Build service selector cell with Quick Add shortcut
     const showServiceCell = servicesModuleActive;
     const serviceCellHidden = (lineType === 'item' && mixedMode) ? ' style="display:none;"' : '';
     const serviceCell = showServiceCell
         ? `<td class="line-service-cell"${serviceCellHidden}>
-            <select class="form-select form-select-sm line-service-select" data-line="${idx}">
-                ${buildServiceOptions(prefill?.service_id, prefill?.service_name)}
-            </select>
+            <div class="input-group input-group-sm">
+                <select class="form-select line-service-select" data-line="${idx}">
+                    ${buildServiceOptions(prefill?.service_id, prefill?.service_name)}
+                </select>
+                <button class="btn btn-outline-secondary" type="button" data-action="invoice.create-service" data-line="${idx}" title="New Service">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
            </td>`
         : '';
 

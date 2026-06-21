@@ -20,9 +20,14 @@
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label small text-muted" for="inputExpensePayee" data-i18n="common.payee">Payee</label>
-              <select class="form-select" id="inputExpensePayee">
-                <option value="" data-i18n="expenses.select_payee">— Select payee —</option>
-              </select>
+              <div class="input-group">
+                <select class="form-select" id="inputExpensePayee">
+                  <option value="" data-i18n="expenses.select_payee">— Select payee —</option>
+                </select>
+                <button class="btn btn-outline-secondary" type="button" data-action="expenses.create-payee" title="New Payee">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
             </div>
             <div class="col-md-6">
               <label class="form-label small text-muted" for="inputExpenseCategory" data-i18n="common.category">Category</label>

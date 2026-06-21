@@ -5,6 +5,7 @@ import { apiFetch } from '../../Auth/apiFetch.js';
 import { calcBc, formatAmount } from '../../utils/currency.js';
 import { populatePayeeSelect } from '../../utils/payeeSelect.js';
 import { attachRateAutoFetch } from '../../utils/exchangeRateHelper.js';
+import { openModal, MODAL_SCOPE } from '../../components/modals.js';
 
 let modalRoot;
 let unregister;
@@ -102,6 +103,21 @@ export async function mount({ modalRoot: root, data }) {
     }
 
     unregister = registerPageActions({
+        'expenses.create-payee': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.STACKED,
+                template: 'html/People/personForm.html',
+                controller: '../pages/People/personForm.modal.js',
+                data: {
+                    onComplete: async (newPerson) => {
+                        await populatePayeeSelect(F.payee());
+                        F.payee().value = newPerson.id;
+                        F.payee().dispatchEvent(new Event('change'));
+                    }
+                }
+            });
+        },
+
         'expenses.save': async () => {
             if (!validateForm()) return;
 

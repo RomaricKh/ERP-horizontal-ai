@@ -46,15 +46,12 @@ class BatchService {
 
         // Record the initial stock-in transaction for the batch
         $this->repo->insertTransaction([
-            'batch_id'       => $batchId,
-            'item_id'        => $itemId,
-            'business_id'    => $ctx->business_id,
-            'type'           => 'IN',
-            'quantity'        => $quantity,
-            'reference_type' => $referenceId ? 'PURCHASE_ORDER' : null,
-            'reference_id'   => $referenceId,
-            'notes'          => 'Initial batch stock from receipt',
-            'created_by'     => $ctx->user_id,
+            'batch_id'         => $batchId,
+            'transaction_type' => 'IN',
+            'quantity'         => $quantity,
+            'reference'        => $referenceId ? "PURCHASE_ORDER:{$referenceId}" : null,
+            'notes'            => 'Initial batch stock from receipt',
+            'created_by'       => $ctx->user_id,
         ]);
 
         return $batchId;

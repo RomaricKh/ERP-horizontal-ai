@@ -20,9 +20,14 @@
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label small text-muted" for="inputPoSupplier" data-i18n="po.supplier">Supplier</label>
-              <select class="form-select" id="inputPoSupplier">
-                <option value="" data-i18n="po.select_supplier">— Select supplier —</option>
-              </select>
+              <div class="input-group">
+                <select class="form-select" id="inputPoSupplier">
+                  <option value="" data-i18n="po.select_supplier">— Select supplier —</option>
+                </select>
+                <button class="btn btn-outline-secondary" type="button" data-action="po.create-supplier" title="New Supplier">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
             </div>
             <div class="col-md-6">
               <label class="form-label small text-muted" for="inputPoNumber"><span data-i18n="po.po_number">PO #</span></label>

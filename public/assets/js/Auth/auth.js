@@ -217,6 +217,7 @@ export async function forceLogout(shouldBroadcast = true) {
 
 	clearToken();
 	localStorage.removeItem('business_id');
+	localStorage.removeItem('activeTenantId');
 	_isTenantOwner = false;
 	stopSessionWatcher();
 	destroyRouter();

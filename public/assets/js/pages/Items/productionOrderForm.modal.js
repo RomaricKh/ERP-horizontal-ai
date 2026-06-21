@@ -404,32 +404,6 @@ async function executeOrder() {
 
     // Execute
     try {
-        const res = await apiFetch('/api/manufacturing/orders', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        const json = await res.json();
-
-        if (!res.ok || !json.success) {
-            const message = json.message || 'Production order failed';
-            if (json.errors && Array.isArray(json.errors)) {
-                const details = json.errors.map(e => e.message || e).join('\n');
-                showFormError(message + '\n' + details);
-            } else {
-                showFormError(message);
-            }
-            return;
-        }
-
-        bootstrap.Modal.getInstance(modalRoot).hide();
-        document.dispatchEvent(new CustomEvent('items.updated'));
-    } catch (err) {
-        console.error('executeOrder failed:', err);
-        showFormError(err.message || 'Unable to execute production order');
-    }
-}
-
-    try {
         const res  = await apiFetch('/api/manufacturing/orders', {
             method: 'POST',
             body: JSON.stringify(payload)

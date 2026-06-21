@@ -1,24 +1,26 @@
 <!-- Page Heading -->
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800" data-i18n="dashboard.title">Dashboard</h1>
-    <span id="dashboard-period" class="text-muted small"></span>
+    <h1 class="h3 mb-0 text-gray-800 fw-bold" data-i18n="dashboard.title">Dashboard</h1>
+    <span id="dashboard-period" class="text-muted small fw-semibold"></span>
 </div>
 
 <!-- Stat Cards Row -->
 <div class="row" id="dashboard-stat-cards">
-    <!-- Revenue Card -->
+    <!-- Earnings (Monthly) Card Example -->
     <div class="col-xl-4 col-md-6 mb-4">
-        <div class="card border-left-success shadow h-100 py-2">
+        <div class="card bg-gradient-primary-soft border-0 shadow-sm h-100 py-2 dashboard-card position-relative">
+            <i class="fas fa-calendar card-watermark text-primary"></i>
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1" data-i18n="dashboard.revenue">
-                            Revenue (This Month)
-                        </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="stat-revenue">—</div>
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1" data-i18n="dashboard.revenue">
+                            Revenue</div>
+                        <div class="h3 mb-0 font-weight-bold text-gray-800" id="stat-revenue">0.00</div>
                     </div>
                     <div class="col-auto">
-                        <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        <div class="icon-circle bg-primary-light text-primary">
+                            <i class="fas fa-arrow-up fa-lg"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -27,17 +29,19 @@
 
     <!-- Expenses Card -->
     <div class="col-xl-4 col-md-6 mb-4">
-        <div class="card border-left-danger shadow h-100 py-2">
+        <div class="card bg-gradient-danger-soft border-0 shadow-sm h-100 py-2 dashboard-card position-relative">
+            <i class="fas fa-dollar-sign card-watermark text-danger"></i>
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-danger text-uppercase mb-1" data-i18n="dashboard.expenses">
-                            Expenses (This Month)
-                        </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="stat-expenses">—</div>
+                            Expenses</div>
+                        <div class="h3 mb-0 font-weight-bold text-gray-800" id="stat-expenses">0.00</div>
                     </div>
                     <div class="col-auto">
-                        <i class="fas fa-receipt fa-2x text-gray-300"></i>
+                        <div class="icon-circle bg-danger-light text-danger">
+                            <i class="fas fa-arrow-down fa-lg"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -46,17 +50,19 @@
 
     <!-- Net Profit Card -->
     <div class="col-xl-4 col-md-6 mb-4">
-        <div class="card border-left-primary shadow h-100 py-2">
+        <div class="card bg-gradient-success-soft border-0 shadow-sm h-100 py-2 dashboard-card position-relative">
+            <i class="fas fa-chart-line card-watermark text-success"></i>
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1" data-i18n="dashboard.net_profit">
-                            Net Profit (This Month)
-                        </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="stat-net-profit">—</div>
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1" data-i18n="dashboard.net_profit">
+                            Net Profit</div>
+                        <div class="h3 mb-0 font-weight-bold text-gray-800" id="stat-net-profit">0.00</div>
                     </div>
                     <div class="col-auto">
-                        <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        <div class="icon-circle bg-success-light text-success">
+                            <i class="fas fa-piggy-bank fa-lg"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -64,80 +70,58 @@
     </div>
 </div>
 
-<!-- Second Row: Accounts + Low Stock -->
+<!-- Charts Row -->
 <div class="row">
-
-    <!-- Account Balances -->
-    <div class="col-xl-6 mb-4">
-        <div class="card shadow">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary" data-i18n="dashboard.account_balances">Account Balances</h6>
+    <!-- Area Chart -->
+    <div class="col-xl-8 col-lg-7 mb-4">
+        <div class="card shadow-sm border-0 h-100 dashboard-card">
+            <div class="card-header bg-white py-3 border-bottom-0 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary" data-i18n="dashboard.earnings_overview">Earnings Overview</h6>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-sm mb-0" id="dashboard-accounts-table">
-                        <thead class="thead-light">
-                            <tr>
-                                <th data-i18n="common.account">Account</th>
-                                <th data-i18n="common.currency">Currency</th>
-                                <th class="text-end" data-i18n="common.balance">Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dashboard-accounts-body">
-                            <tr><td colspan="3" class="text-center text-muted py-3" data-i18n="common.loading">Loading…</td></tr>
-                        </tbody>
-                    </table>
+            <div class="card-body">
+                <div class="chart-area" style="height: 320px; position: relative;">
+                    <canvas id="myAreaChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Low Stock Alerts -->
-    <div class="col-xl-6 mb-4">
-        <div class="card shadow">
-            <div class="card-header py-3 d-flex align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-warning">
-                    <i class="fas fa-exclamation-triangle me-1"></i> <span data-i18n="dashboard.low_stock_alerts">Low Stock Alerts</span>
-                </h6>
-                <span class="badge bg-warning text-dark" id="low-stock-count">0</span>
+    <!-- Pie Chart -->
+    <div class="col-xl-4 col-lg-5 mb-4">
+        <div class="card shadow-sm border-0 h-100 dashboard-card">
+            <div class="card-header bg-white py-3 border-bottom-0 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary" data-i18n="dashboard.expense_sources">Expense Sources</h6>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-sm mb-0" id="dashboard-lowstock-table">
-                        <thead class="thead-light">
-                            <tr>
-                                <th data-i18n="common.item">Item</th>
-                                <th data-i18n="common.sku">SKU</th>
-                                <th class="text-end" data-i18n="common.qty">Qty</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dashboard-lowstock-body">
-                            <tr><td colspan="3" class="text-center text-muted py-3" data-i18n="common.loading">Loading…</td></tr>
-                        </tbody>
-                    </table>
+            <div class="card-body">
+                <div class="chart-pie" style="height: 250px; position: relative; margin-top: 1.5rem;">
+                    <canvas id="myPieChart"></canvas>
+                </div>
+                <div class="mt-4 text-center small" id="pieChartLegend">
+                    <!-- Legend will be dynamically generated -->
                 </div>
             </div>
         </div>
     </div>
-
 </div>
 
-<!-- Recent Transactions -->
+<!-- Bottom Half: Transactions (Left) + Quick Actions/Accounts/Low Stock (Right) -->
 <div class="row">
-    <div class="col-12 mb-4">
-        <div class="card shadow">
-            <div class="card-header py-3">
+    
+    <!-- Left Column: Recent Transactions -->
+    <div class="col-xl-8 col-lg-7 mb-4">
+        <div class="card shadow-sm border-0 dashboard-card">
+            <div class="card-header bg-white py-3 border-bottom-0">
                 <h6 class="m-0 font-weight-bold text-primary" data-i18n="dashboard.recent_transactions">Recent Transactions</h6>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-sm mb-0" id="dashboard-transactions-table">
-                        <thead class="thead-light">
+            <div class="card-body px-0 pt-0">
+                <div class="table-responsive px-3">
+                    <table class="table table-hover table-borderless align-middle mb-0" id="dashboard-transactions-table">
+                        <thead class="border-bottom text-muted small">
                             <tr>
-                                <th data-i18n="common.type">Type</th>
-                                <th data-i18n="common.date">Date</th>
-                                <th data-i18n="common.description">Description</th>
-                                <th class="text-end" data-i18n="common.amount_bc">Amount (BC)</th>
+                                <th class="text-uppercase fw-semibold pb-3" data-i18n="common.type">Type</th>
+                                <th class="text-uppercase fw-semibold pb-3" data-i18n="common.date">Date</th>
+                                <th class="text-uppercase fw-semibold pb-3" data-i18n="common.description">Description</th>
+                                <th class="text-end text-uppercase fw-semibold pb-3" data-i18n="common.amount_bc">Amount (BC)</th>
                             </tr>
                         </thead>
                         <tbody id="dashboard-transactions-body">
@@ -147,5 +131,83 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Right Column: Quick Actions + Account Balances + Low Stock Alerts -->
+    <div class="col-xl-4 col-lg-5">
+        
+        <!-- Quick Actions -->
+        <div class="card shadow-sm border-0 mb-4 dashboard-card">
+            <div class="card-header bg-white py-3 border-bottom-0">
+                <h6 class="m-0 font-weight-bold text-success" data-i18n="dashboard.quick_actions">Quick Actions</h6>
+            </div>
+            <div class="card-body px-3 pt-0 pb-3">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <a href="#/invoices?action=new" class="quick-action-tile tile-primary">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                            <span data-i18n="dashboard.invoice">Invoice</span>
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a href="#/expenses?action=new" class="quick-action-tile tile-danger">
+                            <i class="fas fa-receipt"></i>
+                            <span data-i18n="dashboard.expense">Expense</span>
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a href="#/purchase-orders?action=new" class="quick-action-tile tile-info">
+                            <i class="fas fa-shopping-cart"></i>
+                            <span data-i18n="dashboard.order">Order</span>
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a href="#/people?action=new" class="quick-action-tile tile-secondary">
+                            <i class="fas fa-user-plus"></i>
+                            <span data-i18n="dashboard.contact">Contact</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Balances -->
+        <div class="card shadow-sm border-0 mb-4 dashboard-card">
+            <div class="card-header bg-white py-3 border-bottom-0">
+                <h6 class="m-0 font-weight-bold text-primary" data-i18n="dashboard.account_balances">Account Balances</h6>
+            </div>
+            <div class="card-body px-0 pt-0">
+                <div class="table-responsive px-3">
+                    <table class="table table-hover table-borderless align-middle mb-0" id="dashboard-accounts-table">
+                        <thead class="border-bottom text-muted small">
+                            <tr>
+                                <th class="text-uppercase fw-semibold pb-3" data-i18n="common.account">Account</th>
+                                <th class="text-end text-uppercase fw-semibold pb-3" data-i18n="common.balance">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboard-accounts-body">
+                            <tr><td colspan="2" class="text-center text-muted py-3" data-i18n="common.loading">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Low Stock Alerts -->
+        <div class="card shadow-sm border-0 mb-4 dashboard-card">
+            <div class="card-header bg-white py-3 border-bottom-0 d-flex align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-warning">
+                    <i class="fas fa-exclamation-triangle me-1"></i> <span data-i18n="dashboard.low_stock_alerts">Low Stock Alerts</span>
+                </h6>
+                <span class="badge bg-warning-soft text-warning fw-bold px-2 py-1 rounded-pill" id="low-stock-count">0</span>
+            </div>
+            <!-- Set max-height and overflow-y for scrolling -->
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                <ul class="list-group list-group-flush" id="dashboard-lowstock-body">
+                    <li class="list-group-item text-center text-muted py-3" data-i18n="common.loading">Loading…</li>
+                </ul>
+            </div>
+        </div>
+
     </div>
 </div>

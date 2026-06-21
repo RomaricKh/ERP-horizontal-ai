@@ -121,6 +121,11 @@ export async function mount({ modalRoot: root, data }) {
                 if (!res.ok || !json.success) throw new Error(json.message || 'Operation failed');
                 bootstrap.Modal.getInstance(modalRoot).hide();
                 document.dispatchEvent(new CustomEvent('items.updated'));
+
+                // If launched via Quick Add (stacked), call the onComplete callback
+                if (data?.onComplete) {
+                    await data.onComplete({ id: json.data.id, name: payload.name });
+                }
             } catch (err) {
                 console.error(err);
                 showFormError(err.message || 'Unable to save item');

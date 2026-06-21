@@ -165,6 +165,7 @@ class DashboardRepository {
                 LEFT JOIN people p
                     ON p.id = py.people_id
                 WHERE e.business_id = :business1
+                  AND e.expense_date <= CURRENT_DATE()
 
                 UNION ALL
 
@@ -180,6 +181,7 @@ class DashboardRepository {
                 LEFT JOIN people p
                     ON p.id = py.people_id
                 WHERE ps.business_id = :business2
+                  AND ps.payment_date <= CURRENT_DATE()
 
                 UNION ALL
 
@@ -195,6 +197,7 @@ class DashboardRepository {
                 LEFT JOIN people p
                     ON p.id = py.people_id
                 WHERE cs.business_id = :business3
+                  AND cs.slip_date <= CURRENT_DATE()
             ) AS transactions
             ORDER BY created_at DESC
             LIMIT :lim
@@ -280,6 +283,65 @@ class DashboardRepository {
         $stmt->bindValue(':business', $businessId, PDO::PARAM_INT);
         $stmt->bindValue(':business2', $businessId, PDO::PARAM_INT);
         $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get monthly revenue and expenses for the given year.
+     * Returns an array of 12 elements (Jan-Dec).
+     */
+    public function getAnnualEarningsOverview(int $businessId, int $year): array {
+        $stmtRev = $this->db->prepare("
+            SELECT MONTH(invoice_date) as m, SUM(total_amount_bc) as total
+            FROM sales_invoices
+            WHERE business_id = :business
+              AND status = 'PAID'
+              AND YEAR(invoice_date) = :year
+              AND invoice_date <= CURRENT_DATE()
+            GROUP BY MONTH(invoice_date)
+        ");
+        $stmtRev->execute(['business' => $businessId, 'year' => $year]);
+        $revRows = $stmtRev->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $stmtExp = $this->db->prepare("
+            SELECT MONTH(expense_date) as m, SUM(amount_bc) as total
+            FROM expenses
+            WHERE business_id = :business
+              AND YEAR(expense_date) = :year
+              AND expense_date <= CURRENT_DATE()
+            GROUP BY MONTH(expense_date)
+        ");
+        $stmtExp->execute(['business' => $businessId, 'year' => $year]);
+        $expRows = $stmtExp->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $result = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $result[] = [
+                'month' => $i,
+                'revenue' => (float)($revRows[$i] ?? 0),
+                'expenses' => (float)($expRows[$i] ?? 0),
+            ];
+        }
+        return $result;
+    }
+
+    /**
+     * Get expense breakdown by category for the given month and year.
+     */
+    public function getExpenseBreakdown(int $businessId, int $year, int $month): array {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(ec.name, 'Uncategorized') as category, SUM(e.amount_bc) as total
+            FROM expenses e
+            LEFT JOIN expense_categories ec ON ec.id = e.expense_category_id
+            WHERE e.business_id = :business
+              AND YEAR(e.expense_date) = :year
+              AND MONTH(e.expense_date) = :month
+              AND e.expense_date <= CURRENT_DATE()
+            GROUP BY ec.id, ec.name
+            ORDER BY total DESC
+            LIMIT 5
+        ");
+        $stmt->execute(['business' => $businessId, 'year' => $year, 'month' => $month]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

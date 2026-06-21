@@ -5,6 +5,7 @@ import { apiFetch } from '../../Auth/apiFetch.js';
 import { formatAmount } from '../../utils/currency.js';
 import { populatePayeeSelect } from '../../utils/payeeSelect.js';
 import { attachRateAutoFetch } from '../../utils/exchangeRateHelper.js';
+import { openModal, MODAL_SCOPE } from '../../components/modals.js';
 
 let modalRoot;
 let unregister;
@@ -109,6 +110,21 @@ export async function mount({ modalRoot: root, data }) {
     });
 
     unregister = registerPageActions({
+        'salaries.create-employee': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.STACKED,
+                template: 'html/People/personForm.html',
+                controller: '../pages/People/personForm.modal.js',
+                data: {
+                    onComplete: async (newPerson) => {
+                        await populatePayeeSelect(F.employee(), { typeFilter: 'Employee' });
+                        F.employee().value = newPerson.id;
+                        F.employee().dispatchEvent(new Event('change'));
+                    }
+                }
+            });
+        },
+
         'salaries.save': async () => {
             if (!validateForm()) return;
 
