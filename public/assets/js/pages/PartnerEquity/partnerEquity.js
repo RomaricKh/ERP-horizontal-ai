@@ -60,6 +60,30 @@ export async function mount() {
                 options: { backdrop: false, keyboard: true, focus: true }
             });
         },
+        'partnerEquity.view-slip': async ({ el }) => {
+            const slipId = el.dataset.slipId;
+            const slipType = el.dataset.slipType;
+
+            if (!slipId) return;
+
+            if (slipType === 'COLLECTION_SLIP') {
+                await openModal({
+                    scope: MODAL_SCOPE.PAGE,
+                    template: 'html/Finance/collectionForm.html',
+                    controller: '../pages/Finance/collectionForm.modal.js',
+                    data: { collection_id: slipId },
+                    options: { backdrop: false, keyboard: true, focus: true }
+                });
+            } else if (slipType === 'PAYMENT_SLIP') {
+                await openModal({
+                    scope: MODAL_SCOPE.PAGE,
+                    template: 'html/Finance/paymentForm.html',
+                    controller: '../pages/Finance/paymentForm.modal.js',
+                    data: { payment_id: slipId },
+                    options: { backdrop: false, keyboard: true, focus: true }
+                });
+            }
+        },
         'partnerEquity.reverse': async ({ el }) => {
             const id = el.dataset.id || el.closest('[data-id]')?.dataset.id;
             if (!id) return;
@@ -178,9 +202,10 @@ function renderTable(entries) {
 
         // Slip reference link
         let slipRef = '—';
-        if (entry.slip_number) {
-            const route = entry.slip_type === 'COLLECTION_SLIP' ? '#/collections' : '#/payments';
-            slipRef = `<a href="${route}">${escHtml(entry.slip_number)}</a>`;
+        if (entry.slip_number && entry.slip_id) {
+            slipRef = `<a href="javascript:void(0);" data-action="partnerEquity.view-slip" data-slip-id="${entry.slip_id}" data-slip-type="${entry.slip_type}">${escHtml(entry.slip_number)}</a>`;
+        } else if (entry.slip_number) {
+            slipRef = escHtml(entry.slip_number);
         }
 
         const date = fmt.formatDate(entry.created_at ?? '') || (entry.created_at ?? '');
