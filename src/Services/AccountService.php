@@ -22,7 +22,8 @@ class AccountService {
      */
     public function list(?string $currency = null): array {
         $ctx = AuthContext::get();
-        return $this->repo->findAllForBusiness($ctx->business_id, $currency);
+        $accounts = $this->repo->findAllForBusiness($ctx->business_id, $currency);
+        return $this->applyDynamicExchangeRates($accounts);
     }
 
     /**
@@ -36,13 +37,31 @@ class AccountService {
         if (!$account) {
             throw new \RuntimeException('Account not found');
         }
-        return $account;
+        return $this->applyDynamicExchangeRates([$account])[0];
+    }
+
+    /**
+     * Dynamically calculates the Base Currency (BC) balance for accounts using the latest exchange rates.
+     */
+    private function applyDynamicExchangeRates(array $accounts): array {
+        $exchangeRateService = new ExchangeRateService($this->db);
+        foreach ($accounts as &$account) {
+            $lookup = $exchangeRateService->getLatestForLookup($account['currency']);
+            $rate = $lookup['rate'] !== null ? (float) $lookup['rate'] : 1.0;
+
+            if (!$lookup['is_base'] && $rate > 0) {
+                // For foreign currency accounts, dynamically calculate BC equivalent from FC balance
+                $account['balance'] = round((float) $account['balance_fc'] * $rate, 2);
+            }
+        }
+        return $accounts;
     }
 
     /**
      * Create a new account.
      *
      * Required keys: name, currency
+     * Optional keys: account_type, is_local_currency_account
      *
      * @throws \InvalidArgumentException if required fields are missing
      */
@@ -56,12 +75,24 @@ class AccountService {
             throw new \InvalidArgumentException('Currency is required');
         }
 
+        $isLocal = !empty($data['is_local_currency_account']);
+        $accountType = in_array($data['account_type'] ?? '', ['BANK','CASH','CREDIT','OTHER']) ? $data['account_type'] : 'CASH';
+
         $this->db->beginTransaction();
         try {
+            if ($isLocal) {
+                $this->repo->clearLocalCurrencyFlag($ctx->business_id);
+            }
+
+            $cashDenom = isset($data['cash_denomination']) && $data['cash_denomination'] !== '' ? (float)$data['cash_denomination'] : null;
+
             $id = $this->repo->create([
-                'business_id' => $ctx->business_id,
-                'name'        => trim($data['name']),
-                'currency'    => trim($data['currency']),
+                'business_id'               => $ctx->business_id,
+                'name'                      => trim($data['name']),
+                'currency'                  => trim($data['currency']),
+                'account_type'              => $accountType,
+                'is_local_currency_account' => $isLocal,
+                'cash_denomination'         => $cashDenom,
             ]);
 
             $this->audit->log(
@@ -71,8 +102,10 @@ class AccountService {
                 'CREATE',
                 null,
                 [
-                    'name'     => trim($data['name']),
-                    'currency' => trim($data['currency']),
+                    'name'                      => trim($data['name']),
+                    'currency'                  => trim($data['currency']),
+                    'account_type'              => $accountType,
+                    'is_local_currency_account' => $isLocal,
                 ],
                 $ctx->user_id,
                 $ctx->tenant_id,
@@ -101,16 +134,32 @@ class AccountService {
             throw new \RuntimeException('Account not found');
         }
 
-        // Currency immutability check
-        if (array_key_exists('currency', $data)) {
-            if (strtolower(trim($data['currency'])) !== strtolower(trim($before['currency']))) {
-                throw new \InvalidArgumentException('Account currency cannot be changed');
-            }
+        // Updating currency is typically disallowed if balance exists. For now we just block it.
+        if (!empty($data['currency']) && trim($data['currency']) !== $before['currency']) {
+            throw new \InvalidArgumentException('Cannot change currency of an existing account.');
         }
+
+        $newName = !empty(trim($data['name'] ?? '')) ? trim($data['name']) : $before['name'];
+        $isLocal = isset($data['is_local_currency_account']) ? !empty($data['is_local_currency_account']) : (bool)$before['is_local_currency_account'];
+        $accountType = in_array($data['account_type'] ?? '', ['BANK','CASH','CREDIT','OTHER']) ? $data['account_type'] : $before['account_type'];
+        $cashDenom = array_key_exists('cash_denomination', $data)
+            ? ($data['cash_denomination'] !== '' && $data['cash_denomination'] !== null ? (float)$data['cash_denomination'] : null)
+            : $before['cash_denomination'];
 
         $this->db->beginTransaction();
         try {
-            $this->repo->update($id, $ctx->business_id, $data);
+            if ($isLocal && !$before['is_local_currency_account']) {
+                $this->repo->clearLocalCurrencyFlag($ctx->business_id);
+            }
+
+            $this->repo->update($id, $ctx->business_id, [
+                'name'                      => $newName,
+                'account_type'              => $accountType,
+                'is_local_currency_account' => $isLocal,
+                'cash_denomination'         => $cashDenom,
+            ]);
+
+            $after = $this->repo->findById($id, $ctx->business_id);
 
             $this->audit->log(
                 'ACCOUNTS',
@@ -118,7 +167,7 @@ class AccountService {
                 $id,
                 'UPDATE',
                 $before,
-                $data,
+                $after,
                 $ctx->user_id,
                 $ctx->tenant_id,
                 $ctx->business_id

@@ -122,6 +122,19 @@ class ItemsController extends BaseController {
         }
     }
 
+    // GET /items/{id}/insights
+    public function getInsights(int $id): void {
+        try {
+            $this->auth();
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+            $insights = $this->service->getInsights($id, $startDate, $endDate);
+            $this->json(true, ['insights' => $insights]);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to fetch item insights');
+        }
+    }
+
     // POST /items
     public function store(): void {
         try {
@@ -234,43 +247,8 @@ class ItemsController extends BaseController {
                         'mfg_date'     => $data['manufacturing_date'] ?? null,
                         'expiry_date'  => $data['expiry_date'],
                     ]);
-                } elseif ($type === 'OUT') {
-                    // FEFO deduction — consume from earliest expiring batches first
-                    $remaining = $quantity;
-                    $batchesStmt = $db->prepare("
-                        SELECT id, quantity FROM item_batches
-                        WHERE item_id = :item_id AND business_id = :business_id AND status = 'active' AND quantity > 0
-                        ORDER BY expiry_date ASC
-                    ");
-                    $batchesStmt->execute(['item_id' => $id, 'business_id' => $ctx->business_id]);
-                    $batches = $batchesStmt->fetchAll(\PDO::FETCH_ASSOC);
-
-                    foreach ($batches as $batch) {
-                        if ($remaining <= 0) break;
-                        $batchQty = (float) $batch['quantity'];
-                        $deduct = min($remaining, $batchQty);
-
-                        // Update batch quantity
-                        $newBatchQty = $batchQty - $deduct;
-                        $updateStmt = $db->prepare("UPDATE item_batches SET quantity = :qty, updated_at = NOW() WHERE id = :id");
-                        $updateStmt->execute(['qty' => $newBatchQty, 'id' => $batch['id']]);
-
-                        // Record batch transaction
-                        $btStmt = $db->prepare("
-                            INSERT INTO batch_transactions (batch_id, transaction_type, quantity, reference, notes, created_at, created_by)
-                            VALUES (:batch_id, 'OUT', :quantity, :reference, :notes, NOW(), :user_id)
-                        ");
-                        $btStmt->execute([
-                            'batch_id'  => $batch['id'],
-                            'quantity'  => $deduct,
-                            'reference' => $data['reference'] ?? null,
-                            'notes'     => $data['notes'] ?? null,
-                            'user_id'   => $ctx->user_id,
-                        ]);
-
-                        $remaining -= $deduct;
-                    }
                 }
+                // OUT FEFO deduction is now handled automatically within ItemService::adjustStock
                 // ADJ: does not touch batches — only adjusts the stock total
             }
 

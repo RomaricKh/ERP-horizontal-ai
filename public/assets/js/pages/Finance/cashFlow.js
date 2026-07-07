@@ -72,9 +72,11 @@ function renderReport(report) {
     document.getElementById('cfCollections').textContent = fmt.formatNumber(inflows.collections ?? 0, 2);
     document.getElementById('cfInflowsTotal').textContent = fmt.formatNumber(inflows.total ?? 0, 2);
 
-    document.getElementById('cfPayments').textContent = fmt.formatNumber(outflows.payments ?? 0, 2);
+    document.getElementById('cfPurchaseOrders').textContent = fmt.formatNumber(outflows.purchase_orders ?? 0, 2);
     document.getElementById('cfSalaries').textContent = fmt.formatNumber(outflows.salaries ?? 0, 2);
     document.getElementById('cfExpenses').textContent = fmt.formatNumber(outflows.expenses ?? 0, 2);
+    document.getElementById('cfOtherAllocations').textContent = fmt.formatNumber(outflows.other_allocations ?? 0, 2);
+    document.getElementById('cfUnallocated').textContent = fmt.formatNumber(outflows.unallocated ?? 0, 2);
     document.getElementById('cfOutflowsTotal').textContent = fmt.formatNumber(outflows.total ?? 0, 2);
 }
 

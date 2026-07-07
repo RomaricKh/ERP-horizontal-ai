@@ -99,6 +99,32 @@ export async function mount() {
             }
         },
 
+        'po.edit-number': async ({ el }) => {
+            const tr = el.closest('tr');
+            const rowData = poDataTable.row(tr).data();
+            const id = rowData[0];
+            const currentNumber = rowData[1];
+            if (!id) return;
+
+            const newNumber = window.prompt('Enter new purchase order ID number:', currentNumber);
+            if (newNumber !== null && newNumber.trim() !== '' && newNumber.trim() !== currentNumber) {
+                try {
+                    const res = await apiFetch(`/api/purchase-orders/${id}/number`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ po_number: newNumber.trim() })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        await alert({ title: 'Error', alertText: data.message || 'Failed to update ID number' });
+                    } else {
+                        await fetchPurchaseOrders();
+                    }
+                } catch (err) {
+                    console.error('Update ID failed:', err);
+                }
+            }
+        },
+
         'po.approve': async ({ el }) => {
             await changeStatus(el, 'APPROVED', 'Approve this purchase order?');
         },
@@ -154,7 +180,9 @@ export async function mount() {
             const id = rowData[0];
             if (!id) return;
             const token = getToken();
-            window.open(`/api/purchase-orders/${id}/pdf?token=${encodeURIComponent(token)}`, '_blank');
+            const businessId = localStorage.getItem('business_id');
+            const bizParam = businessId ? `&business_id=${businessId}` : '';
+            window.open(`/api/purchase-orders/${id}/pdf?token=${encodeURIComponent(token)}${bizParam}`, '_blank');
         },
 
         'po.debit-note': async ({ el }) => {
@@ -374,8 +402,15 @@ async function changeStatus(el, newStatus, confirmMessage) {
 function renderTable(pos) {
     if (!poDataTable) {
         poDataTable = createDataTable('#purchaseOrdersTable', {
+            order: [[1, 'desc'], [3, 'desc']],
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
+                { 
+                    targets: 3, 
+                    render: function(data, type) {
+                        return (type === 'sort' || type === 'type') ? data : getFormatter().formatDate(data);
+                    }
+                },
                 { targets: '_all', className: 'text-nowrap' },
                 { targets: 9, className: 'text-center', orderable: false, searchable: false }
             ]
@@ -421,7 +456,7 @@ function renderTable(pos) {
             po.id,
             escHtml(po.po_number || ''),
             escHtml(po.supplier_name || '—'),
-            getFormatter().formatDate(po.po_date || ''),
+            po.po_date || '',
             statusBadge + paymentBadge,
             `${escHtml(po.currency || '')} ${totalFc}`,
             returnsFc === '—' ? '—' : `${escHtml(po.currency || '')} ${returnsFc}`,
@@ -455,6 +490,9 @@ function buildActionItems(po, perms) {
     }
 
     // Secondary actions (overflow)
+    if (hasPermission('po.edit')) {
+        items.push({ action: 'po.edit-number', icon: 'fa-edit text-info', label: 'Edit ID Number' });
+    }
     if (perms.canApprove && (po.status === 'APPROVED' || po.status === 'RECEIVED')) {
         items.push({ action: 'po.cancel', icon: 'fa-ban text-warning', label: 'Cancel' });
     }

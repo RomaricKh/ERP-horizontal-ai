@@ -185,7 +185,7 @@ async function fetchAndFill(salaryId) {
         F.periodStart().value  = record.period_start    ?? '';
         F.periodEnd().value    = record.period_end      ?? '';
         F.currency().value     = record.currency        ?? '';
-        F.exchangeRate().value = record.exchange_rate   ?? '';
+        F.exchangeRate().value = parseFloat(record.exchange_rate) || '';
         F.grossAmountFc().value= record.gross_amount_fc ?? '';
         F.taxFc().value        = record.tax_fc          ?? '';
         F.notes().value        = record.notes           ?? '';
@@ -337,7 +337,7 @@ async function loadExistingRecurrence(payeeId) {
             if (RF.endDate()) RF.endDate().value = recurrence.end_date || '';
             if (RF.grossAmountFc()) RF.grossAmountFc().value = recurrence.default_amount || '';
             if (RF.currency()) RF.currency().value = recurrence.default_currency || '';
-            if (RF.exchangeRate()) RF.exchangeRate().value = recurrence.exchange_rate || '';
+            if (RF.exchangeRate()) RF.exchangeRate().value = parseFloat(recurrence.exchange_rate) || '';
             // Tax field is stored in metadata or default to current salary tax
             if (RF.taxFc()) RF.taxFc().value = recurrence.tax_fc || recurrence.metadata?.tax_fc || '';
         }

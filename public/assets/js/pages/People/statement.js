@@ -41,6 +41,10 @@ export async function mount() {
     const exportBtn = statementContainer.querySelector('#statementExportBtn');
     exportBtn?.addEventListener('click', handleExport);
 
+    // Print button handler
+    const printBtn = statementContainer.querySelector('#statementPrintBtn');
+    printBtn?.addEventListener('click', handlePdfDownload);
+
     // Initial load
     await loadStatement();
 }
@@ -110,7 +114,12 @@ async function loadStatement() {
         if (data.payee_name) {
             const nameEl = statementContainer.querySelector('#statementPayeeName');
             if (nameEl) nameEl.textContent = `— ${data.payee_name}`;
+            const printNameEl = statementContainer.querySelector('#printPayeeName');
+            if (printNameEl) printNameEl.textContent = data.payee_name;
         }
+
+        const printDateEl = statementContainer.querySelector('#printDateRange');
+        if (printDateEl) printDateEl.textContent = `Period: ${startDate} to ${endDate}`;
     } catch (err) {
         console.error('Failed to load statement:', err);
         renderEmpty('An error occurred while loading the statement.');
@@ -167,8 +176,8 @@ function renderTransactions(transactions) {
         statementTable = createDataTable('#statementTable', {
             columnDefs: [
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: [4, 5, 6], className: 'text-end' },
-                { targets: 7, className: 'text-center' }
+                { targets: [5, 6, 7], className: 'text-end' },
+                { targets: 8, className: 'text-center' }
             ],
             ordering: false,
             paging: false,
@@ -198,11 +207,17 @@ function renderTransactions(transactions) {
             ? `<span class="${effectClass}">${fmt.formatNumber(credit, 2)}</span>`
             : '—';
 
+        const original = parseFloat(txn.original_amount) || 0;
+        const originalDisplay = original !== 0
+            ? `${fmt.formatNumber(original, 2)} <small class="text-muted">${txn.currency || ''}</small>`
+            : '—';
+
         statementTable.row.add([
             fmt.formatDate(txn.date),
             formatTransactionType(txn.type),
             txn.reference_number || '—',
             txn.description || '—',
+            originalDisplay,
             debitDisplay,
             creditDisplay,
             `<span class="${balance < 0 ? 'text-danger fw-bold' : 'text-success fw-bold'}">${fmt.formatNumber(balance, 2)}</span>`,
@@ -328,5 +343,50 @@ async function handleExport() {
         URL.revokeObjectURL(url);
     } catch (err) {
         console.error('Export failed:', err);
+    }
+}
+
+/**
+ * Handle the Print PDF button click - triggers PDF generation and download.
+ */
+async function handlePdfDownload() {
+    const startDate = statementContainer.querySelector('#statementStartDate').value;
+    const endDate = statementContainer.querySelector('#statementEndDate').value;
+
+    if (!startDate || !endDate || !payeeId) return;
+
+    const params = new URLSearchParams();
+    params.set('start_date', startDate);
+    params.set('end_date', endDate);
+
+    try {
+        const res = await apiFetch(`/api/people/${payeeId}/statement/pdf?${params.toString()}`);
+
+        if (!res.ok) {
+            const json = await res.json();
+            console.error('PDF generation failed:', json.message);
+            return;
+        }
+
+        // Trigger file download from the response blob
+        const blob = await res.blob();
+        const contentDisposition = res.headers.get('Content-Disposition');
+        let filename = `Statement_${payeeId}_${startDate}_${endDate}.pdf`;
+
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="?([^";\n]+)"?/);
+            if (match) filename = match[1];
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error('PDF generation failed:', err);
     }
 }

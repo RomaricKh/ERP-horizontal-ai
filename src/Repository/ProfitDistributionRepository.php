@@ -55,8 +55,10 @@ class ProfitDistributionRepository {
                 ON py.id = pd.partner_id
             LEFT JOIN people p
                 ON p.id = py.people_id
+            LEFT JOIN payment_allocations pa
+                ON pa.reference_type = 'PARTNER_PROFIT' AND pa.reference_id = pd.business_profit_id
             LEFT JOIN payment_slips ps
-                ON ps.id = pd.payment_slip_id
+                ON (ps.id = pd.payment_slip_id) OR (ps.id = pa.payment_slip_id AND ps.payee_id = pd.partner_id)
             WHERE pd.business_profit_id = :profit_id
             ORDER BY pd.id ASC
         ");

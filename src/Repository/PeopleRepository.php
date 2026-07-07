@@ -36,7 +36,7 @@ class PeopleRepository {
             INNER JOIN payees py
                 ON py.people_id = p.id AND py.business_id = :business_id
             LEFT JOIN people_types ptp
-                ON ptp.people_id = p.id
+                ON ptp.people_id = p.id AND ptp.business_id = :business_id3
             LEFT JOIN payee_types pt
                 ON pt.id = ptp.payee_type_id
             WHERE p.tenant_id = :tenant_id
@@ -49,6 +49,7 @@ class PeopleRepository {
             'tenant_id'    => $tenantId,
             'business_id'  => $businessId,
             'business_id2' => $businessId,
+            'business_id3' => $businessId,
         ]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -169,23 +170,34 @@ class PeopleRepository {
 
     /** Assign payee types to a person via people_types junction (replaces existing) */
     public function setPayeeTypes(int $payeeId, array $typeIds): void {
-        // Get the people_id from the payee
-        $stmt = $this->db->prepare("SELECT people_id FROM payees WHERE id = ? LIMIT 1");
+        // Get the people_id, business_id, and tenant_id from the payee
+        $stmt = $this->db->prepare("
+            SELECT py.people_id, py.business_id, p.tenant_id 
+            FROM payees py
+            JOIN people p ON p.id = py.people_id
+            WHERE py.id = ? LIMIT 1
+        ");
         $stmt->execute([$payeeId]);
-        $peopleId = $stmt->fetchColumn();
-        if (!$peopleId) return;
+        $payee = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$payee) return;
+        
+        $peopleId = $payee['people_id'];
+        $businessId = $payee['business_id'];
+        $tenantId = $payee['tenant_id'];
 
-        // Remove existing from people_types
-        $this->db->prepare("DELETE FROM people_types WHERE people_id = ?")
-                 ->execute([$peopleId]);
+        // Remove existing from people_types for this business only
+        $this->db->prepare("
+            DELETE FROM people_types 
+            WHERE people_id = ? AND business_id = ?
+        ")->execute([$peopleId, $businessId]);
 
         if (empty($typeIds)) return;
 
         $insertStmt = $this->db->prepare(
-            "INSERT IGNORE INTO people_types (people_id, payee_type_id, created_at) VALUES (?, ?, NOW())"
+            "INSERT IGNORE INTO people_types (tenant_id, business_id, people_id, payee_type_id, created_at) VALUES (?, ?, ?, ?, NOW())"
         );
         foreach ($typeIds as $typeId) {
-            $insertStmt->execute([$peopleId, (int)$typeId]);
+            $insertStmt->execute([$tenantId, $businessId, $peopleId, (int)$typeId]);
         }
     }
 
@@ -194,7 +206,7 @@ class PeopleRepository {
         $stmt = $this->db->prepare("
             SELECT pt.payee_type_id
             FROM people_types pt
-            JOIN payees py ON py.people_id = pt.people_id
+            JOIN payees py ON py.people_id = pt.people_id AND py.business_id = pt.business_id
             WHERE py.id = ?
         ");
         $stmt->execute([$payeeId]);
@@ -208,6 +220,50 @@ class PeopleRepository {
         );
         $stmt->execute([$peopleId]);
         return (int) $stmt->fetchColumn();
+    }
+
+    /** Delete a payee record entirely */
+    public function deletePayee(int $payeeId): void {
+        $stmt = $this->db->prepare("SELECT people_id, business_id FROM payees WHERE id = ? LIMIT 1");
+        $stmt->execute([$payeeId]);
+        $payee = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($payee) {
+            $this->db->prepare("
+                DELETE FROM people_types 
+                WHERE people_id = ? AND business_id = ?
+            ")->execute([$payee['people_id'], $payee['business_id']]);
+        }
+
+        $this->db->prepare("DELETE FROM payees WHERE id = ?")->execute([$payeeId]);
+    }
+
+    /** Update notes for a specific payee record */
+    public function updatePayeeNotes(int $payeeId, ?string $notes): void {
+        $stmt = $this->db->prepare("UPDATE payees SET notes = :notes, updated_at = NOW() WHERE id = :id");
+        $stmt->execute(['notes' => $notes, 'id' => $payeeId]);
+    }
+
+    /** Search all people in a tenant across all businesses */
+    public function searchTenantPeople(int $tenantId, string $query, int $limit = 20): array {
+        if (trim($query) === '') {
+            return [];
+        }
+        $searchTerm = '%' . trim($query) . '%';
+        $stmt = $this->db->prepare("
+            SELECT id, name, phone, email, tax_number 
+            FROM people 
+            WHERE tenant_id = :tenant_id 
+              AND (name LIKE :q1 OR phone LIKE :q2 OR email LIKE :q3)
+            ORDER BY name ASC 
+            LIMIT " . (int)$limit . "
+        ");
+        $stmt->bindValue(':tenant_id', $tenantId, PDO::PARAM_INT);
+        $stmt->bindValue(':q1', $searchTerm, PDO::PARAM_STR);
+        $stmt->bindValue(':q2', $searchTerm, PDO::PARAM_STR);
+        $stmt->bindValue(':q3', $searchTerm, PDO::PARAM_STR);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**

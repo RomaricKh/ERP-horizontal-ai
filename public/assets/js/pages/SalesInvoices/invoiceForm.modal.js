@@ -87,19 +87,23 @@ export async function mount({ modalRoot: root, data }) {
             await loadItems(editCustomerId);
             refreshLineItemDropdowns();
         }
-        // Render read-only: disable all inputs and hide save button
-        modalRoot.querySelectorAll('input, select, textarea').forEach(el => {
-            el.disabled = true;
-        });
-        modalRoot.querySelectorAll('[data-action="invoice.save"]').forEach(el => {
-            el.style.display = 'none';
-        });
-        modalRoot.querySelectorAll('[data-action="invoice.add-line"]').forEach(el => {
-            el.style.display = 'none';
-        });
-        modalRoot.querySelectorAll('[data-action="invoice.remove-line"]').forEach(el => {
-            el.style.display = 'none';
-        });
+        // Check if invoice is in DRAFT status. Only DRAFT invoices can be edited.
+        const isDraft = modalRoot.dataset.invoiceStatus === 'DRAFT';
+        if (!isDraft) {
+            // Render read-only: disable all inputs and hide save button
+            modalRoot.querySelectorAll('input, select, textarea').forEach(el => {
+                el.disabled = true;
+            });
+            modalRoot.querySelectorAll('[data-action="invoice.save"]').forEach(el => {
+                el.style.display = 'none';
+            });
+            modalRoot.querySelectorAll('[data-action="invoice.add-line"]').forEach(el => {
+                el.style.display = 'none';
+            });
+            modalRoot.querySelectorAll('[data-action="invoice.remove-line"]').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
     } else {
         // Placeholder — server auto-generates on save
         F.invoiceNumber().placeholder = 'Auto-generated on save';
@@ -203,7 +207,7 @@ export async function mount({ modalRoot: root, data }) {
             try {
                 let res, json;
                 if (currentInvoiceId) {
-                    // For existing invoices, header edits are not supported in this version
+                    // For existing invoices (DRAFT only), we PUT
                     res  = await apiFetch(`/api/sales-invoices/${currentInvoiceId}`, {
                         method: 'PUT',
                         body:   JSON.stringify(payload)
@@ -335,12 +339,14 @@ async function fetchAndFill(invoiceId) {
 
         const inv = json.data?.sales_invoice ?? {};
 
+        modalRoot.dataset.invoiceStatus = inv.status || '';
+
         F.customer().value     = inv.customer_id    ?? '';
         F.invoiceNumber().value= inv.invoice_number ?? '';
         F.invoiceDate().value  = inv.invoice_date   ?? '';
         F.dueDate().value      = inv.due_date       ?? '';
         F.currency().value     = inv.currency       ?? '';
-        F.exchangeRate().value = inv.exchange_rate  ?? '';
+        F.exchangeRate().value = parseFloat(inv.exchange_rate) || '';
         F.notes().value        = inv.notes          ?? '';
 
         // Load global discount
@@ -367,6 +373,12 @@ async function fetchAndFill(invoiceId) {
         });
 
         recalcGrandTotal();
+
+        // Validate stock for all item lines loaded
+        if (inv.status === 'DRAFT') {
+            const rowPromises = Array.from(F.linesBody().querySelectorAll('tr')).map(tr => validateLineStock(tr));
+            await Promise.all(rowPromises);
+        }
     } catch (err) {
         console.error('fetchAndFill failed:', err);
     }

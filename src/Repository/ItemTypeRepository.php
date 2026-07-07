@@ -30,7 +30,7 @@ class ItemTypeRepository {
      */
     public function findById(int $id, int $tenantId): ?array {
         $stmt = $this->db->prepare(
-            "SELECT * FROM item_types WHERE id = :id AND tenant_id = :tenant LIMIT 1"
+            "SELECT * FROM item_types WHERE id = :id AND (tenant_id = :tenant OR tenant_id IS NULL) LIMIT 1"
         );
         $stmt->execute(['id' => $id, 'tenant' => $tenantId]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;

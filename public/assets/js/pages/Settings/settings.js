@@ -268,8 +268,8 @@ async function runRecalculation(accountId) {
 
     try {
         const url = accountId
-            ? `/api/admin/recalculate-balances/${accountId}`
-            : '/api/admin/recalculate-balances';
+            ? `/api/admin/recalculate-balances/${accountId}` // Not testing single account yet
+            : '/api/admin/recalculate-balances-fix';
 
         const res  = await apiFetch(url, { method: 'POST' });
         const json = await res.json();

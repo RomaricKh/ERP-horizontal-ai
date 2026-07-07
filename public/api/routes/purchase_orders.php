@@ -77,6 +77,12 @@ $router->put('/purchase-orders/{id}',
     ['po.edit']
 );
 
+// PUT /purchase-orders/{id}/number
+$router->put('/purchase-orders/{id}/number',
+    fn($id) => (new PurchaseOrdersController())->updateNumber((int)$id),
+    ['po.edit']
+);
+
 // DELETE /purchase-orders/{id}
 $router->delete('/purchase-orders/{id}',
     fn($id) => (new PurchaseOrdersController())->delete((int)$id),

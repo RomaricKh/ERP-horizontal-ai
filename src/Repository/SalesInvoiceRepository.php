@@ -236,6 +236,59 @@ class SalesInvoiceRepository {
     }
 
     /**
+     * Update the invoice number.
+     */
+    public function updateInvoiceNumber(int $id, string $newNumber, PDO $db): void {
+        $stmt = $db->prepare("
+            UPDATE sales_invoices
+            SET invoice_number = :invoice_number,
+                updated_at     = NOW()
+            WHERE id = :id
+        ");
+        $stmt->execute([
+            'invoice_number' => $newNumber,
+            'id'             => $id,
+        ]);
+        if ($stmt->rowCount() === 0) {
+            throw new \RuntimeException('Sales invoice not found or number unchanged');
+        }
+    }
+
+    /**
+     * Update the header details of a sales invoice (allowed for DRAFT invoices).
+     */
+    public function updateHeader(int $id, int $businessId, array $data): void {
+        $stmt = $this->db->prepare("
+            UPDATE sales_invoices
+            SET customer_id      = :customer_id,
+                invoice_date     = :invoice_date,
+                due_date         = :due_date,
+                currency         = :currency,
+                exchange_rate    = :exchange_rate,
+                discount_percent = :discount_percent,
+                notes            = :notes,
+                updated_at       = NOW()
+            WHERE id          = :id
+              AND business_id = :business
+              AND status      = 'DRAFT'
+        ");
+        $stmt->execute([
+            'customer_id'      => $data['customer_id'] ?? null,
+            'invoice_date'     => $data['invoice_date'],
+            'due_date'         => $data['due_date'] ?? null,
+            'currency'         => $data['currency'],
+            'exchange_rate'    => $data['exchange_rate'],
+            'discount_percent' => $data['discount_percent'] ?? 0,
+            'notes'            => $data['notes'] ?? null,
+            'id'               => $id,
+            'business'         => $businessId,
+        ]);
+        // We don't throw if rowCount is 0 here because it could mean data was identical.
+        // We could verify existence separately if needed.
+    }
+
+
+    /**
      * Recalculate and update total_amount_fc, total_amount_bc, tax_total_fc, tax_total_bc
      * by summing all si_details lines for the given invoice.
      *
@@ -465,7 +518,27 @@ class SalesInvoiceRepository {
                 si.total_amount_bc,
                 si.customer_id,
                 p.name AS customer_name,
-                DATEDIFF(CURDATE(), si.due_date) AS days_overdue
+                DATEDIFF(CURDATE(), si.due_date) AS days_overdue,
+                COALESCE((
+                    SELECT SUM(amount_bc) 
+                    FROM collection_allocations 
+                    WHERE reference_type = 'SALES_INVOICE' AND reference_id = si.id
+                ), 0) AS collected_bc,
+                COALESCE((
+                    SELECT SUM(amount_fc) 
+                    FROM collection_allocations 
+                    WHERE reference_type = 'SALES_INVOICE' AND reference_id = si.id
+                ), 0) AS collected_fc,
+                COALESCE((
+                    SELECT SUM(total_amount_bc)
+                    FROM credit_notes
+                    WHERE sales_invoice_id = si.id AND status = 'ISSUED'
+                ), 0) AS returns_bc,
+                COALESCE((
+                    SELECT SUM(total_amount_fc)
+                    FROM credit_notes
+                    WHERE sales_invoice_id = si.id AND status = 'ISSUED'
+                ), 0) AS returns_fc
             FROM sales_invoices si
             LEFT JOIN payees py ON py.id = si.customer_id
             LEFT JOIN people p ON p.id = py.people_id
@@ -502,8 +575,12 @@ class SalesInvoiceRepository {
                 $bucket = '90_plus';
             }
 
-            $amountFc = (float) $inv['total_amount_fc'];
-            $amountBc = (float) $inv['total_amount_bc'];
+            $amountFc = (float) $inv['total_amount_fc'] - (float) $inv['collected_fc'] - (float) $inv['returns_fc'];
+            $amountBc = (float) $inv['total_amount_bc'] - (float) $inv['collected_bc'] - (float) $inv['returns_bc'];
+
+            if ($amountBc <= 0.005 && $amountFc <= 0.005) {
+                continue; // Fully paid or overpaid, skip from aging
+            }
 
             $buckets[$bucket]['total_fc'] += $amountFc;
             $buckets[$bucket]['total_bc'] += $amountBc;

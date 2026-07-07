@@ -174,8 +174,15 @@ async function fetchExpenses() {
 function renderTable(expenses) {
     if (!expensesDataTable) {
         expensesDataTable = createDataTable('#expensesTable', {
+            order: [[1, 'desc'], [0, 'desc']],
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
+                { 
+                    targets: 1, 
+                    render: function(data, type) {
+                        return (type === 'sort' || type === 'type') ? data : getFormatter().formatDate(data);
+                    }
+                },
                 { targets: '_all', className: 'text-nowrap' },
                 { targets: [8, 9], className: 'text-center', orderable: false, searchable: false }
             ]
@@ -234,7 +241,7 @@ function renderTable(expenses) {
 
         expensesDataTable.row.add([
             expense.id,
-            getFormatter().formatDate(expense.expense_date ?? ''),
+            expense.expense_date ?? '',
             escHtml(expense.payee_name   ?? '—'),
             escHtml(expense.category_name ?? '—'),
             escHtml(expense.reference_number ?? '—'),

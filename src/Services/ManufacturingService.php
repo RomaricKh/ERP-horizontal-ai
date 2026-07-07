@@ -924,7 +924,7 @@ class ManufacturingService {
         $stmt = $this->db->prepare("
             SELECT id FROM item_types
             WHERE (code = 'MANUFACTURED' OR name = 'Manufactured')
-              AND tenant_id = :tenant_id
+              AND (tenant_id = :tenant_id OR tenant_id IS NULL)
               AND (business_id = :business_id OR business_id IS NULL)
             LIMIT 1
         ");

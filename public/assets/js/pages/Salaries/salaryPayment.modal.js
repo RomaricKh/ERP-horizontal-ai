@@ -52,7 +52,7 @@ export async function mount({ modalRoot: root, data }) {
     // Pre-fill editable fields (Requirement 12.4: allow editing before marking paid)
     F.grossAmount().value = scheduledGross.toFixed(2);
     F.taxAmount().value = scheduledTax.toFixed(2);
-    F.exchangeRate().value = instanceData.exchange_rate || instanceData.metadata?.exchange_rate || '1.000000';
+    F.exchangeRate().value = parseFloat(instanceData.exchange_rate) || parseFloat(instanceData.metadata?.exchange_rate) || 1;
 
     recalcNet();
 

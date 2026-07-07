@@ -17,7 +17,7 @@ class PayslipPdf
         $periodStart   = htmlspecialchars($salary['period_start'] ?? '');
         $periodEnd     = htmlspecialchars($salary['period_end'] ?? '');
         $currency      = htmlspecialchars($salary['currency'] ?? 'USD');
-        $exchangeRate  = number_format((float)($salary['exchange_rate'] ?? 1), 6);
+        $exchangeRate  = rtrim(rtrim(number_format((float)($salary['exchange_rate'] ?? 1), 12), '0'), '.');
         $notes         = htmlspecialchars($salary['notes'] ?? '');
 
         $grossFc = number_format((float)($salary['gross_amount_fc'] ?? 0), 2);

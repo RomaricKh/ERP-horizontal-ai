@@ -34,15 +34,6 @@ class SalesInvoicesController extends BaseController {
                     $invoice['payment_status'] = null;
                 }
 
-                // Get actual collections (from collection_allocations)
-                $collStmt = $db->prepare("
-                    SELECT COALESCE(SUM(ca.amount_fc), 0)
-                    FROM collection_allocations ca
-                    WHERE ca.reference_type = 'SALES_INVOICE' AND ca.reference_id = :inv_id
-                ");
-                $collStmt->execute(['inv_id' => $invId]);
-                $invoice['amount_collected_fc'] = (float) $collStmt->fetchColumn();
-
                 // Get credit note returns (ISSUED only)
                 $cnStmt = $db->prepare("
                     SELECT COALESCE(SUM(total_amount_fc), 0)
@@ -52,10 +43,15 @@ class SalesInvoicesController extends BaseController {
                 $cnStmt->execute(['inv_id' => $invId, 'bid' => $ctx->business_id]);
                 $invoice['returns_fc'] = (float) $cnStmt->fetchColumn();
 
-                // Balance = total - returns - collected
+                // Use the service to compute the true remaining balance (which handles returns and FIFO allocations)
+                $invoice['balance_fc'] = $this->service->computeRemainingAmountFc($invId);
+
+                // Derived Collected Amount = Total - Returns - Balance
                 $totalFc = (float) ($invoice['total_amount_fc'] ?? 0);
-                $invoice['balance_fc'] = round($totalFc - $invoice['returns_fc'] - $invoice['amount_collected_fc'], 2);
-                if ($invoice['balance_fc'] < 0) $invoice['balance_fc'] = 0;
+                $collectedFc = round($totalFc - $invoice['returns_fc'] - $invoice['balance_fc'], 2);
+                if ($collectedFc < 0) $collectedFc = 0;
+                
+                $invoice['amount_collected_fc'] = $collectedFc;
             }
             unset($invoice);
             $this->json(true, ['sales_invoices' => $invoices]);
@@ -105,11 +101,35 @@ class SalesInvoicesController extends BaseController {
     public function update(int $id): void {
         try {
             $this->auth();
-            // Header edits are not supported after creation in this version
-            // Use addLine/removeLine/updateStatus for modifications
-            $this->json(false, null, 'Use specific endpoints to modify a sales invoice', 422);
+            $data = $this->input(['invoice_date', 'currency', 'exchange_rate']);
+            $lines = $data['lines'] ?? null;
+            unset($data['lines']);
+            $this->service->update($id, $data, $lines);
+            $this->json(true, ['id' => $id], 'Sales invoice updated');
+        } catch (\InvalidArgumentException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
             $this->serverError('Failed to update sales invoice');
+        }
+    }
+
+    // PUT /sales-invoices/{id}/number
+    public function updateNumber(int $id): void {
+        try {
+            $this->auth();
+            $data = $this->input(['invoice_number']);
+            if (empty(trim($data['invoice_number'] ?? ''))) {
+                $this->json(false, null, 'Invoice number is required', 422);
+                return;
+            }
+            $this->service->updateNumber($id, trim($data['invoice_number']));
+            $this->json(true, ['id' => $id, 'invoice_number' => trim($data['invoice_number'])], 'Invoice number updated');
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to update sales invoice number');
         }
     }
 

@@ -120,8 +120,8 @@ export async function mount() {
                 return;
             }
 
-            // If only one account, use it directly; otherwise use first but inform user
-            const selectedAccount = accounts[0];
+            // Find the main currency account (not the local currency account)
+            const selectedAccount = accounts.find(a => !a.is_local_currency_account) || accounts[0];
             const fmt = getFormatter();
             const balanceDisplay = fmt.formatNumber(selectedAccount.balance_fc ?? selectedAccount.balance ?? 0, 2);
 
@@ -154,9 +154,54 @@ export async function mount() {
                 });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
-                    await alert({ title: 'Error', alertText: data.message || 'Failed to distribute profit' });
+                    await alert({ title: 'Error', alertText: data.message || 'Distribution failed' });
                 } else {
                     await fetchProfitRecords();
+                    
+                    const distributions = data.data?.distributions || [];
+                    if (distributions.length === 1) {
+                        const dist = distributions[0];
+                        
+                        // We need the rate for the selected account to compute amount_fc
+                        let rate = 1;
+                        try {
+                            const rRes = await apiFetch(`/api/exchange-rates/latest?currency=${encodeURIComponent(selectedAccount.currency)}`);
+                            const rJson = await rRes.json();
+                            if (rJson.success && rJson.data?.rate) {
+                                rate = parseFloat(rJson.data.rate);
+                            }
+                        } catch(e) {}
+                        
+                        const amountFc = rate > 0 ? (dist.amount_bc / rate) : dist.amount_bc;
+                        
+                        await openModal({
+                            scope: MODAL_SCOPE.PAGE,
+                            template: 'html/Finance/paymentForm.html',
+                            controller: '../pages/Finance/paymentForm.modal.js',
+                            data: {
+                                prefill: {
+                                    payee_id: dist.partner_id,
+                                    currency: selectedAccount.currency,
+                                    exchange_rate: rate,
+                                    amount_fc: amountFc,
+                                    amount_bc: dist.amount_bc,
+                                    account_id: selectedAccount.id,
+                                    method: selectedAccount.account_type === 'CASH' ? 'CASH' : 'TRANSFER',
+                                    reference_type: 'PARTNER_PROFIT',
+                                    reference_id: id
+                                }
+                            },
+                            options: { backdrop: false, keyboard: true, focus: true }
+                        });
+                    } else if (distributions.length > 1) {
+                        await openModal({
+                            scope: MODAL_SCOPE.PAGE,
+                            template: 'html/BusinessProfit/profitDetail.html',
+                            controller: '../pages/BusinessProfit/profitDetail.modal.js',
+                            data: { profit_id: id },
+                            options: { backdrop: false, keyboard: true, focus: true }
+                        });
+                    }
                 }
             } catch (err) {
                 console.error('Distribute profit failed:', err);

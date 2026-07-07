@@ -22,6 +22,7 @@ require __DIR__ . '/routes/items.php';
 require __DIR__ . '/routes/services.php';
 require __DIR__ . '/routes/exchange_rates.php';
 require __DIR__ . '/routes/accounts.php';
+require __DIR__ . '/routes/account_transfers.php';
 require __DIR__ . '/routes/expenses.php';
 require __DIR__ . '/routes/purchase_orders.php';
 require __DIR__ . '/routes/sales_invoices.php';

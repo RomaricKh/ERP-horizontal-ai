@@ -192,7 +192,7 @@ class BatchRepository {
      * @return int The next sequence number (count + 1)
      */
     public function getNextSequence(int $itemId, int $businessId, string $date): int {
-        $prefix = "BTH-{$date}-";
+        $prefix = "B-{$date}-";
         $stmt = $this->db->prepare("
             SELECT COUNT(*) FROM item_batches
             WHERE item_id = :item_id

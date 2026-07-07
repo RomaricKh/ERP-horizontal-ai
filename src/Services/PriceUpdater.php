@@ -55,6 +55,12 @@ class PriceUpdater {
         $businessId = $auth->business_id;
         $userId     = $auth->user_id;
 
+        // Fetch PO header discount
+        $stmtPo = $this->db->prepare("SELECT discount_percent FROM purchase_orders WHERE id = :id");
+        $stmtPo->execute(['id' => $poId]);
+        $poDiscount = (float) $stmtPo->fetchColumn();
+        $poMultiplier = 1 - ($poDiscount / 100);
+
         foreach ($uniqueLines as $itemId => $line) {
             // Skip lines where unit_price_bc is NULL
             if (!isset($line['unit_price_bc']) || $line['unit_price_bc'] === null) {
@@ -67,11 +73,20 @@ class PriceUpdater {
                 continue;
             }
 
-            $newPrice = (float) $line['unit_price_bc'];
+            $qty = (float) ($line['quantity'] ?? 0);
+            if ($qty > 0 && isset($line['total_price_bc'])) {
+                // total_price_bc already has the line discount applied
+                $effectiveLinePrice = (float) $line['total_price_bc'] / $qty;
+            } else {
+                $effectiveLinePrice = (float) $line['unit_price_bc'];
+            }
+
+            // Apply PO header discount
+            $newPrice = round($effectiveLinePrice * $poMultiplier, 2);
             $oldPrice = $item['cost_price'] !== null ? (float) $item['cost_price'] : null;
 
             // Only update if price differs or current is NULL
-            if ($oldPrice !== null && $oldPrice == $newPrice) {
+            if ($oldPrice !== null && abs($oldPrice - $newPrice) < 0.001) {
                 continue;
             }
 
@@ -84,6 +99,11 @@ class PriceUpdater {
 
             // Determine currency: use item's currency if available, otherwise from business context
             $currency = !empty($item['currency']) ? $item['currency'] : null;
+            if ($currency === null) {
+                $stmtCurr = $this->db->prepare("SELECT currency FROM businesses WHERE id = :id");
+                $stmtCurr->execute(['id' => $itemBusinessId]);
+                $currency = $stmtCurr->fetchColumn() ?: 'USD';
+            }
 
             // Insert new price history record for COST change
             $this->priceRepo->insert([

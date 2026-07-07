@@ -66,7 +66,7 @@ function renderTable(records) {
         }
 
         // Source type badge
-        const sourceLabel = formatSourceType(record.source_type, record.source_id);
+        const sourceLabel = formatSourceType(record.source_type, record.source_id, record.po_number);
 
         // Changed by user name
         const changedBy = record.changed_by_name || '—';
@@ -96,7 +96,7 @@ function formatPriceTypeBadge(type) {
     return escHtml(type);
 }
 
-function formatSourceType(sourceType, sourceId) {
+function formatSourceType(sourceType, sourceId, poNumber) {
     const labels = {
         'INITIAL': 'Initial',
         'PURCHASE_ORDER': 'Purchase Order',
@@ -104,8 +104,12 @@ function formatSourceType(sourceType, sourceId) {
         'MANUFACTURING': 'Manufacturing'
     };
     let label = labels[sourceType] || sourceType || '—';
-    if (sourceType === 'PURCHASE_ORDER' && sourceId) {
-        label += ` #${sourceId}`;
+    if (sourceType === 'PURCHASE_ORDER') {
+        if (poNumber) {
+            label += ` #${poNumber}`;
+        } else if (sourceId) {
+            label += ` #${sourceId}`;
+        }
     }
     return escHtml(label);
 }

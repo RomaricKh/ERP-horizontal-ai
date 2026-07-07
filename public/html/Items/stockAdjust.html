@@ -1,5 +1,5 @@
 <!-- Stock Adjustment modal -->
-<div class="modal-dialog modal-dialog-scrollable" role="document">
+<div class="modal-dialog modal-lg" role="document">
   <div class="modal-content text-gray-800">
 
     <div class="modal-header bg-gradient-success text-white">
@@ -26,7 +26,8 @@
           </h6>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label small text-muted" for="stockTypeSelect"><span data-i18n="items.transaction_type">Type</span> <span class="text-danger">*</span></label>
+              <label class="form-label small text-muted" for="stockTypeSelect"><span
+                  data-i18n="items.transaction_type">Type</span> <span class="text-danger">*</span></label>
               <select class="form-select" id="stockTypeSelect" required>
                 <option value="" data-i18n="items.select_type">Select type</option>
                 <option value="IN">IN — Receive stock</option>
@@ -35,11 +36,12 @@
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label small text-muted" for="stockQty"><span data-i18n="common.quantity">Quantity</span> <span class="text-danger">*</span></label>
+              <label class="form-label small text-muted" for="stockQty"><span
+                  data-i18n="common.quantity">Quantity</span> <span class="text-danger">*</span></label>
               <div class="input-group">
                 <span class="input-group-text"><i class="fas fa-hashtag"></i></span>
-                <input class="form-control" id="stockQty" type="number"
-                       step="0.001" min="0.001" placeholder="0.000" required>
+                <input class="form-control" id="stockQty" type="number" step="0.001" min="0.001" placeholder="0.000"
+                  required>
               </div>
               <small class="form-text text-muted" id="stockQtyHint" data-i18n="items.stock_qty_hint">
                 For ADJ: enter the new absolute quantity.
@@ -65,13 +67,15 @@
                 <input class="form-control" id="stockExpiryDate" type="date" required>
               </div>
               <div class="col-md-4">
-                <label class="form-label small text-muted" for="stockManufacturingDate" data-i18n="items.manufacturing_date">Mfg Date</label>
+                <label class="form-label small text-muted" for="stockManufacturingDate"
+                  data-i18n="items.manufacturing_date">Mfg Date</label>
                 <input class="form-control" id="stockManufacturingDate" type="date">
               </div>
               <div class="col-md-4">
-                <label class="form-label small text-muted" for="stockBatchNumber" data-i18n="items.batch_number">Batch #</label>
-                <input class="form-control" id="stockBatchNumber" type="text"
-                       placeholder="Auto-generated" data-i18n-placeholder="items.batch_number_placeholder">
+                <label class="form-label small text-muted" for="stockBatchNumber" data-i18n="items.batch_number">Batch
+                  #</label>
+                <input class="form-control" id="stockBatchNumber" type="text" placeholder="Auto-generated"
+                  data-i18n-placeholder="items.batch_number_placeholder">
               </div>
             </div>
           </div>
@@ -80,13 +84,15 @@
         <!-- Reference & Notes -->
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label small text-muted" for="stockReference" data-i18n="common.reference">Reference</label>
+            <label class="form-label small text-muted" for="stockReference"
+              data-i18n="common.reference">Reference</label>
             <input class="form-control" id="stockReference" type="text"
-                   data-i18n-placeholder="items.stock_ref_placeholder" placeholder="e.g. PO-001, INV-005">
+              data-i18n-placeholder="items.stock_ref_placeholder" placeholder="e.g. PO-001, INV-005">
           </div>
           <div class="col-md-6">
             <label class="form-label small text-muted" for="stockNotes" data-i18n="common.notes">Notes</label>
-            <input class="form-control" id="stockNotes" type="text" data-i18n-placeholder="common.optional_notes" placeholder="Optional notes">
+            <input class="form-control" id="stockNotes" type="text" data-i18n-placeholder="common.optional_notes"
+              placeholder="Optional notes">
           </div>
         </div>
 

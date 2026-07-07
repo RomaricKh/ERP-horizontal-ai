@@ -65,6 +65,16 @@ function renderTable(records) {
         batchesTable = createDataTable('#batchesTable', {
             columnDefs: [
                 { targets: 1, className: 'text-end' },
+                {
+                    targets: [2, 4],
+                    render: function (data, type) {
+                        if (type === 'sort' || type === 'type') {
+                            return data ? data.sort : 0;
+                        }
+                        // For display, filter, etc.
+                        return data ? data.display : '—';
+                    }
+                },
                 { targets: '_all', className: 'text-nowrap' },
             ],
             order: [[4, 'desc']]
@@ -99,9 +109,15 @@ function renderTable(records) {
         batchesTable.row.add([
             record.batch_number || record.reference_type || '—',
             record.quantity != null ? fmt.formatNumber(record.quantity, 3) : '—',
-            expiryDisplay,
+            {
+                display: expiryDisplay,
+                sort: record.expiry_date ? new Date(record.expiry_date).getTime() : 0
+            },
             statusBadge,
-            record.created_at ? fmt.formatDate(record.created_at) : '—'
+            {
+                display: record.created_at ? fmt.formatDate(record.created_at) : '—',
+                sort: record.created_at ? new Date(record.created_at).getTime() : 0
+            }
         ]);
     });
 

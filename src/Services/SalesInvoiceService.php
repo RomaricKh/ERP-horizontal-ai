@@ -21,6 +21,7 @@ class SalesInvoiceService {
     private StockValidator         $stockValidator;
     private NotificationService    $notificationService;
     private ServiceRepository      $serviceRepo;
+    private SettlementEngine       $settlementEngine;
     private PDO                    $db;
 
     public function __construct(PDO $db) {
@@ -34,6 +35,7 @@ class SalesInvoiceService {
         $this->stockValidator      = new StockValidator($db);
         $this->notificationService = new NotificationService($db);
         $this->serviceRepo         = new ServiceRepository($db);
+        $this->settlementEngine    = new SettlementEngine($db);
     }
 
     /**
@@ -185,15 +187,8 @@ class SalesInvoiceService {
             if (empty($service['is_active'])) {
                 throw new \InvalidArgumentException('Service is inactive and cannot be invoiced');
             }
-            // No stock validation for service lines
-        } else {
-            // Stock validation: check availability before adding item line
-            $this->stockValidator->assertAvailable(
-                (int) $data['item_id'],
-                (float) $data['quantity'],
-                $ctx->business_id
-            );
         }
+        // Stock validation is deferred until status update to DELIVERED
 
         $this->db->beginTransaction();
         try {
@@ -266,15 +261,8 @@ class SalesInvoiceService {
             if (empty($service['is_active'])) {
                 throw new \InvalidArgumentException('Service is inactive and cannot be invoiced');
             }
-            // No stock validation for service lines
-        } else {
-            // Stock validation: check availability before updating item line
-            $this->stockValidator->assertAvailable(
-                (int) $data['item_id'],
-                (float) $data['quantity'],
-                $ctx->business_id
-            );
         }
+        // Stock validation is deferred until status update to DELIVERED
 
         $this->db->beginTransaction();
         try {
@@ -334,6 +322,147 @@ class SalesInvoiceService {
                 'DELETE',
                 ['sales_invoice_id' => $invoiceId, 'line_id' => $lineId],
                 null,
+                $ctx->user_id,
+                $ctx->tenant_id,
+                $ctx->business_id
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Update the header details of an existing sales invoice.
+     * Only allowed if the invoice is in DRAFT status.
+     * 
+     * Required keys: invoice_date, currency, exchange_rate
+     */
+    public function update(int $id, array $data, ?array $lines = null): void {
+        $ctx = AuthContext::get();
+        $invoice = $this->repo->findById($id, $ctx->business_id);
+        if (!$invoice) {
+            throw new \RuntimeException('Sales invoice not found');
+        }
+        if ($invoice['status'] !== 'DRAFT') {
+            throw new \RuntimeException('Only DRAFT invoices can be modified.');
+        }
+
+        if (empty($data['invoice_date'] ?? '')) {
+            throw new \InvalidArgumentException('Invoice date is required');
+        }
+        if (empty(trim($data['currency'] ?? ''))) {
+            throw new \InvalidArgumentException('Currency is required');
+        }
+
+        $providedRate = (!isset($data['exchange_rate']) || $data['exchange_rate'] === '' || $data['exchange_rate'] === null)
+            ? null
+            : (float) $data['exchange_rate'];
+        $resolvedRate = $this->exchangeRateService->resolveRate(trim($data['currency']), $providedRate);
+
+        $this->db->beginTransaction();
+        try {
+            $this->repo->updateHeader($id, $ctx->business_id, [
+                'customer_id'      => isset($data['customer_id']) && $data['customer_id'] !== '' ? (int) $data['customer_id'] : null,
+                'invoice_date'     => $data['invoice_date'],
+                'due_date'         => $data['due_date'] ?? null,
+                'currency'         => trim($data['currency']),
+                'exchange_rate'    => $resolvedRate,
+                'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
+                'notes'            => $data['notes'] ?? null,
+            ]);
+
+            if ($lines !== null) {
+                $this->repo->deleteLines($id);
+                foreach ($lines as $line) {
+                    $this->repo->addLine($id, $line);
+                }
+                $this->repo->recalculateTotals($id, $this->db);
+            }
+
+            $this->audit->log(
+                'UPDATE',
+                'sales_invoices',
+                $id,
+                'UPDATE',
+                null,
+                ['updated' => 'header'],
+                $ctx->user_id,
+                $ctx->tenant_id,
+                $ctx->business_id
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Update the invoice number and synchronize batch/stock transactions.
+     */
+    public function updateNumber(int $id, string $newNumber): void {
+        $ctx = AuthContext::get();
+        $invoice = $this->repo->findById($id, $ctx->business_id);
+        if (!$invoice) {
+            throw new \RuntimeException('Sales invoice not found');
+        }
+
+        $oldNumber = $invoice['invoice_number'];
+        if ($oldNumber === $newNumber) {
+            return; // Nothing to do
+        }
+
+        $this->db->beginTransaction();
+        try {
+            // Update the header
+            $this->repo->updateInvoiceNumber($id, $newNumber, $this->db);
+
+            // Sync stock transactions notes
+            $stmtStock = $this->db->prepare("
+                UPDATE stock_transactions
+                SET notes = REPLACE(notes, :oldStr, :newStr)
+                WHERE reference_type = 'SALES_INVOICE'
+                  AND notes LIKE :likeStr
+            ");
+            $stmtStock->execute([
+                'oldStr'  => '#' . $oldNumber,
+                'newStr'  => '#' . $newNumber,
+                'likeStr' => '%#' . $oldNumber . '%'
+            ]);
+
+            // Sync batch transactions notes and reference
+            $stmtBatchNotes = $this->db->prepare("
+                UPDATE batch_transactions
+                SET notes = REPLACE(notes, :oldStr, :newStr)
+                WHERE reference = :oldRef
+            ");
+            $stmtBatchNotes->execute([
+                'oldStr' => '#' . $oldNumber,
+                'newStr' => '#' . $newNumber,
+                'oldRef' => 'INV-' . $oldNumber
+            ]);
+
+            $stmtBatchRef = $this->db->prepare("
+                UPDATE batch_transactions
+                SET reference = :newRef
+                WHERE reference = :oldRef
+            ");
+            $stmtBatchRef->execute([
+                'newRef' => 'INV-' . $newNumber,
+                'oldRef' => 'INV-' . $oldNumber
+            ]);
+
+            $this->audit->log(
+                'UPDATE',
+                'sales_invoices',
+                $id,
+                'UPDATE',
+                null,
+                ['old_number' => $oldNumber, 'new_number' => $newNumber],
                 $ctx->user_id,
                 $ctx->tenant_id,
                 $ctx->business_id
@@ -450,6 +579,17 @@ class SalesInvoiceService {
                     $totalBc = (float) ($invoice['total_amount_bc'] ?? 0);
                     if ($totalBc > 0) {
                         $this->peopleRepo->updatePayeeBalance((int) $customerId, $totalBc);
+                        
+                        // Auto-allocate any existing unallocated collections to this invoice
+                        $this->settlementEngine->autoAllocateInvoiceFromCollections($id, (int)$customerId, $ctx->business_id);
+                        
+                        // Check if the invoice became fully paid due to auto-allocation
+                        $settledIds = $this->settlementEngine->evaluateCustomerSettlement((int)$customerId, $ctx->business_id);
+                        if (in_array($id, $settledIds)) {
+                            // Needs to be updated manually since we are inside a transaction in SalesInvoiceService
+                            $this->repo->updateStatus($id, $ctx->business_id, 'PAID');
+                            $newStatus = 'PAID'; // Update the local variable so audit logs correctly
+                        }
                     }
                 }
             }
@@ -539,6 +679,22 @@ class SalesInvoiceService {
         $totalAmountBc = (float) $invRow['total_amount_bc'];
         $customerId    = $invRow['customer_id'] ?? null;
 
+        // Sum credit notes (returns)
+        $stmtReturns = $this->db->prepare("
+            SELECT COALESCE(SUM(total_amount_bc), 0)
+            FROM credit_notes
+            WHERE sales_invoice_id = :invoice_id
+              AND business_id = :business_id
+              AND status = 'ISSUED'
+        ");
+        $stmtReturns->execute(['invoice_id' => $invoiceId, 'business_id' => $businessId]);
+        $returnsBc = (float) $stmtReturns->fetchColumn();
+
+        $netAmountBc = round($totalAmountBc - $returnsBc, 2);
+        if ($netAmountBc <= 0) {
+            return 'PAID';
+        }
+
         // Sum collection allocations directly referencing this invoice
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(ca.amount_bc), 0) AS total_collected
@@ -551,7 +707,7 @@ class SalesInvoiceService {
         $stmt->execute(['invoice_id' => $invoiceId, 'business_id' => $businessId]);
         $directCollected = (float) $stmt->fetchColumn();
 
-        if ($directCollected >= $totalAmountBc) {
+        if ($directCollected >= $netAmountBc) {
             return 'PAID';
         }
 
@@ -560,7 +716,7 @@ class SalesInvoiceService {
             $allocated = $this->computeFifoAllocation($invoiceId, $customerId, $businessId);
             $totalCovered = $directCollected + $allocated;
 
-            if ($totalCovered >= $totalAmountBc) {
+            if ($totalCovered >= $netAmountBc) {
                 return 'PAID';
             }
             if ($totalCovered > 0) {
@@ -582,7 +738,7 @@ class SalesInvoiceService {
     private function computeFifoAllocation(int $targetInvoiceId, int $customerId, int $businessId): float {
         // Get total unlinked collections for this customer (slip amount not yet allocated to invoices)
         $stmt = $this->db->prepare("
-            SELECT COALESCE(SUM(cs.amount_bc - COALESCE(alloc.allocated_bc, 0)), 0) AS total_unlinked
+            SELECT COALESCE(SUM(cs.total_bc - COALESCE(alloc.allocated_bc, 0)), 0) AS total_unlinked
             FROM collection_slips cs
             LEFT JOIN (
                 SELECT collection_slip_id, SUM(amount_bc) AS allocated_bc
@@ -591,7 +747,7 @@ class SalesInvoiceService {
             ) alloc ON alloc.collection_slip_id = cs.id
             WHERE cs.payee_id = :customer_id
               AND cs.business_id = :business_id
-              AND (cs.amount_bc - COALESCE(alloc.allocated_bc, 0)) > 0
+              AND (cs.total_bc - COALESCE(alloc.allocated_bc, 0)) > 0
         ");
         $stmt->execute(['customer_id' => $customerId, 'business_id' => $businessId]);
         $totalUnlinked = (float) $stmt->fetchColumn();
@@ -620,6 +776,17 @@ class SalesInvoiceService {
             $invId = (int) $inv['id'];
             $invTotal = (float) $inv['total_amount_bc'];
 
+            // Sum credit notes (returns)
+            $stmtReturns = $this->db->prepare("
+                SELECT COALESCE(SUM(total_amount_bc), 0)
+                FROM credit_notes
+                WHERE sales_invoice_id = :inv_id
+                  AND business_id = :business_id
+                  AND status = 'ISSUED'
+            ");
+            $stmtReturns->execute(['inv_id' => $invId, 'business_id' => $businessId]);
+            $returnsForThis = (float) $stmtReturns->fetchColumn();
+
             // Get direct collection allocations for this invoice
             $dcStmt = $this->db->prepare("
                 SELECT COALESCE(SUM(ca.amount_bc), 0)
@@ -632,8 +799,8 @@ class SalesInvoiceService {
             $dcStmt->execute(['inv_id' => $invId, 'business_id' => $businessId]);
             $directForThis = (float) $dcStmt->fetchColumn();
 
-            $remaining = $invTotal - $directForThis;
-            if ($remaining <= 0) continue; // Already fully paid by direct collections
+            $remaining = round($invTotal - $returnsForThis - $directForThis, 2);
+            if ($remaining <= 0) continue; // Already fully paid by direct collections and returns
 
             // Allocate from pool
             $allocation = min($pool, $remaining);
@@ -661,6 +828,22 @@ class SalesInvoiceService {
         $totalFc = (float) ($invoice['total_amount_fc'] ?? 0);
         $totalBc = (float) ($invoice['total_amount_bc'] ?? 0);
 
+        // Sum credit notes (returns in FC)
+        $stmtReturns = $this->db->prepare("
+            SELECT COALESCE(SUM(total_amount_fc), 0)
+            FROM credit_notes
+            WHERE sales_invoice_id = :invoice_id
+              AND business_id = :business_id
+              AND status = 'ISSUED'
+        ");
+        $stmtReturns->execute(['invoice_id' => $invoiceId, 'business_id' => $ctx->business_id]);
+        $returnsFc = (float) $stmtReturns->fetchColumn();
+
+        $netTotalFc = round($totalFc - $returnsFc, 2);
+        if ($netTotalFc <= 0) {
+            return 0.0;
+        }
+
         // Direct collections against this invoice (in FC)
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(ca.amount_fc), 0) AS total_collected_fc
@@ -673,7 +856,7 @@ class SalesInvoiceService {
         $stmt->execute(['invoice_id' => $invoiceId, 'business_id' => $ctx->business_id]);
         $directCollectedFc = (float) $stmt->fetchColumn();
 
-        if ($directCollectedFc >= $totalFc) {
+        if ($directCollectedFc >= $netTotalFc) {
             return 0.0;
         }
 
@@ -689,7 +872,7 @@ class SalesInvoiceService {
         $fifoAllocFc = $exchangeRate > 0 ? round($fifoAllocBc / $exchangeRate, 2) : 0.0;
 
         $totalPaidFc = $directCollectedFc + $fifoAllocFc;
-        $remaining = round($totalFc - $totalPaidFc, 2);
+        $remaining = round($netTotalFc - $totalPaidFc, 2);
         return $remaining > 0 ? $remaining : 0.0;
     }
 

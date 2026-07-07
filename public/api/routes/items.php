@@ -54,6 +54,11 @@ $router->get('/items/{id}',
     ['items.view']
 );
 
+$router->get('/items/{id}/insights',
+    fn($id) => (new ItemsController())->getInsights((int)$id),
+    ['items.view']
+);
+
 $router->post('/items',
     fn() => (new ItemsController())->store(),
     ['items.create']

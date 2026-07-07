@@ -239,6 +239,54 @@ class PurchaseOrderRepository {
     }
 
     /**
+     * Update the PO number.
+     */
+    public function updatePoNumber(int $id, string $newNumber, PDO $db): void {
+        $stmt = $db->prepare("
+            UPDATE purchase_orders
+            SET po_number  = :po_number,
+                updated_at = NOW()
+            WHERE id = :id
+        ");
+        $stmt->execute([
+            'po_number' => $newNumber,
+            'id'        => $id,
+        ]);
+        if ($stmt->rowCount() === 0) {
+            throw new \RuntimeException('Purchase order not found or number unchanged');
+        }
+    }
+
+    /**
+     * Update the header details of a purchase order (allowed for DRAFT POs).
+     */
+    public function updateHeader(int $id, int $businessId, array $data): void {
+        $stmt = $this->db->prepare("
+            UPDATE purchase_orders
+            SET supplier_id      = :supplier_id,
+                po_date          = :po_date,
+                currency         = :currency,
+                exchange_rate    = :exchange_rate,
+                discount_percent = :discount_percent,
+                notes            = :notes,
+                updated_at       = NOW()
+            WHERE id          = :id
+              AND business_id = :business
+              AND status      = 'DRAFT'
+        ");
+        $stmt->execute([
+            'supplier_id'      => $data['supplier_id'] ?? null,
+            'po_date'          => $data['po_date'],
+            'currency'         => $data['currency'],
+            'exchange_rate'    => $data['exchange_rate'],
+            'discount_percent' => $data['discount_percent'] ?? 0,
+            'notes'            => $data['notes'] ?? null,
+            'id'               => $id,
+            'business'         => $businessId,
+        ]);
+    }
+
+    /**
      * Recalculate and update total_amount_fc, total_amount_bc, tax_total_fc, tax_total_bc
      * by summing all po_details lines for the given PO.
      *

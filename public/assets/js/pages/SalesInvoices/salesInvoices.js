@@ -98,6 +98,32 @@ export async function mount() {
             }
         },
 
+        'invoice.edit-number': async ({ el }) => {
+            const tr = el.closest('tr');
+            const rowData = invDataTable.row(tr).data();
+            const id = rowData[0];
+            const currentNumber = rowData[1];
+            if (!id) return;
+
+            const newNumber = window.prompt('Enter new invoice ID number:', currentNumber);
+            if (newNumber !== null && newNumber.trim() !== '' && newNumber.trim() !== currentNumber) {
+                try {
+                    const res = await apiFetch(`/api/sales-invoices/${id}/number`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ invoice_number: newNumber.trim() })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        await alert({ title: 'Error', alertText: data.message || 'Failed to update ID number' });
+                    } else {
+                        await fetchInvoices();
+                    }
+                } catch (err) {
+                    console.error('Update ID failed:', err);
+                }
+            }
+        },
+
         'invoice.deliver': async ({ el }) => {
             await changeStatus(el, 'DELIVERED', 'Mark this invoice as delivered? Stock will be deducted.');
         },
@@ -145,7 +171,9 @@ export async function mount() {
             const id = rowData[0];
             if (!id) return;
             const token = getToken();
-            window.open(`/api/sales-invoices/${id}/pdf?token=${encodeURIComponent(token)}`, '_blank');
+            const businessId = localStorage.getItem('business_id');
+            const bizParam = businessId ? `&business_id=${businessId}` : '';
+            window.open(`/api/sales-invoices/${id}/pdf?token=${encodeURIComponent(token)}${bizParam}`, '_blank');
         },
 
         'invoice.credit-note': async ({ el }) => {
@@ -356,8 +384,15 @@ async function changeStatus(el, newStatus, confirmMessage) {
 function renderTable(invoices) {
     if (!invDataTable) {
         invDataTable = createDataTable('#salesInvoicesTable', {
+            order: [[1, 'desc'], [3, 'desc']],
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
+                { 
+                    targets: 3, 
+                    render: function(data, type) {
+                        return (type === 'sort' || type === 'type') ? data : getFormatter().formatDate(data);
+                    }
+                },
                 { targets: '_all', className: 'text-nowrap' },
                 { targets: 9, className: 'text-center', orderable: false, searchable: false }
             ]
@@ -401,7 +436,7 @@ function renderTable(invoices) {
             inv.id,
             escHtml(inv.invoice_number || ''),
             escHtml(inv.customer_name || '—'),
-            getFormatter().formatDate(inv.invoice_date || ''),
+            inv.invoice_date || '',
             statusBadge + paymentBadge,
             `${escHtml(inv.currency || '')} ${totalFc}`,
             returnsFc === '—' ? '—' : `${escHtml(inv.currency || '')} ${returnsFc}`,
@@ -429,6 +464,9 @@ function buildActionItems(inv, perms) {
     }
 
     // Secondary
+    if (hasPermission('invoices.edit')) {
+        items.push({ action: 'invoice.edit-number', icon: 'fa-edit text-info', label: 'Edit ID Number' });
+    }
     if (perms.canDeliver && (inv.status === 'DRAFT' || inv.status === 'DELIVERED')) {
         items.push({ action: 'invoice.cancel', icon: 'fa-ban text-warning', label: 'Cancel' });
     }

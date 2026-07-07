@@ -180,6 +180,7 @@ class PurchaseOrderService {
             $stmt = $this->db->prepare("
                 UPDATE purchase_orders
                 SET supplier_id      = :supplier_id,
+                    po_number        = :po_number,
                     po_date          = :po_date,
                     currency         = :currency,
                     exchange_rate    = :exchange_rate,
@@ -190,6 +191,7 @@ class PurchaseOrderService {
             ");
             $stmt->execute([
                 'supplier_id'      => isset($data['supplier_id']) && $data['supplier_id'] !== '' ? (int) $data['supplier_id'] : ($po['supplier_id'] ?? null),
+                'po_number'        => $data['po_number'] ?? $po['po_number'],
                 'po_date'          => $data['po_date'] ?? $po['po_date'],
                 'currency'         => $currency,
                 'exchange_rate'    => $resolvedRate,
@@ -215,6 +217,80 @@ class PurchaseOrderService {
                 'UPDATE',
                 $po,
                 ['po_date' => $data['po_date'] ?? $po['po_date'], 'lines_replaced' => $lines !== null],
+                $ctx->user_id,
+                $ctx->tenant_id,
+                $ctx->business_id
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Update the PO number and synchronize batch/stock transactions.
+     */
+    public function updateNumber(int $id, string $newNumber): void {
+        $ctx = AuthContext::get();
+        $po  = $this->repo->findById($id, $ctx->business_id);
+        if (!$po) {
+            throw new \RuntimeException('Purchase order not found');
+        }
+
+        $oldNumber = $po['po_number'];
+        if ($oldNumber === $newNumber) {
+            return; // Nothing to do
+        }
+
+        $this->db->beginTransaction();
+        try {
+            // Update the header
+            $this->repo->updatePoNumber($id, $newNumber, $this->db);
+
+            // Sync stock transactions notes
+            $stmtStock = $this->db->prepare("
+                UPDATE stock_transactions
+                SET notes = REPLACE(notes, :oldStr, :newStr)
+                WHERE reference_type = 'PURCHASE_ORDER'
+                  AND notes LIKE :likeStr
+            ");
+            $stmtStock->execute([
+                'oldStr'  => '#' . $oldNumber,
+                'newStr'  => '#' . $newNumber,
+                'likeStr' => '%#' . $oldNumber . '%'
+            ]);
+
+            // Sync batch transactions notes and reference (if any exist for PO)
+            $stmtBatchNotes = $this->db->prepare("
+                UPDATE batch_transactions
+                SET notes = REPLACE(notes, :oldStr, :newStr)
+                WHERE reference = :oldRef
+            ");
+            $stmtBatchNotes->execute([
+                'oldStr' => '#' . $oldNumber,
+                'newStr' => '#' . $newNumber,
+                'oldRef' => 'PO-' . $oldNumber
+            ]);
+
+            $stmtBatchRef = $this->db->prepare("
+                UPDATE batch_transactions
+                SET reference = :newRef
+                WHERE reference = :oldRef
+            ");
+            $stmtBatchRef->execute([
+                'newRef' => 'PO-' . $newNumber,
+                'oldRef' => 'PO-' . $oldNumber
+            ]);
+
+            $this->audit->log(
+                'UPDATE',
+                'purchase_orders',
+                $id,
+                'UPDATE',
+                null,
+                ['old_number' => $oldNumber, 'new_number' => $newNumber],
                 $ctx->user_id,
                 $ctx->tenant_id,
                 $ctx->business_id
@@ -419,6 +495,17 @@ class PurchaseOrderService {
                     $totalBc = (float) ($po['total_amount_bc'] ?? 0);
                     if ($totalBc > 0) {
                         $this->peopleRepo->updatePayeeBalance((int) $supplierId, -$totalBc);
+
+                        // Auto-allocate any existing unallocated payments to this PO
+                        $this->settlementEngine->autoAllocatePOFromPayments($id, (int)$supplierId, $ctx->business_id);
+                        
+                        // Check if the PO became fully settled due to auto-allocation
+                        $settledIds = $this->settlementEngine->evaluateSupplierSettlement((int)$supplierId, $ctx->business_id);
+                        if (in_array($id, $settledIds)) {
+                            // Needs to be updated manually since we are inside a transaction in PurchaseOrderService
+                            $this->repo->updateStatus($id, $ctx->business_id, 'PAID');
+                            $newStatus = 'PAID'; // Update the local variable so audit logs correctly
+                        }
                     }
                 }
             }

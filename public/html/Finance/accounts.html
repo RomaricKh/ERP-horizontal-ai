@@ -6,6 +6,11 @@
     <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
         <h6 class="m-0 font-weight-bold text-primary" data-i18n="accounts.heading">Accounts</h6>
         <div class="d-flex gap-2">
+            <button class="btn btn-warning btn-icon-split btn-sm"
+                    data-action="accounts.transfer" title="Transfer funds between accounts">
+                <span class="text" data-i18n="accounts.transfer_btn">Transfer Funds</span>
+                <span class="icon"><i class="fas fa-fw fa-exchange-alt"></i></span>
+            </button>
             <button class="btn btn-primary btn-icon-split btn-sm"
                     data-action="accounts.create" title="Add a new account">
                 <span class="text" data-i18n="accounts.add_btn">Add Account</span>
@@ -22,6 +27,7 @@
                         <th data-i18n="common.id">ID</th>
                         <th data-i18n="common.name">Name</th>
                         <th data-i18n="common.currency">Currency</th>
+                        <th>Type</th>
                         <th data-i18n="accounts.balance_fc">Balance (FC)</th>
                         <th data-i18n="accounts.balance_bc">Balance (BC)</th>
                         <th data-i18n="common.actions">Actions</th>
@@ -30,7 +36,7 @@
                 <tbody></tbody>
                 <tfoot>
                     <tr>
-                        <th colspan="4" class="text-end" data-i18n="accounts.total_bc">Total (BC):</th>
+                        <th colspan="5" class="text-end" data-i18n="accounts.total_bc">Total (BC):</th>
                         <th id="totalBalanceBc">0.00</th>
                         <th></th>
                     </tr>

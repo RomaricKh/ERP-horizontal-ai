@@ -22,13 +22,14 @@ class PdfService
     /**
      * Generate a PDF from HTML and stream it to the browser.
      *
-     * @param string $html     The HTML content to render as PDF
-     * @param string $filename The filename for the downloaded PDF
+     * @param string $html        The HTML content to render as PDF
+     * @param string $filename    The filename for the downloaded PDF
+     * @param string $orientation The paper orientation ('portrait' or 'landscape')
      */
-    public function generate(string $html, string $filename): void
+    public function generate(string $html, string $filename, string $orientation = 'portrait'): void
     {
         $this->dompdf->loadHtml($html);
-        $this->dompdf->setPaper('A4', 'portrait');
+        $this->dompdf->setPaper('A4', $orientation);
         $this->dompdf->render();
 
         // Clear any previous output
@@ -48,13 +49,14 @@ class PdfService
     /**
      * Generate PDF and return the raw output string (useful for testing).
      *
-     * @param string $html The HTML content to render as PDF
+     * @param string $html        The HTML content to render as PDF
+     * @param string $orientation The paper orientation ('portrait' or 'landscape')
      * @return string Raw PDF binary content
      */
-    public function generateRaw(string $html): string
+    public function generateRaw(string $html, string $orientation = 'portrait'): string
     {
         $this->dompdf->loadHtml($html);
-        $this->dompdf->setPaper('A4', 'portrait');
+        $this->dompdf->setPaper('A4', $orientation);
         $this->dompdf->render();
 
         return $this->dompdf->output();

@@ -66,7 +66,7 @@ export async function mount() {
                         slip_number: rowData[1],
                         slip_date: rowData[2],
                         payee_name: rowData[3],
-                        amount_fc: rowData[5],
+                        amount_fc: 'N/A', // amount_fc is no longer a single column
                     }
                 },
                 options: { backdrop: false, keyboard: true, focus: true }
@@ -135,10 +135,17 @@ async function fetchCollections() {
 function renderTable(collections) {
     if (!collectionsDataTable) {
         collectionsDataTable = createDataTable('#collectionsTable', {
+            order: [[1, 'desc'], [2, 'desc']],
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
+                { 
+                    targets: 2, 
+                    render: function(data, type) {
+                        return (type === 'sort' || type === 'type') ? data : getFormatter().formatDate(data);
+                    }
+                },
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 8, className: 'text-center', orderable: false, searchable: false }
+                { targets: 5, className: 'text-center', orderable: false, searchable: false }
             ]
         });
     }
@@ -161,18 +168,14 @@ function renderTable(collections) {
                             <i class="fas fa-trash text-danger"></i></button>`;
         }
 
-        const amountFc = collection.amount_fc != null ? getFormatter().formatNumber(collection.amount_fc, 2) : '0.00';
-        const amountBc = collection.amount_bc != null ? getFormatter().formatNumber(collection.amount_bc, 2) : '0.00';
+        const amountBc = collection.total_bc != null ? getFormatter().formatNumber(collection.total_bc, 2) : '0.00';
 
         collectionsDataTable.row.add([
             collection.id,
             escHtml(collection.slip_number    ?? ''),
-            getFormatter().formatDate(collection.slip_date ?? ''),
+            collection.slip_date ?? '',
             escHtml(collection.payee_name     ?? '—'),
-            escHtml(collection.account_name   ?? '—'),
-            amountFc,
             amountBc,
-            escHtml(collection.method         ?? ''),
             actions
         ]);
     });

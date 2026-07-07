@@ -43,10 +43,12 @@ class CollectionAllocationRepository {
      */
     public function findBySlip(int $slipId): array {
         $stmt = $this->db->prepare("
-            SELECT id, collection_slip_id, reference_type, reference_id, amount_fc, amount_bc, created_at
-            FROM collection_allocations
-            WHERE collection_slip_id = :slip_id
-            ORDER BY id ASC
+            SELECT ca.id, ca.collection_slip_id, ca.reference_type, ca.reference_id, ca.amount_fc, ca.amount_bc, ca.created_at,
+                   si.invoice_number AS doc_number
+            FROM collection_allocations ca
+            LEFT JOIN sales_invoices si ON ca.reference_type = 'SALES_INVOICE' AND ca.reference_id = si.id
+            WHERE ca.collection_slip_id = :slip_id
+            ORDER BY ca.id ASC
         ");
         $stmt->execute(['slip_id' => $slipId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

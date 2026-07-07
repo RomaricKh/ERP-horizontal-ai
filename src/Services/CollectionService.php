@@ -56,6 +56,7 @@ class CollectionService {
         if (!$collection) {
             throw new \RuntimeException('Collection not found');
         }
+        $collection['lines'] = $this->repo->findLinesBySlipId($id);
         return $collection;
     }
 
@@ -72,10 +73,10 @@ class CollectionService {
      * Validates that sum of allocations equals slip amount.
      * After saving, evaluates invoice statuses and marks fully-paid invoices as PAID.
      *
-     * Required keys: account_id, slip_number, slip_date,
-     *                currency, exchange_rate, amount_fc, method
+     * Required keys: slip_number, slip_date, lines (array of objects)
      * Optional keys: payee_id, allocations, notes
      *
+     * lines format: [{account_id, currency, exchange_rate, amount_fc, method, notes}]
      * allocations format: [{reference_type, reference_id, amount_fc, amount_bc}]
      *
      * @throws \InvalidArgumentException if required fields are missing or allocations don't sum correctly
@@ -83,46 +84,65 @@ class CollectionService {
     public function create(array $data): int {
         $ctx = AuthContext::get();
 
-        if (empty($data['account_id'] ?? '')) {
-            throw new \InvalidArgumentException('Account is required');
+        if (empty($data['lines']) || !is_array($data['lines'])) {
+            throw new \InvalidArgumentException('At least one payment line is required');
         }
         if (empty(trim($data['slip_number'] ?? ''))) {
-            throw new \InvalidArgumentException('Slip number is required');
+            $data['slip_number'] = 'CS-' . $ctx->business_id . '-' . time();
         }
         if (empty($data['slip_date'] ?? '')) {
             throw new \InvalidArgumentException('Slip date is required');
         }
-        if (empty(trim($data['currency'] ?? ''))) {
-            throw new \InvalidArgumentException('Currency is required');
-        }
 
-        // Resolve exchange rate: use provided value or fall back to latest from exchange_rates table
-        $providedRate = (!isset($data['exchange_rate']) || $data['exchange_rate'] === '' || $data['exchange_rate'] === null)
-            ? null
-            : (float) $data['exchange_rate'];
-        $resolvedRate = $this->exchangeRateService->resolveRate(trim($data['currency']), $providedRate);
+        $totalBc = 0.0;
+        $processedLines = [];
 
-        if (!isset($data['amount_fc']) || $data['amount_fc'] === '') {
-            throw new \InvalidArgumentException('Amount is required');
-        }
-        if (empty(trim($data['method'] ?? ''))) {
-            throw new \InvalidArgumentException('Payment method is required');
-        }
+        foreach ($data['lines'] as $line) {
+            if (empty($line['account_id'])) {
+                throw new \InvalidArgumentException('Account is required for all lines');
+            }
+            if (empty(trim($line['currency'] ?? ''))) {
+                throw new \InvalidArgumentException('Currency is required for all lines');
+            }
+            if (!isset($line['amount_fc']) || $line['amount_fc'] === '') {
+                throw new \InvalidArgumentException('Amount is required for all lines');
+            }
+            if (empty(trim($line['method'] ?? ''))) {
+                throw new \InvalidArgumentException('Payment method is required for all lines');
+            }
 
-        $amountFc     = (float) $data['amount_fc'];
-        $exchangeRate = $resolvedRate;
-        $amountBc     = round($amountFc * $exchangeRate, 2);
-        $accountId    = (int) $data['account_id'];
+            $accountId = (int) $line['account_id'];
+            $account = $this->accountRepo->findById($accountId, $ctx->business_id);
+            if (!$account) {
+                throw new \RuntimeException('Account not found');
+            }
 
-        // Currency validation: ensure transaction currency matches account currency
-        $account = $this->accountRepo->findById($accountId, $ctx->business_id);
-        if (!$account) {
-            throw new \RuntimeException('Account not found');
-        }
-        $txCurrency   = strtolower(trim($data['currency']));
-        $acctCurrency = strtolower($account['currency']);
-        if ($txCurrency !== $acctCurrency) {
-            throw new \InvalidArgumentException("Currency mismatch: transaction currency is '{$txCurrency}' but account currency is '{$acctCurrency}'");
+            $txCurrency   = strtolower(trim($line['currency']));
+            $acctCurrency = strtolower($account['currency']);
+            if ($txCurrency !== $acctCurrency) {
+                throw new \InvalidArgumentException("Currency mismatch: transaction currency is '{$txCurrency}' but account currency is '{$acctCurrency}'");
+            }
+
+            $providedRate = (!isset($line['exchange_rate']) || $line['exchange_rate'] === '' || $line['exchange_rate'] === null)
+                ? null
+                : (float) $line['exchange_rate'];
+            $resolvedRate = $this->exchangeRateService->resolveRate(trim($line['currency']), $providedRate);
+
+            $amountFc = (float) $line['amount_fc'];
+            $amountBc = round($amountFc * $resolvedRate, 2);
+
+            $totalBc += $amountBc;
+
+            $processedLines[] = [
+                'account_id'    => $accountId,
+                'currency'      => trim($line['currency']),
+                'exchange_rate' => $resolvedRate,
+                'amount_fc'     => $amountFc,
+                'amount_bc'     => $amountBc,
+                'method'        => trim($line['method']),
+                'notes'         => $line['notes'] ?? null,
+                'account_currency'=> $acctCurrency,
+            ];
         }
 
         $payeeId = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
@@ -130,26 +150,27 @@ class CollectionService {
         // Determine allocations: use provided or auto-allocate via FIFO
         $allocations = $data['allocations'] ?? [];
         if (empty($allocations) && $payeeId) {
+            // For auto-allocation with multiple currencies, we pass totalBc and an effective rate of 1.
             $allocations = $this->settlementEngine->autoAllocateFIFO(
                 $payeeId,
                 $ctx->business_id,
-                $amountBc,
-                $amountFc,
-                $exchangeRate,
+                $totalBc,
+                $totalBc,
+                1.0,
                 'collection'
             );
         }
 
-        // Validate allocation sum equals slip amount (if allocations exist)
+        // Validate allocation sum does not exceed slip amount (under-allocation is OK — surplus becomes customer credit)
         if (!empty($allocations)) {
             $allocSumBc = 0.0;
             foreach ($allocations as $alloc) {
                 $allocSumBc += (float) ($alloc['amount_bc'] ?? 0);
             }
-            // Allow a small tolerance for rounding (0.01)
-            if (abs($allocSumBc - $amountBc) > 0.01) {
+            // Allocations cannot exceed slip amount
+            if ($allocSumBc > $totalBc + 0.01) {
                 throw new \InvalidArgumentException(
-                    "Allocation sum ({$allocSumBc}) does not match slip amount ({$amountBc})"
+                    "Allocation sum ({$allocSumBc}) exceeds slip amount ({$totalBc})"
                 );
             }
 
@@ -173,18 +194,17 @@ class CollectionService {
         try {
             $id = $this->repo->create([
                 'business_id'    => $ctx->business_id,
-                'account_id'     => $accountId,
                 'payee_id'       => $payeeId,
                 'slip_number'    => trim($data['slip_number']),
                 'slip_date'      => $data['slip_date'],
-                'currency'       => trim($data['currency']),
-                'exchange_rate'  => $exchangeRate,
-                'amount_fc'      => $amountFc,
-                'amount_bc'      => $amountBc,
-                'method'         => trim($data['method']),
+                'total_bc'       => $totalBc,
                 'notes'          => isset($data['notes']) && $data['notes'] !== '' ? $data['notes'] : null,
                 'created_by'     => $ctx->user_id,
             ]);
+
+            foreach ($processedLines as $line) {
+                $this->repo->createLine($id, $line);
+            }
 
             // Save allocations
             if (!empty($allocations)) {
@@ -192,11 +212,17 @@ class CollectionService {
             }
 
             // Incoming collection: add to account balance (positive delta for both BC and FC)
-            $this->accountRepo->updateBalance($accountId, +$amountBc, $this->db, +$amountFc);
+            foreach ($processedLines as $line) {
+                $deltaFc = $line['amount_fc'];
+                if ($line['account_currency'] !== strtolower(trim($line['currency']))) {
+                    $deltaFc = $line['amount_bc']; 
+                }
+                $this->accountRepo->updateBalance($line['account_id'], +$line['amount_bc'], $this->db, +$deltaFc);
+            }
 
             // Decrease payee balance (collection reduces what they owe)
             if ($payeeId) {
-                $this->peopleRepo->updatePayeeBalance($payeeId, -$amountBc);
+                $this->peopleRepo->updatePayeeBalance($payeeId, -$totalBc);
             }
 
             $this->audit->log(
@@ -206,14 +232,8 @@ class CollectionService {
                 'CREATE',
                 null,
                 [
-                    'account_id'    => $accountId,
-                    'slip_number'   => trim($data['slip_number']),
-                    'slip_date'     => $data['slip_date'],
-                    'currency'      => trim($data['currency']),
-                    'exchange_rate' => $exchangeRate,
-                    'amount_fc'     => $amountFc,
-                    'amount_bc'     => $amountBc,
-                    'method'        => trim($data['method']),
+                    'total_bc'      => $totalBc,
+                    'lines_count'   => count($processedLines),
                     'allocations'   => count($allocations),
                 ],
                 $ctx->user_id,
@@ -273,9 +293,8 @@ class CollectionService {
             throw new \RuntimeException('Collection not found');
         }
 
-        $accountId = (int) $collection['account_id'];
-        $amountBc  = (float) $collection['amount_bc'];
-        $amountFc  = (float) $collection['amount_fc'];
+        $lines = $this->repo->findLinesBySlipId($id);
+        $totalBc = (float) $collection['total_bc'];
 
         $this->db->beginTransaction();
         try {
@@ -284,12 +303,16 @@ class CollectionService {
             $this->repo->delete($id, $ctx->business_id);
 
             // Reverse the addition: deduct the amount (negative delta for both BC and FC)
-            $this->accountRepo->updateBalance($accountId, -$amountBc, $this->db, -$amountFc);
+            foreach ($lines as $line) {
+                $amountBc = (float) $line['amount_bc'];
+                $amountFc = (float) $line['amount_fc'];
+                $this->accountRepo->updateBalance($line['account_id'], -$amountBc, $this->db, -$amountFc);
+            }
 
             // Reverse payee balance reduction (they owe again)
             $payeeId = $collection['payee_id'] ?? null;
             if ($payeeId) {
-                $this->peopleRepo->updatePayeeBalance((int) $payeeId, +$amountBc);
+                $this->peopleRepo->updatePayeeBalance((int) $payeeId, +$totalBc);
             }
 
             $this->audit->log(

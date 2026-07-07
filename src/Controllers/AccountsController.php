@@ -41,7 +41,7 @@ class AccountsController extends BaseController {
     public function store(): void {
         try {
             $this->auth();
-            $data = $this->input(['name', 'currency']);
+            $data = $this->input(['name', 'currency', 'account_type', 'is_local_currency_account', 'cash_denomination']);
             $id   = $this->service->create($data);
             $this->json(true, ['id' => $id], null, 201);
         } catch (\InvalidArgumentException $e) {

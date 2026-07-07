@@ -105,20 +105,27 @@ class PartnerEquityService {
                 // Create a collection slip (money IN)
                 $slipData = [
                     'business_id'   => $ctx->business_id,
-                    'account_id'    => $accountId,
                     'payee_id'      => $partnerId,
                     'slip_number'   => 'PC-' . $ctx->business_id . '-' . $partnerId . '-' . time(),
                     'slip_date'     => date('Y-m-d'),
-                    'currency'      => $currency,
-                    'exchange_rate' => $exchangeRate,
-                    'amount_fc'     => $amount,
-                    'amount_bc'     => $amountBc,
-                    'method'        => 'TRANSFER',
+                    'total_bc'      => $amountBc,
                     'notes'         => 'Partner contribution' . ($notes ? ': ' . $notes : ''),
                     'created_by'    => $ctx->user_id,
                 ];
                 $slipId   = $this->collectionRepo->create($slipData);
                 $slipType = 'COLLECTION_SLIP';
+
+                // Create the line
+                $lineData = [
+                    'account_id'    => $accountId,
+                    'currency'      => $currency,
+                    'exchange_rate' => $exchangeRate,
+                    'amount_fc'     => $amount,
+                    'amount_bc'     => $amountBc,
+                    'method'        => 'TRANSFER',
+                    'notes'         => null
+                ];
+                $this->collectionRepo->createLine($slipId, $lineData);
 
                 // Credit the account (money IN = positive balance change)
                 if ($accountId) {
@@ -129,20 +136,27 @@ class PartnerEquityService {
                 // Create a payment slip (money OUT)
                 $slipData = [
                     'business_id'    => $ctx->business_id,
-                    'account_id'     => $accountId,
                     'payee_id'       => $partnerId,
                     'payment_number' => 'PW-' . $ctx->business_id . '-' . $partnerId . '-' . time(),
                     'payment_date'   => date('Y-m-d'),
-                    'currency'       => $currency,
-                    'exchange_rate'  => $exchangeRate,
-                    'amount_fc'      => $amount,
-                    'amount_bc'      => $amountBc,
-                    'method'         => 'TRANSFER',
+                    'total_bc'       => $amountBc,
                     'notes'          => 'Partner withdrawal' . ($notes ? ': ' . $notes : ''),
                     'created_by'     => $ctx->user_id,
                 ];
                 $slipId   = $this->paymentRepo->create($slipData);
                 $slipType = 'PAYMENT_SLIP';
+
+                // Create the line
+                $lineData = [
+                    'account_id'    => $accountId,
+                    'currency'      => $currency,
+                    'exchange_rate' => $exchangeRate,
+                    'amount_fc'     => $amount,
+                    'amount_bc'     => $amountBc,
+                    'method'        => 'TRANSFER',
+                    'notes'         => null
+                ];
+                $this->paymentRepo->createLine($slipId, $lineData);
 
                 // Debit the account (money OUT = negative balance change)
                 if ($accountId) {

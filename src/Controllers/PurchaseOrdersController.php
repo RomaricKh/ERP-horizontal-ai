@@ -120,6 +120,24 @@ class PurchaseOrdersController extends BaseController {
         }
     }
 
+    // PUT /purchase-orders/{id}/number
+    public function updateNumber(int $id): void {
+        try {
+            $this->auth();
+            $data = $this->input(['po_number']);
+            if (empty(trim($data['po_number'] ?? ''))) {
+                $this->json(false, null, 'Purchase order number is required', 422);
+                return;
+            }
+            $this->service->updateNumber($id, trim($data['po_number']));
+            $this->json(true, ['id' => $id, 'po_number' => trim($data['po_number'])], 'Purchase order number updated');
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to update purchase order number');
+        }
+    }
+
     // DELETE /purchase-orders/{id}
     public function delete(int $id): void {
         try {

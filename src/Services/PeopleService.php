@@ -31,6 +31,12 @@ class PeopleService {
         return $person;
     }
 
+    // ── SEARCH ────────────────────────────────────────────────────────────────
+
+    public function searchTenant(int $tenantId, string $query): array {
+        return $this->peopleRepo->searchTenantPeople($tenantId, $query);
+    }
+
     // ── CREATE ────────────────────────────────────────────────────────────────
 
     public function create(int $tenantId, int $businessId, int $editorId, array $data): int {
@@ -90,15 +96,21 @@ class PeopleService {
             }
 
             // Update payee types if provided
-            if (array_key_exists('payee_type_ids', $data)) {
+            if (array_key_exists('payee_type_ids', $data) || array_key_exists('payee_notes', $data)) {
                 $payee = $this->peopleRepo->findPayee($id, $businessId);
                 if (!$payee) {
                     // Create payee record if it doesn't exist yet
                     $payeeId = $this->peopleRepo->createPayee($id, $businessId, $data['payee_notes'] ?? null);
                 } else {
                     $payeeId = $payee['id'];
+                    if (array_key_exists('payee_notes', $data)) {
+                        $this->peopleRepo->updatePayeeNotes($payeeId, $data['payee_notes']);
+                    }
                 }
-                $this->peopleRepo->setPayeeTypes($payeeId, $data['payee_type_ids'] ?? []);
+                
+                if (array_key_exists('payee_type_ids', $data)) {
+                    $this->peopleRepo->setPayeeTypes($payeeId, $data['payee_type_ids'] ?? []);
+                }
             }
 
             $this->db->commit();
@@ -113,6 +125,9 @@ class PeopleService {
     public function delete(int $id, int $tenantId, int $businessId, int $editorId): void {
         $this->db->beginTransaction();
         try {
+            $before = $this->peopleRepo->findById($id, $tenantId);
+            if (!$before) throw new \RuntimeException('Person not found');
+
             // Check if payee has transactions (inside transaction to prevent TOCTOU)
             $payee = $this->peopleRepo->findPayee($id, $businessId);
             if ($payee) {
@@ -122,12 +137,16 @@ class PeopleService {
                         'Cannot delete: this person has transactions in this business'
                     );
                 }
+                
+                // Safe to delete the payee record for this business
+                $this->peopleRepo->deletePayee($payee['id']);
             }
 
-            $before = $this->peopleRepo->findById($id, $tenantId);
-            if (!$before) throw new \RuntimeException('Person not found');
-
-            $this->peopleRepo->delete($id, $tenantId);
+            // If no more payee records exist for this person across ANY business, delete the person entirely
+            $remainingPayees = $this->peopleRepo->countPayeesForPerson($id);
+            if ($remainingPayees === 0) {
+                $this->peopleRepo->delete($id, $tenantId);
+            }
 
             $this->audit->log('PEOPLE', 'people', $id, 'DELETE', $before, null,
                 $editorId, $tenantId, $businessId);

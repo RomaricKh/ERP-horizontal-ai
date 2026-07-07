@@ -678,26 +678,71 @@ class ReportService
     {
         // Inflows: collection slips (all cash received)
         $stmt = $this->db->prepare("
-            SELECT COALESCE(SUM(amount_bc), 0) FROM collection_slips
+            SELECT COALESCE(SUM(total_bc), 0) FROM collection_slips
             WHERE business_id = :bid AND slip_date >= :s AND slip_date <= :e
         ");
         $stmt->execute(['bid' => $businessId, 's' => $start, 'e' => $end]);
         $collections = (float) $stmt->fetchColumn();
 
-        // Outflows: payment slips (all cash paid out — covers POs, expenses, salaries, distributions)
+        // Outflows: total payment slips
         $stmt = $this->db->prepare("
-            SELECT COALESCE(SUM(amount_bc), 0) FROM payment_slips
+            SELECT COALESCE(SUM(total_bc), 0) FROM payment_slips
             WHERE business_id = :bid AND payment_date >= :s AND payment_date <= :e
         ");
         $stmt->execute(['bid' => $businessId, 's' => $start, 'e' => $end]);
         $payments = (float) $stmt->fetchColumn();
+
+        // Categorize payments based on payment_allocations
+        $stmt = $this->db->prepare("
+            SELECT pa.reference_type, COALESCE(SUM(pa.amount_bc), 0) as allocated_amount
+            FROM payment_allocations pa
+            JOIN payment_slips ps ON ps.id = pa.payment_slip_id
+            WHERE ps.business_id = :bid AND ps.payment_date >= :s AND ps.payment_date <= :e
+            GROUP BY pa.reference_type
+        ");
+        $stmt->execute(['bid' => $businessId, 's' => $start, 'e' => $end]);
+        $allocations = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $outflows = [
+            'expenses' => 0.0,
+            'purchase_orders' => 0.0,
+            'salaries' => 0.0,
+            'other_allocations' => 0.0,
+            'unallocated' => $payments,
+            'total' => $payments
+        ];
+
+        $totalAllocated = 0.0;
+        foreach ($allocations as $alloc) {
+            $amt = (float) $alloc['allocated_amount'];
+            $totalAllocated += $amt;
+            switch ($alloc['reference_type']) {
+                case 'EXPENSE':
+                    $outflows['expenses'] += $amt;
+                    break;
+                case 'PURCHASE_ORDER':
+                    $outflows['purchase_orders'] += $amt;
+                    break;
+                case 'SALARY':
+                    $outflows['salaries'] += $amt;
+                    break;
+                default:
+                    $outflows['other_allocations'] += $amt;
+                    break;
+            }
+        }
+
+        $outflows['unallocated'] = round($payments - $totalAllocated, 2);
+        if ($outflows['unallocated'] < 0) {
+            $outflows['unallocated'] = 0.0; // Avoid rounding errors showing -0.00
+        }
 
         $netMovement = round($collections - $payments, 2);
 
         return [
             'period' => ['start' => $start, 'end' => $end],
             'inflows' => ['collections' => $collections, 'total' => $collections],
-            'outflows' => ['payments' => $payments, 'total' => $payments],
+            'outflows' => $outflows,
             'net_movement' => $netMovement,
         ];
     }

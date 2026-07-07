@@ -48,9 +48,11 @@ class ItemPriceHistoryRepository {
         $stmt = $this->db->prepare("
             SELECT iph.id, iph.item_id, iph.tenant_id, iph.price_type, iph.old_price, iph.new_price,
                    iph.effective_date, iph.source_type, iph.source_id, iph.changed_by, iph.created_at,
-                   CONCAT(u.first_name, ' ', u.last_name) AS changed_by_name
+                   CONCAT(u.first_name, ' ', u.last_name) AS changed_by_name,
+                   po.po_number
             FROM item_price_history iph
             LEFT JOIN users u ON u.id = iph.changed_by
+            LEFT JOIN purchase_orders po ON po.id = iph.source_id AND iph.source_type = 'PURCHASE_ORDER'
             WHERE iph.item_id = :item_id
               AND iph.tenant_id = :tenant_id
             ORDER BY iph.effective_date DESC, iph.created_at DESC

@@ -43,10 +43,15 @@ class PaymentAllocationRepository {
      */
     public function findBySlip(int $slipId): array {
         $stmt = $this->db->prepare("
-            SELECT id, payment_slip_id, reference_type, reference_id, amount_fc, amount_bc, created_at
-            FROM payment_allocations
-            WHERE payment_slip_id = :slip_id
-            ORDER BY id ASC
+            SELECT pa.id, pa.payment_slip_id, pa.reference_type, pa.reference_id, pa.amount_fc, pa.amount_bc, pa.created_at,
+                   CASE 
+                       WHEN pa.reference_type = 'PURCHASE_ORDER' THEN po.po_number
+                       ELSE NULL
+                   END AS doc_number
+            FROM payment_allocations pa
+            LEFT JOIN purchase_orders po ON pa.reference_type = 'PURCHASE_ORDER' AND pa.reference_id = po.id
+            WHERE pa.payment_slip_id = :slip_id
+            ORDER BY pa.id ASC
         ");
         $stmt->execute(['slip_id' => $slipId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

@@ -41,8 +41,7 @@ class PaymentsController extends BaseController {
         try {
             $this->auth();
             $data = $this->input([
-                'account_id', 'payment_number',
-                'payment_date', 'currency', 'exchange_rate', 'amount_fc', 'method'
+                'payee_id', 'payment_number', 'payment_date', 'notes', 'lines', 'allocations'
             ]);
             $id = $this->service->create($data);
             $this->json(true, ['id' => $id], null, 201);
@@ -250,6 +249,46 @@ class PaymentsController extends BaseController {
             $cmp = strcmp($a['doc_date'], $b['doc_date']);
             return $cmp === 0 ? $a['id'] - $b['id'] : $cmp;
         });
+
+        // Unpaid Profit Distributions
+        $stmt = $db->prepare("
+            SELECT
+                pd.id,
+                pd.profit_record_id,
+                CONCAT('PROFIT-', pd.profit_record_id) AS doc_number,
+                bp.period_end AS doc_date,
+                pd.amount_bc AS total_amount_bc,
+                'PARTNER_PROFIT' AS reference_type,
+                COALESCE(
+                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'PARTNER_PROFIT' AND pa.reference_id = pd.profit_record_id),
+                    0
+                ) AS allocated_bc
+            FROM profit_distributions pd
+            JOIN business_profit bp ON bp.id = pd.profit_record_id
+            WHERE pd.partner_id = :payee_id
+              AND bp.business_id = :business_id
+              AND bp.status IN ('FINALIZED', 'DISTRIBUTED')
+        ");
+        $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+        $profitRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($profitRows as $row) {
+            $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
+            if ($remaining > 0.001) {
+                $documents[] = [
+                    'id'             => (int) $row['profit_record_id'],
+                    'doc_number'     => $row['doc_number'],
+                    'doc_date'       => $row['doc_date'],
+                    'reference_type' => 'PARTNER_PROFIT',
+                    'total_bc'       => (float) $row['total_amount_bc'],
+                    'total_fc'       => (float) $row['total_amount_bc'],
+                    'allocated_bc'   => (float) $row['allocated_bc'],
+                    'allocated_fc'   => (float) $row['allocated_bc'],
+                    'remaining_bc'   => round($remaining, 2),
+                    'remaining_fc'   => round($remaining, 2),
+                ];
+            }
+        }
 
         return $documents;
     }

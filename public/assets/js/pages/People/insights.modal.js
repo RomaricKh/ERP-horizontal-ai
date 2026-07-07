@@ -117,7 +117,7 @@ function renderItemsTable(items, type) {
         <th class="text-end">Avg Price</th>
         <th class="text-end">Last Price</th>
         <th>Last Date</th>
-        <th class="text-end"># ${isSupplier ? 'POs' : 'Invoices'}</th>
+        <th class="text-end">${isSupplier ? 'POs' : 'Invoices'}</th>
     </tr>`;
 
     if (!insightsTable) {
@@ -140,7 +140,7 @@ function renderItemsTable(items, type) {
             fmt.formatNumber(item.avg_unit_price || 0, 2),
             fmt.formatNumber(item.last_price || 0, 2),
             item.last_date ? fmt.formatDate(item.last_date) : '—',
-            String(item.document_count || 0)
+            escHtml(item.document_numbers || '')
         ]);
     });
 

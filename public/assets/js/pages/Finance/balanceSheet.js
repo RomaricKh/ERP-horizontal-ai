@@ -63,15 +63,19 @@ function renderReport(report) {
     const liabilities = report.liabilities ?? {};
     const equity = report.equity ?? {};
 
-    document.getElementById('bsAccounts').textContent = fmt.formatNumber(assets.accounts ?? 0, 2);
+    document.getElementById('bsAccounts').textContent = fmt.formatNumber(assets.cash_bank ?? 0, 2);
+    document.getElementById('bsAccountsReceivable').textContent = fmt.formatNumber(assets.accounts_receivable ?? 0, 2);
     document.getElementById('bsInventory').textContent = fmt.formatNumber(assets.inventory ?? 0, 2);
     document.getElementById('bsFixedAssets').textContent = fmt.formatNumber(assets.fixed_assets ?? 0, 2);
     document.getElementById('bsTotalAssets').textContent = fmt.formatNumber(assets.total ?? 0, 2);
 
-    document.getElementById('bsPayables').textContent = fmt.formatNumber(liabilities.outstanding_payables ?? 0, 2);
+    document.getElementById('bsPayables').textContent = fmt.formatNumber(liabilities.accounts_payable ?? 0, 2);
+    document.getElementById('bsUnpaidExpenses').textContent = fmt.formatNumber(liabilities.unpaid_expenses ?? 0, 2);
+    document.getElementById('bsUnpaidSalaries').textContent = fmt.formatNumber(liabilities.unpaid_salaries ?? 0, 2);
     document.getElementById('bsTotalLiabilities').textContent = fmt.formatNumber(liabilities.total ?? 0, 2);
 
-    document.getElementById('bsPartnerShares').textContent = fmt.formatNumber(equity.partner_shares ?? 0, 2);
+    document.getElementById('bsPartnerShares').textContent = fmt.formatNumber(equity.partner_capital ?? 0, 2);
+    document.getElementById('bsRetainedEarnings').textContent = fmt.formatNumber(equity.retained_earnings ?? 0, 2);
     document.getElementById('bsTotalEquity').textContent = fmt.formatNumber(equity.total ?? 0, 2);
 }
 

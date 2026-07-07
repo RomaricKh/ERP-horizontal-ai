@@ -14,6 +14,11 @@ $router->get('/people/payee-types',
     ['people.view']
 );
 
+$router->get('/people/search-tenant',
+    fn() => (new PeopleController())->searchTenant(),
+    ['people.view']
+);
+
 /* ========= PEOPLE INSIGHTS ========= */
 
 $router->get('/people/{id}/insights/supplier',
@@ -45,6 +50,11 @@ $router->get('/people/{id}/statement',
 
 $router->get('/people/{id}/statement/export',
     fn($id) => (new \App\Controllers\PayeeStatementController())->export((int)$id),
+    ['people.view']
+);
+
+$router->get('/people/{id}/statement/pdf',
+    fn($id) => (new \App\Controllers\PayeeStatementController())->downloadPdf((int)$id),
     ['people.view']
 );
 

@@ -36,6 +36,16 @@ export async function mount() {
             });
         },
 
+        'accounts.transfer': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/Finance/accountTransferForm.modal.html',
+                controller: '../pages/Finance/accountTransferForm.modal.js',
+                data: {},
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
+        },
+
         'accounts.edit': async ({ el }) => {
             const tr      = el.closest('tr');
             const rowData = accountsDataTable.row(tr).data();
@@ -99,6 +109,9 @@ export async function render(container) {
         if (el.dataset.action === 'accounts.create' && !hasPermission('accounts.manage')) {
             el.remove();
         }
+        if (el.dataset.action === 'accounts.transfer' && !hasPermission('accounts.transfer')) {
+            el.remove();
+        }
     });
 }
 
@@ -115,7 +128,7 @@ function renderTable(accounts) {
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 5, className: 'text-center', orderable: false, searchable: false }
+                { targets: 6, className: 'text-center', orderable: false, searchable: false }
             ],
             order: [[2, 'asc'], [1, 'asc']],
             drawCallback: function (settings) {
@@ -127,7 +140,7 @@ function renderTable(accounts) {
                     if (currency !== lastCurrency) {
                         $(rows).eq(i).before(
                             `<tr class="table-secondary currency-group-header">
-                                <td colspan="5" class="fw-bold">${escHtml(currency)}</td>
+                                <td colspan="6" class="fw-bold">${escHtml(currency)}</td>
                             </tr>`
                         );
                         lastCurrency = currency;
@@ -157,10 +170,16 @@ function renderTable(accounts) {
         const balanceBc = account.balance != null ? getFormatter().formatNumber(account.balance, 2) : '0.00';
         totalBc += account.balance != null ? parseFloat(account.balance) : 0;
 
+        const typeHtml = escHtml(account.account_type ?? 'CASH');
+        const badge = account.is_local_currency_account == 1 
+            ? ' <span class="badge bg-info text-white ms-2" title="Local Currency Spillover Account"><i class="fas fa-star text-warning"></i> Local</span>' 
+            : '';
+
         accountsDataTable.row.add([
             account.id,
-            escHtml(account.name ?? ''),
+            escHtml(account.name ?? '') + badge,
             escHtml(account.currency ?? ''),
+            typeHtml,
             balanceFc,
             balanceBc,
             actions

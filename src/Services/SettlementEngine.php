@@ -107,6 +107,144 @@ class SettlementEngine {
     }
 
     /**
+     * Auto-allocate existing unallocated collections to a newly created invoice.
+     * Uses FIFO (oldest unallocated collection slips first).
+     *
+     * @param int $invoiceId  The sales invoice ID
+     * @param int $payeeId    The customer's payee ID
+     * @param int $businessId The business ID
+     */
+    public function autoAllocateInvoiceFromCollections(int $invoiceId, int $payeeId, int $businessId): void {
+        // Fetch invoice details
+        $stmt = $this->db->prepare("
+            SELECT si.total_amount_bc, si.total_amount_fc,
+                   COALESCE((SELECT SUM(ca.amount_bc) FROM collection_allocations ca WHERE ca.reference_type = 'SALES_INVOICE' AND ca.reference_id = si.id), 0) AS allocated_bc
+            FROM sales_invoices si
+            WHERE si.id = :id AND si.status != 'CANCELLED'
+        ");
+        $stmt->execute(['id' => $invoiceId]);
+        $invoice = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$invoice) return;
+
+        $invoiceRemainingBc = (float)$invoice['total_amount_bc'] - (float)$invoice['allocated_bc'];
+        if ($invoiceRemainingBc <= 0) return;
+        
+        $exchangeRate = 1.0;
+        if ((float)$invoice['total_amount_fc'] > 0 && (float)$invoice['total_amount_bc'] > 0) {
+            $exchangeRate = (float)$invoice['total_amount_bc'] / (float)$invoice['total_amount_fc'];
+        }
+
+        // Fetch collection slips for this customer that have unallocated amounts
+        $stmt = $this->db->prepare("
+            SELECT cs.id, cs.total_bc, cs.total_fc,
+                   COALESCE((SELECT SUM(ca.amount_bc) FROM collection_allocations ca WHERE ca.collection_slip_id = cs.id), 0) AS allocated_bc
+            FROM collection_slips cs
+            WHERE cs.payee_id = :payee_id AND cs.business_id = :business_id
+            ORDER BY cs.slip_date ASC, cs.id ASC
+        ");
+        $stmt->execute([
+            'payee_id'    => $payeeId,
+            'business_id' => $businessId
+        ]);
+        $collections = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (empty($collections)) return;
+
+        $insertStmt = $this->db->prepare("
+            INSERT INTO collection_allocations (collection_slip_id, reference_type, reference_id, amount_fc, amount_bc)
+            VALUES (:slip_id, 'SALES_INVOICE', :ref_id, :amt_fc, :amt_bc)
+        ");
+
+        foreach ($collections as $cs) {
+            $unallocatedBc = (float)$cs['total_bc'] - (float)$cs['allocated_bc'];
+            if ($unallocatedBc <= 0) continue;
+
+            $allocBc = min($unallocatedBc, $invoiceRemainingBc);
+            $allocFc = $exchangeRate > 0 ? round($allocBc / $exchangeRate, 2) : $allocBc;
+
+            $insertStmt->execute([
+                'slip_id' => $cs['id'],
+                'ref_id'  => $invoiceId,
+                'amt_fc'  => $allocFc,
+                'amt_bc'  => $allocBc
+            ]);
+
+            $invoiceRemainingBc -= $allocBc;
+            if ($invoiceRemainingBc <= 0) break;
+        }
+    }
+
+    /**
+     * Auto-allocate existing unallocated payments to a newly received PO.
+     * Uses FIFO (oldest unallocated payment slips first).
+     *
+     * @param int $poId       The purchase order ID
+     * @param int $payeeId    The supplier's payee ID
+     * @param int $businessId The business ID
+     */
+    public function autoAllocatePOFromPayments(int $poId, int $payeeId, int $businessId): void {
+        // Fetch PO details
+        $stmt = $this->db->prepare("
+            SELECT po.total_amount_bc, po.total_amount_fc,
+                   COALESCE((SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'PURCHASE_ORDER' AND pa.reference_id = po.id), 0) AS allocated_bc
+            FROM purchase_orders po
+            WHERE po.id = :id AND po.status != 'CANCELLED'
+        ");
+        $stmt->execute(['id' => $poId]);
+        $po = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$po) return;
+
+        $poRemainingBc = (float)$po['total_amount_bc'] - (float)$po['allocated_bc'];
+        if ($poRemainingBc <= 0) return;
+        
+        $exchangeRate = 1.0;
+        if ((float)$po['total_amount_fc'] > 0 && (float)$po['total_amount_bc'] > 0) {
+            $exchangeRate = (float)$po['total_amount_bc'] / (float)$po['total_amount_fc'];
+        }
+
+        // Fetch payment slips for this supplier that have unallocated amounts
+        $stmt = $this->db->prepare("
+            SELECT ps.id, ps.total_bc, ps.total_fc,
+                   COALESCE((SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.payment_slip_id = ps.id), 0) AS allocated_bc
+            FROM payment_slips ps
+            WHERE ps.payee_id = :payee_id AND ps.business_id = :business_id
+            ORDER BY ps.payment_date ASC, ps.id ASC
+        ");
+        $stmt->execute([
+            'payee_id'    => $payeeId,
+            'business_id' => $businessId
+        ]);
+        $payments = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (empty($payments)) return;
+
+        $insertStmt = $this->db->prepare("
+            INSERT INTO payment_allocations (payment_slip_id, reference_type, reference_id, amount_fc, amount_bc)
+            VALUES (:slip_id, 'PURCHASE_ORDER', :ref_id, :amt_fc, :amt_bc)
+        ");
+
+        foreach ($payments as $ps) {
+            $unallocatedBc = (float)$ps['total_bc'] - (float)$ps['allocated_bc'];
+            if ($unallocatedBc <= 0) continue;
+
+            $allocBc = min($unallocatedBc, $poRemainingBc);
+            $allocFc = $exchangeRate > 0 ? round($allocBc / $exchangeRate, 2) : $allocBc;
+
+            $insertStmt->execute([
+                'slip_id' => $ps['id'],
+                'ref_id'  => $poId,
+                'amt_fc'  => $allocFc,
+                'amt_bc'  => $allocBc
+            ]);
+
+            $poRemainingBc -= $allocBc;
+            if ($poRemainingBc <= 0) break;
+        }
+    }
+
+    /**
      * Auto-allocate an amount across unpaid documents for a payee using FIFO (oldest first).
      *
      * For payment slips: allocates across RECEIVED POs, unpaid expenses, unpaid salaries

@@ -139,6 +139,11 @@ class ItemService {
         return $item;
     }
 
+    public function getInsights(int $id, ?string $startDate = null, ?string $endDate = null): array {
+        $ctx = AuthContext::get();
+        return $this->repo->getItemInsights($id, $ctx->business_id, $startDate, $endDate);
+    }
+
     public function create(array $input): int {
         $ctx = AuthContext::get();
 
@@ -269,12 +274,6 @@ class ItemService {
 
         $costPriceChanged = array_key_exists('cost_price', $changes);
         $salePriceChanged = array_key_exists('sale_price', $changes);
-        $pendingSalePrice = null;
-
-        if ($salePriceChanged) {
-            $pendingSalePrice = (float) $changes['sale_price'];
-            unset($changes['sale_price']); // Prevent immediate update
-        }
 
         $this->db->beginTransaction();
         try {
@@ -292,21 +291,11 @@ class ItemService {
                 $this->priceHistoryService->recordManualEdit($id, $ctx->tenant_id, 'COST', $oldCostPrice, $newCostPrice);
             }
 
-            // Queue manual sale price edits
+            // Record price history for manual sale edits
             if ($salePriceChanged) {
-                $stmt = $this->db->prepare("
-                    INSERT INTO item_pending_prices
-                    (tenant_id, business_id, item_id, pending_sale_price, source_type, status, created_at, created_by)
-                    VALUES
-                    (:tenant, :business, :item, :pending_sale, 'MANUAL', 'PENDING', NOW(), :user)
-                ");
-                $stmt->execute([
-                    'tenant'       => $ctx->tenant_id,
-                    'business'     => $ctx->business_id,
-                    'item'         => $id,
-                    'pending_sale' => $pendingSalePrice,
-                    'user'         => $ctx->user_id
-                ]);
+                $oldSalePrice = (float) ($before['sale_price'] ?? 0);
+                $newSalePrice = (float) $changes['sale_price'];
+                $this->priceHistoryService->recordManualEdit($id, $ctx->tenant_id, 'SALE', $oldSalePrice, $newSalePrice);
             }
 
             $this->db->commit();
@@ -470,6 +459,30 @@ class ItemService {
             $this->audit->log('CREATE', 'stock_transactions', $itemId, 'CREATE', null,
                 ['type' => $type, 'quantity' => $quantity, 'new_qty' => $newQty],
                 $ctx->user_id, $ctx->tenant_id, $ctx->business_id);
+
+            // Automatically deduct from batches using FEFO for OUT transactions
+            if ($type === 'OUT' && (int)($item['has_expiry'] ?? 0) === 1) {
+                $batchService = new BatchService($this->db);
+                $batchService->consumeFEFO($itemId, $ctx->business_id, $quantity, $reference, $notes);
+            }
+            
+            // Automatically create a batch for IN transactions if they are manual or credit notes
+            if ($type === 'IN' && (int)($item['has_expiry'] ?? 0) === 1) {
+                if ($refType === 'MANUAL' || $refType === 'CREDIT_NOTE' || $refType === null) {
+                    $batchService = new BatchService($this->db);
+                    $shelfLife = (int)($item['shelf_life_days'] ?? 365);
+                    if ($shelfLife <= 0) $shelfLife = 365;
+                    $expiryDate = date('Y-m-d', strtotime("+$shelfLife days"));
+                    $batchService->createBatch(
+                        $itemId, 
+                        $quantity, 
+                        $expiryDate, 
+                        null, 
+                        null, 
+                        $refId // Passes reference_id if present
+                    );
+                }
+            }
 
             if ($ownTransaction) {
                 $this->db->commit();

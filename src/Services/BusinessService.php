@@ -78,9 +78,11 @@ class BusinessService {
             $currency = $data['currency'] ?? 'USD';
             $accountName = $data['name'] . ' ' . $currency;
             $this->accountRepo->create([
-                'business_id' => $business_id,
-                'name'        => $accountName,
-                'currency'    => $currency,
+                'business_id'               => $business_id,
+                'name'                      => $accountName,
+                'currency'                  => $currency,
+                'account_type'              => 'CASH',
+                'is_local_currency_account' => false,
             ]);
 
             // Auto-create SYSTEM_OWNER role and assign to the creating user
@@ -306,9 +308,11 @@ class BusinessService {
             // Auto-create a default account in the base currency
             $accountName = $data['name'] . ' - Main (' . $currency . ')';
             $this->accountRepo->create([
-                'business_id' => $businessId,
-                'name'        => $accountName,
-                'currency'    => $currency,
+                'business_id'               => $businessId,
+                'name'                      => $accountName,
+                'currency'                  => $currency,
+                'account_type'              => 'CASH',
+                'is_local_currency_account' => false,
             ]);
 
             // Auto-create SYSTEM_OWNER role (will be assigned to a user later via user management)

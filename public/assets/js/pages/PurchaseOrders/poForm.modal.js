@@ -246,7 +246,7 @@ async function fetchAndFill(poId) {
         F.poNumber().value     = po.po_number      ?? '';
         F.poDate().value       = po.po_date        ?? '';
         F.currency().value     = po.currency       ?? '';
-        F.exchangeRate().value = po.exchange_rate  ?? '';
+        F.exchangeRate().value = parseFloat(po.exchange_rate) || '';
         F.notes().value        = po.notes          ?? '';
         if (F.globalDiscount()) F.globalDiscount().value = po.discount_percent ?? '0';
 

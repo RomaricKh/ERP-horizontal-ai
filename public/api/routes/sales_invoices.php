@@ -77,6 +77,12 @@ $router->put('/sales-invoices/{id}',
     ['invoices.edit']
 );
 
+// PUT /sales-invoices/{id}/number
+$router->put('/sales-invoices/{id}/number',
+    fn($id) => (new SalesInvoicesController())->updateNumber((int)$id),
+    ['invoices.edit']
+);
+
 // DELETE /sales-invoices/{id}
 $router->delete('/sales-invoices/{id}',
     fn($id) => (new SalesInvoicesController())->delete((int)$id),

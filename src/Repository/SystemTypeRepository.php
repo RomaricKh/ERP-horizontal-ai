@@ -110,7 +110,7 @@ class SystemTypeRepository {
         $this->assertValidTable($table);
 
         $stmt = $this->db->prepare(
-            "SELECT * FROM `{$table}` WHERE code = :code AND tenant_id = :tenant_id LIMIT 1"
+            "SELECT * FROM `{$table}` WHERE code = :code AND (tenant_id = :tenant_id OR tenant_id IS NULL) LIMIT 1"
         );
         $stmt->execute(['code' => $code, 'tenant_id' => $tenantId]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;

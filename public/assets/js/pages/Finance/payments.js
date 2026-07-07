@@ -66,7 +66,7 @@ export async function mount() {
                         payment_number: rowData[1],
                         payment_date: rowData[2],
                         payee_name: rowData[3],
-                        amount_fc: rowData[5],
+                        amount_fc: 'N/A', // amount_fc is no longer a single column
                     }
                 },
                 options: { backdrop: false, keyboard: true, focus: true }
@@ -135,10 +135,17 @@ async function fetchPayments() {
 function renderTable(payments) {
     if (!paymentsDataTable) {
         paymentsDataTable = createDataTable('#paymentsTable', {
+            order: [[1, 'desc'], [2, 'desc']],
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
+                { 
+                    targets: 2, 
+                    render: function(data, type) {
+                        return (type === 'sort' || type === 'type') ? data : getFormatter().formatDate(data);
+                    }
+                },
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 8, className: 'text-center', orderable: false, searchable: false }
+                { targets: 5, className: 'text-center', orderable: false, searchable: false }
             ]
         });
     }
@@ -161,18 +168,14 @@ function renderTable(payments) {
                             <i class="fas fa-trash text-danger"></i></button>`;
         }
 
-        const amountFc = payment.amount_fc != null ? getFormatter().formatNumber(payment.amount_fc, 2) : '0.00';
-        const amountBc = payment.amount_bc != null ? getFormatter().formatNumber(payment.amount_bc, 2) : '0.00';
+        const amountBc = payment.total_bc != null ? getFormatter().formatNumber(payment.total_bc, 2) : '0.00';
 
         paymentsDataTable.row.add([
             payment.id,
             escHtml(payment.payment_number ?? ''),
-            getFormatter().formatDate(payment.payment_date ?? ''),
+            payment.payment_date ?? '',
             escHtml(payment.payee_name     ?? '—'),
-            escHtml(payment.account_name   ?? '—'),
-            amountFc,
             amountBc,
-            escHtml(payment.method         ?? ''),
             actions
         ]);
     });

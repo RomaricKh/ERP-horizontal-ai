@@ -310,6 +310,34 @@ CREATE TABLE IF NOT EXISTS `item_prices` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `supplier_item_prices`
+--
+
+DROP TABLE IF EXISTS `supplier_item_prices`;
+CREATE TABLE IF NOT EXISTS `supplier_item_prices` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `supplier_id` int NOT NULL,
+  `item_id` int NOT NULL,
+  `tenant_id` int NOT NULL,
+  `last_price` decimal(12,2) NOT NULL,
+  `avg_price` decimal(12,2) NOT NULL,
+  `min_price` decimal(12,2) NOT NULL,
+  `max_price` decimal(12,2) NOT NULL,
+  `last_purchase_date` date NOT NULL,
+  `purchase_count` int NOT NULL DEFAULT '1',
+  `is_preferred` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_supplier_item_tenant` (`supplier_id`,`item_id`,`tenant_id`),
+  KEY `fk_supplier_item_prices_supplier` (`supplier_id`),
+  KEY `fk_supplier_item_prices_item` (`item_id`),
+  KEY `fk_supplier_item_prices_tenant` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `item_types`
 --
 

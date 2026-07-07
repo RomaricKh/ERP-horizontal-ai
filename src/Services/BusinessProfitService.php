@@ -369,68 +369,32 @@ class BusinessProfitService {
         $distributableProfit = (float) $before['distributable_profit'];
         $distributions = [];
 
+        $exchangeRateService = new \App\Services\ExchangeRateService($this->db);
+
         $this->db->beginTransaction();
         try {
             foreach ($shares as $share) {
                 $sharePercent       = (float) $share['share_percent'];
-                $distributionAmount = round($distributableProfit * ($sharePercent / 100), 2);
-
-                // Create payment slip for this partner
-                $paymentData = [
-                    'business_id'    => $businessId,
-                    'account_id'     => $accountId,
-                    'payee_id'       => $share['partner_id'],
-                    'payment_number' => $this->generatePaymentNumber($businessId, $share['partner_id'], $id),
-                    'payment_date'   => date('Y-m-d'),
-                    'currency'       => $account['currency'],
-                    'exchange_rate'  => 1.0000,
-                    'amount_fc'      => $distributionAmount,
-                    'amount_bc'      => $distributionAmount,
-                    'method'         => 'TRANSFER',
-                    'notes'          => 'Profit distribution for period ' . $before['period_start'] . ' to ' . $before['period_end'],
-                    'created_by'     => $ctx->user_id,
-                ];
-
-                $paymentId = $this->paymentRepo->create($paymentData);
-
-                // Deduct from account balance
-                $accountRepo->updateBalance($accountId, -$distributionAmount, $this->db, -$distributionAmount);
-
-                // Create payment allocation for the profit distribution
-                $allocStmt = $this->db->prepare("
-                    INSERT INTO payment_allocations
-                      (payment_slip_id, reference_type, reference_id, amount_fc, amount_bc, created_at)
-                    VALUES
-                      (:slip_id, 'PARTNER_PROFIT', :reference_id, :amount_fc, :amount_bc, NOW())
-                ");
-                $allocStmt->execute([
-                    'slip_id'      => $paymentId,
-                    'reference_id' => $id,
-                    'amount_fc'    => $distributionAmount,
-                    'amount_bc'    => $distributionAmount,
-                ]);
+                $distributionAmount = round($distributableProfit * ($sharePercent / 100), 2); // BC amount
 
                 $distributions[] = [
                     'partner_id'      => $share['partner_id'],
                     'partner_name'    => $share['partner_name'],
                     'share_percent'   => $sharePercent,
                     'amount_bc'       => $distributionAmount,
-                    'payment_slip_id' => $paymentId,
+                    'payment_slip_id' => null,
                 ];
             }
+
+            // Delete any existing distributions if user clicked distribute before but cancelled payment
+            $stmtDel = $this->db->prepare("DELETE FROM profit_distributions WHERE business_profit_id = :id");
+            $stmtDel->execute(['id' => $id]);
 
             // Store distributions in profit_distributions table
             $this->distRepo->createBatch($id, $distributions);
 
-            // Update profit record status to DISTRIBUTED
-            $updateData = [
-                'safety_net_percent'   => $before['safety_net_percent'],
-                'safety_net_amount'    => $before['safety_net_amount'],
-                'distributable_profit' => $before['distributable_profit'],
-                'status'               => 'DISTRIBUTED',
-            ];
-
-            $this->profitRepo->update($id, $businessId, $updateData);
+            // We NO LONGER update the profit record status to DISTRIBUTED here.
+            // The status will be updated to DISTRIBUTED only when the payment slip is saved.
 
             $this->db->commit();
         } catch (\Throwable $e) {
@@ -442,9 +406,9 @@ class BusinessProfitService {
             'UPDATE',
             'business_profit',
             $id,
-            'DISTRIBUTE',
+            'DISTRIBUTE_PREVIEW',
             $before,
-            ['status' => 'DISTRIBUTED', 'distributions' => $distributions],
+            ['distributions' => $distributions],
             $ctx->user_id,
             $ctx->tenant_id,
             $ctx->business_id

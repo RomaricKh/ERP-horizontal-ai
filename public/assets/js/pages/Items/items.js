@@ -274,6 +274,28 @@ export async function mount() {
                 data: {},
                 options: { backdrop: false, keyboard: true, focus: true }
             });
+        },
+
+        'items.insights': async ({ el }) => {
+            const tr      = el.closest('tr');
+            const rowData = itemsDataTable.row(tr).data();
+            const id      = rowData[0];
+            const name    = rowData[1];
+            const sku     = rowData[2] === '—' ? '' : rowData[2];
+            if (!id) return;
+
+            // Strip out html tags from name just in case
+            const div = document.createElement('div');
+            div.innerHTML = name;
+            const plainName = div.textContent || div.innerText || '';
+
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/Items/itemInsights.html',
+                controller: '../pages/Items/itemInsights.modal.js',
+                data: { item_id: id, item_name: plainName, sku: sku },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
         }
     });
 }
@@ -332,7 +354,7 @@ function renderTable(items) {
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 9, className: 'text-center', orderable: false, searchable: false }
+                { targets: 10, className: 'text-center', orderable: false, searchable: false }
             ]
         });
 
@@ -356,6 +378,7 @@ function renderTable(items) {
         }
         if (hasPermission('items.view')) {
             actionItems.push({ action: 'items.price-history', icon: 'fa-history text-secondary', label: 'Price History' });
+            actionItems.push({ action: 'items.insights', icon: 'fa-chart-bar text-primary', label: 'Insights' });
         }
         if (canProduce && item.type_name === 'Manufactured') {
             actionItems.push({ action: 'items.produce', icon: 'fa-industry text-primary', label: 'Produce' });
@@ -425,6 +448,7 @@ function renderTable(items) {
             item.cost_price  != null ? getFormatter().formatNumber(item.cost_price, 2)  : '—',
             item.sale_price  != null ? getFormatter().formatNumber(item.sale_price, 2)  : '—',
             stockDisplay,
+            getFormatter().formatNumber(item.total_sold ?? 0, 3),
             customerBadge,
             actions
         ]);
@@ -432,6 +456,31 @@ function renderTable(items) {
 
     itemsDataTable.draw(false);
     itemsDataTable.columns.adjust();
+
+    // Calculate Summary Values
+    let totalItems = 0;
+    let totalCostValue = 0;
+    let totalRetailValue = 0;
+
+    items.forEach(item => {
+        if (parseInt(item.is_active) === 1) {
+            totalItems++;
+            const qty = parseFloat(item.stock_qty ?? 0);
+            if (qty > 0) {
+                if (item.cost_price != null) {
+                    totalCostValue += qty * parseFloat(item.cost_price);
+                }
+                if (item.sale_price != null) {
+                    totalRetailValue += qty * parseFloat(item.sale_price);
+                }
+            }
+        }
+    });
+
+    const f = getFormatter();
+    document.getElementById('summaryTotalItems').textContent = totalItems;
+    document.getElementById('summaryStockValueCost').textContent = f.formatNumber(totalCostValue, 2);
+    document.getElementById('summaryStockValueRetail').textContent = f.formatNumber(totalRetailValue, 2);
 }
 
 async function buildTypeFilter() {

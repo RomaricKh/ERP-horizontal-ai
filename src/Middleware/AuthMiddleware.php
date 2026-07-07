@@ -71,10 +71,10 @@ class AuthMiddleware {
         // -------- TENANT OWNER CHECK (via roles + user_roles table) --------
         $tenantOwnerRole = $this->findTenantOwnerRole($userId, $requestedTenantId);
 
-        // Get business context from request header (used by both paths)
         $businessHeader =
             $headers['X-Business-Id']
             ?? $headers['x-business-id']
+            ?? $_GET['business_id']
             ?? null;
 
         $businessId = $businessHeader !== null ? (int) $businessHeader : null;

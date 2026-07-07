@@ -16,7 +16,7 @@ class AccountRepository {
      */
     public function findAllForBusiness(int $businessId, ?string $currency = null): array {
         $sql = "
-            SELECT id, business_id, name, currency, balance, balance_fc, created_at, updated_at
+            SELECT id, business_id, name, currency, account_type, balance, balance_fc, is_local_currency_account, cash_denomination, created_at, updated_at
             FROM business_accounts
             WHERE business_id = :business
         ";
@@ -39,7 +39,7 @@ class AccountRepository {
      */
     public function findById(int $id, int $businessId): ?array {
         $stmt = $this->db->prepare("
-            SELECT id, business_id, name, currency, balance, balance_fc, created_at, updated_at
+            SELECT id, business_id, name, currency, account_type, balance, balance_fc, is_local_currency_account, cash_denomination, created_at, updated_at
             FROM business_accounts
             WHERE id = :id
               AND business_id = :business
@@ -53,42 +53,63 @@ class AccountRepository {
      * Insert a new account and return the new id.
      * Balance starts at 0; it is system-managed via updateBalance.
      *
-     * Expected keys in $data: name, currency, business_id
+     * Expected keys in $data: name, currency, business_id, account_type, is_local_currency_account
      */
     public function create(array $data): int {
         $stmt = $this->db->prepare("
             INSERT INTO business_accounts
-              (business_id, name, currency, balance, balance_fc, created_at, updated_at)
+              (business_id, name, currency, account_type, balance, balance_fc, is_local_currency_account, cash_denomination, created_at, updated_at)
             VALUES
-              (:business_id, :name, :currency, 0, 0, NOW(), NOW())
+              (:business_id, :name, :currency, :account_type, 0, 0, :is_local, :cash_denomination, NOW(), NOW())
         ");
         $stmt->execute([
-            'business_id' => $data['business_id'],
-            'name'        => $data['name'],
-            'currency'    => $data['currency'],
+            'business_id'  => $data['business_id'],
+            'name'         => $data['name'],
+            'currency'     => $data['currency'],
+            'account_type' => $data['account_type'],
+            'is_local'          => $data['is_local_currency_account'] ? 1 : 0,
+            'cash_denomination' => $data['cash_denomination'] ?? null,
         ]);
         return (int) $this->db->lastInsertId();
     }
 
     /**
-     * Update the account name (balance is system-managed and not updated here).
+     * Update the account.
      */
     public function update(int $id, int $businessId, array $data): void {
         $stmt = $this->db->prepare("
             UPDATE business_accounts
-            SET name       = :name,
-                updated_at = NOW()
+            SET name                      = :name,
+                account_type              = :account_type,
+                is_local_currency_account = :is_local,
+                cash_denomination         = :cash_denomination,
+                updated_at                = NOW()
             WHERE id          = :id
               AND business_id  = :business
         ");
         $stmt->execute([
-            'name'     => $data['name'],
-            'id'       => $id,
-            'business' => $businessId,
+            'name'         => $data['name'],
+            'account_type' => $data['account_type'],
+            'is_local'          => $data['is_local_currency_account'] ? 1 : 0,
+            'cash_denomination' => $data['cash_denomination'] ?? null,
+            'id'           => $id,
+            'business'     => $businessId,
         ]);
         if ($stmt->rowCount() === 0) {
             throw new \RuntimeException('Account not found or not allowed');
         }
+    }
+
+    /**
+     * Clear the local currency flag from all accounts in this business.
+     */
+    public function clearLocalCurrencyFlag(int $businessId): void {
+        $stmt = $this->db->prepare("
+            UPDATE business_accounts
+            SET is_local_currency_account = 0
+            WHERE business_id = :business
+        ");
+        $stmt->execute(['business' => $businessId]);
     }
 
     /**

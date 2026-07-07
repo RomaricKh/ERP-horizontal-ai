@@ -172,7 +172,7 @@ class DashboardRepository {
                 SELECT
                     'Payment'        AS type,
                     p.name           AS name,
-                    ps.amount_bc     AS amount,
+                    ps.total_bc      AS amount,
                     ps.payment_date  AS date,
                     ps.created_at
                 FROM payment_slips ps
@@ -188,7 +188,7 @@ class DashboardRepository {
                 SELECT
                     'Collection'    AS type,
                     p.name          AS name,
-                    cs.amount_bc    AS amount,
+                    cs.total_bc     AS amount,
                     cs.slip_date    AS date,
                     cs.created_at
                 FROM collection_slips cs

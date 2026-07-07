@@ -213,7 +213,7 @@ async function fetchAndFill(expenseId) {
         F.category().value     = record.expense_category_id  ?? '';
         F.date().value         = record.expense_date         ?? '';
         F.currency().value     = record.currency             ?? '';
-        F.exchangeRate().value = record.exchange_rate        ?? '';
+        F.exchangeRate().value = parseFloat(record.exchange_rate) || '';
         F.amountFc().value     = record.amount_fc            ?? '';
         F.amountBc().value     = formatAmount(record.amount_bc);
         F.notes().value        = record.notes                ?? '';

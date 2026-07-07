@@ -1,6 +1,57 @@
 <!-- Page Heading -->
 <h1 class="h3 mb-2 text-gray-800" data-i18n="items.title">Items &amp; Inventory</h1>
 
+<!-- Summary Widgets -->
+<div class="row mb-4">
+    <div class="col-xl-4 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1" data-i18n="items.total_items">Total Active Items</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="summaryTotalItems">0</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-boxes fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1" data-i18n="items.stock_value_cost">Stock Value (Cost)</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="summaryStockValueCost">0.00</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1" data-i18n="items.stock_value_retail">Stock Value (Retail)</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="summaryStockValueRetail">0.00</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-tags fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Items DataTable -->
 <div class="card shadow mb-4">
 	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
@@ -47,6 +98,7 @@
 						<th data-i18n="items.cost">Cost</th>
 						<th data-i18n="items.sale_price">Sale Price</th>
 						<th data-i18n="items.stock">Stock</th>
+						<th data-i18n="items.total_sold">Total Sold</th>
 						<th data-i18n="common.customer">Customer</th>
 						<th data-i18n="common.actions">Actions</th>
 					</tr>

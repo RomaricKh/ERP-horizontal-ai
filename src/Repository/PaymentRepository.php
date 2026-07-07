@@ -19,24 +19,16 @@ class PaymentRepository {
             SELECT
                 ps.id,
                 ps.business_id,
-                ps.account_id,
-                ba.name          AS account_name,
                 ps.payee_id,
                 p.name           AS payee_name,
                 ps.payment_number,
                 ps.payment_date,
-                ps.currency,
-                ps.exchange_rate,
-                ps.amount_fc,
-                ps.amount_bc,
-                ps.method,
+                ps.total_bc,
                 ps.notes,
                 ps.created_at,
                 ps.updated_at,
                 ps.created_by
             FROM payment_slips ps
-            LEFT JOIN business_accounts ba
-                ON ba.id = ps.account_id
             LEFT JOIN payees py
                 ON py.id = ps.payee_id
             LEFT JOIN people p
@@ -56,24 +48,16 @@ class PaymentRepository {
             SELECT
                 ps.id,
                 ps.business_id,
-                ps.account_id,
-                ba.name          AS account_name,
                 ps.payee_id,
                 p.name           AS payee_name,
                 ps.payment_number,
                 ps.payment_date,
-                ps.currency,
-                ps.exchange_rate,
-                ps.amount_fc,
-                ps.amount_bc,
-                ps.method,
+                ps.total_bc,
                 ps.notes,
                 ps.created_at,
                 ps.updated_at,
                 ps.created_by
             FROM payment_slips ps
-            LEFT JOIN business_accounts ba
-                ON ba.id = ps.account_id
             LEFT JOIN payees py
                 ON py.id = ps.payee_id
             LEFT JOIN people p
@@ -89,38 +73,67 @@ class PaymentRepository {
     /**
      * Insert a new payment slip and return the new id.
      *
-     * Expected keys: business_id, account_id, payee_id,
-     *                payment_number, payment_date, currency, exchange_rate,
-     *                amount_fc, amount_bc, method, notes, created_by
+     * Expected keys: business_id, payee_id,
+     *                payment_number, payment_date, total_bc, notes, created_by
      */
     public function create(array $data): int {
         $stmt = $this->db->prepare("
             INSERT INTO payment_slips
-              (business_id, account_id, payee_id,
-               payment_number, payment_date, currency, exchange_rate,
-               amount_fc, amount_bc, method, notes, created_by,
+              (business_id, payee_id,
+               payment_number, payment_date, total_bc, notes, created_by,
                created_at, updated_at)
             VALUES
-              (:business_id, :account_id, :payee_id,
-               :payment_number, :payment_date, :currency, :exchange_rate,
-               :amount_fc, :amount_bc, :method, :notes, :created_by,
+              (:business_id, :payee_id,
+               :payment_number, :payment_date, :total_bc, :notes, :created_by,
                NOW(), NOW())
         ");
         $stmt->execute([
             'business_id'    => $data['business_id'],
-            'account_id'     => $data['account_id'],
             'payee_id'       => $data['payee_id'] ?? null,
             'payment_number' => $data['payment_number'],
             'payment_date'   => $data['payment_date'],
-            'currency'       => $data['currency'],
-            'exchange_rate'  => $data['exchange_rate'],
-            'amount_fc'      => $data['amount_fc'],
-            'amount_bc'      => $data['amount_bc'],
-            'method'         => $data['method'],
+            'total_bc'       => $data['total_bc'],
             'notes'          => $data['notes'] ?? null,
             'created_by'     => $data['created_by'],
         ]);
         return (int) $this->db->lastInsertId();
+    }
+
+    /**
+     * Insert a line for a payment slip.
+     */
+    public function createLine(int $slipId, array $line): void {
+        $stmt = $this->db->prepare("
+            INSERT INTO payment_slip_lines
+              (payment_slip_id, account_id, currency, exchange_rate, amount_fc, amount_bc, method, notes)
+            VALUES
+              (:slip_id, :account_id, :currency, :exchange_rate, :amount_fc, :amount_bc, :method, :notes)
+        ");
+        $stmt->execute([
+            'slip_id'       => $slipId,
+            'account_id'    => $line['account_id'],
+            'currency'      => $line['currency'],
+            'exchange_rate' => $line['exchange_rate'],
+            'amount_fc'     => $line['amount_fc'],
+            'amount_bc'     => $line['amount_bc'],
+            'method'        => $line['method'],
+            'notes'         => $line['notes'] ?? null,
+        ]);
+    }
+
+    /**
+     * Find lines by slip ID.
+     */
+    public function findLinesBySlipId(int $slipId): array {
+        $stmt = $this->db->prepare("
+            SELECT psl.*, ba.name AS account_name
+            FROM payment_slip_lines psl
+            LEFT JOIN business_accounts ba ON ba.id = psl.account_id
+            WHERE psl.payment_slip_id = :id
+            ORDER BY psl.id ASC
+        ");
+        $stmt->execute(['id' => $slipId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -145,7 +158,7 @@ class PaymentRepository {
      */
     public function sumAmountExcludingType(int $businessId, string $start, string $end, string $excludeType): float {
         $stmt = $this->db->prepare("
-            SELECT COALESCE(SUM(ps.amount_bc), 0)
+            SELECT COALESCE(SUM(ps.total_bc), 0)
             FROM payment_slips ps
             WHERE ps.business_id = :business
               AND ps.payment_date >= :start

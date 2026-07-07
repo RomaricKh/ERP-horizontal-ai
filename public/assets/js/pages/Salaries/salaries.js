@@ -231,8 +231,15 @@ function getFilteredSalaries() {
 function renderTable(salaries) {
     if (!salariesDataTable) {
         salariesDataTable = createDataTable('#salariesTable', {
+            order: [[2, 'desc'], [0, 'desc']],
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
+                { 
+                    targets: 2, 
+                    render: function(data, type) {
+                        return (type === 'sort' || type === 'type') ? data.sort : data.display;
+                    }
+                },
                 { targets: '_all', className: 'text-nowrap' },
                 { targets: 7, className: 'text-center', orderable: false, searchable: false }
             ]
@@ -299,7 +306,7 @@ function renderTable(salaries) {
         salariesDataTable.row.add([
             salary.id,
             escHtml(salary.employee_name ?? '—'),
-            period,
+            { display: period, sort: startStr },
             escHtml(salary.currency ?? ''),
             netFc,
             netBc,

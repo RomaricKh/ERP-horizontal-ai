@@ -41,8 +41,7 @@ class CollectionsController extends BaseController {
         try {
             $this->auth();
             $data = $this->input([
-                'account_id', 'slip_number',
-                'slip_date', 'currency', 'exchange_rate', 'amount_fc', 'method'
+                'payee_id', 'slip_number', 'slip_date', 'notes', 'lines', 'allocations'
             ]);
             $id = $this->service->create($data);
             $this->json(true, ['id' => $id], null, 201);

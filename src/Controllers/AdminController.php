@@ -22,12 +22,16 @@ class AdminController extends BaseController {
             $ctx = $this->auth();
             $userPerms = $ctx->permissions ?? [];
 
-            if (!in_array('admin', $userPerms, true)) {
-                $this->json(false, null, 'Missing permission: admin', 403);
+            if (!$ctx->is_tenant_owner && !in_array('settings.manage', $userPerms, true)) {
+                $this->json(false, null, 'Missing permission: settings.manage or tenant owner', 403);
                 return;
             }
 
-            $report = $this->balanceRecalculator->recalculate(null);
+            $report = $this->balanceRecalculator->recalculate(
+                null,
+                $ctx->is_tenant_owner ? null : ($ctx->business_id ?? null),
+                $ctx->is_tenant_owner ? ($ctx->tenant_id ?? null) : null
+            );
 
             // Log action via AuditService
             $this->audit->log(
@@ -54,12 +58,16 @@ class AdminController extends BaseController {
             $ctx = $this->auth();
             $userPerms = $ctx->permissions ?? [];
 
-            if (!in_array('admin', $userPerms, true)) {
-                $this->json(false, null, 'Missing permission: admin', 403);
+            if (!$ctx->is_tenant_owner && !in_array('settings.manage', $userPerms, true)) {
+                $this->json(false, null, 'Missing permission: settings.manage or tenant owner', 403);
                 return;
             }
 
-            $report = $this->balanceRecalculator->recalculate($accountId);
+            $report = $this->balanceRecalculator->recalculate(
+                $accountId,
+                $ctx->is_tenant_owner ? null : ($ctx->business_id ?? null),
+                $ctx->is_tenant_owner ? ($ctx->tenant_id ?? null) : null
+            );
 
             // Log action via AuditService
             $this->audit->log(

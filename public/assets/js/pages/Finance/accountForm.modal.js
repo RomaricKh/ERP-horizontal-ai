@@ -11,6 +11,9 @@ const F = {
     title:    () => document.getElementById('accountModalTitle'),
     name:     () => document.getElementById('inputAccountName'),
     currency: () => document.getElementById('inputAccountCurrency'),
+    type:     () => document.getElementById('inputAccountType'),
+    isLocal:  () => document.getElementById('inputLocalCurrency'),
+    denom:    () => document.getElementById('inputCashDenomination')
 };
 
 export async function mount({ modalRoot: root, data }) {
@@ -29,9 +32,21 @@ export async function mount({ modalRoot: root, data }) {
         'accounts.save': async () => {
             if (!validateForm()) return;
 
+            const denomVal = F.denom().value.trim();
             const payload = currentAccountId
-                ? { name: F.name().value.trim() }
-                : { name: F.name().value.trim(), currency: F.currency().value };
+                ? { 
+                    name: F.name().value.trim(),
+                    account_type: F.type().value,
+                    is_local_currency_account: F.isLocal().checked,
+                    cash_denomination: denomVal !== '' ? parseFloat(denomVal) : null
+                  }
+                : { 
+                    name: F.name().value.trim(), 
+                    currency: F.currency().value,
+                    account_type: F.type().value,
+                    is_local_currency_account: F.isLocal().checked,
+                    cash_denomination: denomVal !== '' ? parseFloat(denomVal) : null
+                  };
 
             const url    = currentAccountId ? `/api/accounts/${currentAccountId}` : '/api/accounts';
             const method = currentAccountId ? 'PUT' : 'POST';
@@ -65,8 +80,11 @@ async function fetchAndFill(accountId) {
         const record = data.data?.account ?? data.data;
         if (!record) return;
 
-        F.name().value     = record.name     ?? '';
-        F.currency().value = record.currency ?? '';
+        F.name().value       = record.name     ?? '';
+        F.currency().value   = record.currency ?? '';
+        F.type().value       = record.account_type ?? 'CASH';
+        F.isLocal().checked  = record.is_local_currency_account == 1;
+        F.denom().value      = record.cash_denomination ?? '';
     } catch (err) {
         console.error('fetchAndFill failed:', err);
     }

@@ -414,12 +414,14 @@ class ScheduleGeneratorService
                             UPDATE recurrence_instances SET payment_record_id = :expense_id WHERE id = :id
                         ");
                         $updateStmt->execute(['expense_id' => (int) $schedule['entity_id'], 'id' => $instanceId]);
+                        $this->syncInstanceStatusIfPaid($db, $instanceId, 'EXPENSE', (int) $schedule['entity_id']);
                     } elseif ($dueDate === $schedule['start_date'] && $schedule['entity_type'] === 'SALARY') {
                         // Link instance to the original template salary
                         $updateStmt = $db->prepare("
                             UPDATE recurrence_instances SET payment_record_id = :salary_id WHERE id = :id
                         ");
                         $updateStmt->execute(['salary_id' => (int) $schedule['entity_id'], 'id' => $instanceId]);
+                        $this->syncInstanceStatusIfPaid($db, $instanceId, 'SALARY', (int) $schedule['entity_id']);
                     } else {
                         // Subsequent instances: create new expense/salary records
                         if ($schedule['entity_type'] === 'EXPENSE') {
@@ -595,5 +597,42 @@ class ScheduleGeneratorService
             UPDATE recurrence_instances SET payment_record_id = :salary_id WHERE id = :id
         ");
         $updateStmt->execute(['salary_id' => $salaryId, 'id' => $instanceId]);
+    }
+
+    /**
+     * Checks if the linked template expense/salary is already fully paid,
+     * and if so, updates the recurrence instance status to 'paid'.
+     */
+    private function syncInstanceStatusIfPaid(\PDO $db, int $instanceId, string $entityType, int $entityId): void
+    {
+        $docTotal = 0.0;
+        $allocated = 0.0;
+        
+        if ($entityType === 'EXPENSE') {
+            $stmt = $db->prepare("SELECT amount_bc FROM expenses WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $entityId]);
+            $docTotal = (float) $stmt->fetchColumn();
+            
+            $stmt = $db->prepare("SELECT COALESCE(SUM(amount_bc), 0) FROM payment_allocations WHERE reference_type = 'EXPENSE' AND reference_id = :id");
+            $stmt->execute(['id' => $entityId]);
+            $allocated = (float) $stmt->fetchColumn();
+        } elseif ($entityType === 'SALARY') {
+            $stmt = $db->prepare("SELECT net_amount_bc FROM salaries WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $entityId]);
+            $docTotal = (float) $stmt->fetchColumn();
+            
+            $stmt = $db->prepare("SELECT COALESCE(SUM(amount_bc), 0) FROM payment_allocations WHERE reference_type = 'SALARY' AND reference_id = :id");
+            $stmt->execute(['id' => $entityId]);
+            $allocated = (float) $stmt->fetchColumn();
+        }
+
+        if ($docTotal > 0 && $allocated >= $docTotal) {
+            $updateStmt = $db->prepare("
+                UPDATE recurrence_instances
+                SET status = 'paid', paid_date = CURDATE(), updated_at = NOW()
+                WHERE id = :id
+            ");
+            $updateStmt->execute(['id' => $instanceId]);
+        }
     }
 }

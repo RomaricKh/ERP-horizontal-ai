@@ -70,7 +70,7 @@ async function fetchAndFill(rateId) {
 
         F.currency().value = record.currency  ?? '';
         F.rateDate().value = record.rate_date ?? '';
-        F.rate().value     = record.rate      ?? '';
+        F.rate().value     = record.rate !== null ? parseFloat(record.rate) : '';
         F.source().value   = record.source    ?? '';
     } catch (err) {
         console.error('fetchAndFill failed:', err);

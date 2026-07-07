@@ -1,5 +1,116 @@
+<style>
+@media print {
+    /* Hide navigation, topbar, and filters */
+    #wrapper #accordionSidebar, #content nav.topbar, .card-header, #statementFiltersCard, #statementPageHeading, .btn, a.btn-link, .tooltip {
+        display: none !important;
+    }
+    
+    body {
+        background-color: white !important;
+        margin: 0;
+        padding: 0;
+        color: black !important;
+    }
+
+    /* Expand content area */
+    #content-wrapper, #content, .container-fluid {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* Print header */
+    .print-header {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #ccc;
+    }
+    .print-header h2 { margin: 0; font-size: 24px; font-weight: bold; }
+    .print-header h4 { margin: 10px 0 5px 0; font-size: 18px; color: #555; }
+    .print-header p { margin: 0; font-size: 14px; color: #777; }
+
+    /* Fix card styles for print */
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+        margin-bottom: 20px !important;
+    }
+    .card-body {
+        padding: 0 !important;
+    }
+
+    /* Summary row tweaks */
+    .row.mb-3 {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        margin-bottom: 30px !important;
+        page-break-inside: avoid;
+    }
+    .row.mb-3 .col-md-4 {
+        width: 30% !important;
+        flex: 0 0 30% !important;
+        max-width: 30% !important;
+        border: 1px solid #ddd !important;
+        border-radius: 8px !important;
+        padding: 15px !important;
+    }
+    .row.mb-3 .card { margin-bottom: 0 !important; }
+    .row.mb-3 .col-auto { display: none !important; } /* Hide icons */
+
+    /* Table styles for print */
+    .table-responsive {
+        overflow: visible !important;
+    }
+    .text-nowrap {
+        white-space: normal !important;
+    }
+    .table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin-bottom: 0 !important;
+    }
+    .table th, .table td {
+        border: 1px solid #ddd !important;
+        padding: 8px !important;
+        font-size: 12px !important;
+        color: black !important;
+    }
+    .table th {
+        background-color: #f8f9fc !important;
+        font-weight: bold !important;
+    }
+    
+    /* Ensure colors print properly */
+    .text-success { color: #1cc88a !important; }
+    .text-danger { color: #e74a3b !important; }
+    .text-warning { color: #f6c23e !important; }
+    .text-info { color: #36b9cc !important; }
+    
+    /* Hide datatables elements if they exist */
+    .dataTables_wrapper .dataTables_paginate,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_length {
+        display: none !important;
+    }
+}
+</style>
+
+<!-- Print Header (Hidden on screen) -->
+<div class="print-header d-none">
+    <h2 data-i18n="statement.title">Statement of Account</h2>
+    <h4 id="printPayeeName"></h4>
+    <p id="printDateRange"></p>
+</div>
+
 <!-- Page Heading -->
-<div class="d-flex align-items-center mb-2">
+<div class="d-flex align-items-center mb-2" id="statementPageHeading">
 	<a href="#/people" class="btn btn-link text-gray-600 p-0 me-2" title="Back to People">
 		<i class="fas fa-arrow-left"></i>
 	</a>
@@ -8,14 +119,21 @@
 </div>
 
 <!-- Date Range & Export -->
-<div class="card shadow mb-4">
+<div class="card shadow mb-4" id="statementFiltersCard">
 	<div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
 		<h6 class="m-0 font-weight-bold text-primary" data-i18n="statement.filters">Filters</h6>
-		<button class="btn btn-outline-success btn-sm btn-icon-split" id="statementExportBtn"
-				data-bs-toggle="tooltip" data-bs-placement="top" title="Export statement">
-			<span class="text" data-i18n="statement.export_btn">Export</span>
-			<span class="icon"><i class="fas fa-fw fa-file-download"></i></span>
-		</button>
+		<div>
+			<button class="btn btn-outline-secondary btn-sm btn-icon-split me-2" id="statementPrintBtn"
+					data-bs-toggle="tooltip" data-bs-placement="top" title="Download PDF">
+				<span class="text" data-i18n="statement.print_btn">Download PDF</span>
+				<span class="icon"><i class="fas fa-fw fa-file-pdf"></i></span>
+			</button>
+			<button class="btn btn-outline-success btn-sm btn-icon-split" id="statementExportBtn"
+					data-bs-toggle="tooltip" data-bs-placement="top" title="Export statement">
+				<span class="text" data-i18n="statement.export_btn">Export CSV</span>
+				<span class="icon"><i class="fas fa-fw fa-file-csv"></i></span>
+			</button>
+		</div>
 	</div>
 	<div class="card-body">
 		<div class="row g-3 align-items-end">
@@ -99,6 +217,7 @@
 						<th data-i18n="statement.type">Type</th>
 						<th data-i18n="statement.reference">Reference</th>
 						<th data-i18n="statement.description">Description</th>
+						<th data-i18n="statement.original">Original</th>
 						<th data-i18n="statement.debit">Debit</th>
 						<th data-i18n="statement.credit">Credit</th>
 						<th data-i18n="statement.running_balance">Running Balance</th>

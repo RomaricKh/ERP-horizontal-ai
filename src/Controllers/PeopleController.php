@@ -23,6 +23,18 @@ class PeopleController extends BaseController {
         }
     }
 
+    // GET /people/search-tenant
+    public function searchTenant(): void {
+        try {
+            $ctx   = $this->auth();
+            $query = $_GET['q'] ?? '';
+            $people = $this->service->searchTenant($ctx->tenant_id, $query);
+            $this->json(true, ['people' => $people]);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to search people');
+        }
+    }
+
     // GET /people/{id}
     public function viewById(int $id): void {
         try {

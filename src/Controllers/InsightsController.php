@@ -26,7 +26,8 @@ class InsightsController extends BaseController {
                        SUM(pod.quantity) AS total_quantity,
                        AVG(pod.unit_price_fc) AS avg_unit_price,
                        MAX(po.po_date) AS last_date,
-                       COUNT(DISTINCT po.id) AS document_count
+                       COUNT(DISTINCT po.id) AS document_count,
+                       GROUP_CONCAT(DISTINCT po.po_number ORDER BY po.po_date DESC SEPARATOR ', ') AS document_numbers
                 FROM po_details pod
                 JOIN purchase_orders po ON po.id = pod.purchase_order_id
                 JOIN items i ON i.id = pod.item_id
@@ -85,7 +86,8 @@ class InsightsController extends BaseController {
                        SUM(sid.quantity) AS total_quantity,
                        AVG(sid.unit_price_fc) AS avg_unit_price,
                        MAX(si.invoice_date) AS last_date,
-                       COUNT(DISTINCT si.id) AS document_count
+                       COUNT(DISTINCT si.id) AS document_count,
+                       GROUP_CONCAT(DISTINCT si.invoice_number ORDER BY si.invoice_date DESC SEPARATOR ', ') AS document_numbers
                 FROM si_details sid
                 JOIN sales_invoices si ON si.id = sid.sales_invoice_id
                 LEFT JOIN items i ON i.id = sid.item_id
@@ -106,7 +108,8 @@ class InsightsController extends BaseController {
                            1 AS total_quantity,
                            si.total_amount_fc AS avg_unit_price,
                            si.invoice_date AS last_date,
-                           1 AS document_count
+                           1 AS document_count,
+                           si.invoice_number AS document_numbers
                     FROM sales_invoices si
                     WHERE si.customer_id = :payee_id
                       AND si.business_id = :business_id
@@ -335,7 +338,7 @@ class InsightsController extends BaseController {
 
             // Payments
             $payStmt = $db->prepare("
-                SELECT COUNT(*) AS count, COALESCE(SUM(amount_fc), 0) AS total
+                SELECT COUNT(*) AS count, COALESCE(SUM(total_bc), 0) AS total
                 FROM payment_slips WHERE payee_id = :payee_id AND business_id = :business_id
             ");
             $payStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
@@ -343,7 +346,7 @@ class InsightsController extends BaseController {
 
             // Collections
             $colStmt = $db->prepare("
-                SELECT COUNT(*) AS count, COALESCE(SUM(amount_fc), 0) AS total
+                SELECT COUNT(*) AS count, COALESCE(SUM(total_bc), 0) AS total
                 FROM collection_slips WHERE payee_id = :payee_id AND business_id = :business_id
             ");
             $colStmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);

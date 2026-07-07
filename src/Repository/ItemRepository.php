@@ -115,7 +115,8 @@ class ItemRepository {
                    {$costFlagSelect},
                    it.name AS type_name,
                    p.name AS customer_name,
-                   COALESCE(s.quantity, 0) AS stock_qty
+                   COALESCE(s.quantity, 0) AS stock_qty,
+                   (SELECT COALESCE(SUM(sid.quantity), 0) FROM si_details sid JOIN sales_invoices si ON si.id = sid.sales_invoice_id WHERE sid.item_id = i.id AND si.status IN ('DELIVERED', 'PAID')) AS total_sold
             FROM items i
             JOIN item_types it ON it.id = i.item_type_id
             LEFT JOIN stock s ON s.item_id = i.id AND s.business_id = :business1
@@ -143,6 +144,113 @@ class ItemRepository {
         ");
         $stmt->execute(['id' => $id, 'tenant' => $tenantId]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function getItemInsights(int $itemId, int $businessId, ?string $startDate = null, ?string $endDate = null): array {
+        $dateFilterSi = "";
+        $dateFilterPo = "";
+        $paramsSi = [
+            'item1' => $itemId, 'biz1' => $businessId,
+            'item2' => $itemId, 'biz2' => $businessId
+        ];
+        $paramsPo = ['item' => $itemId, 'biz' => $businessId];
+        $paramsCust = ['item' => $itemId, 'biz' => $businessId];
+
+        if ($startDate) {
+            $dateFilterSi .= " AND si.invoice_date >= :start_date";
+            $dateFilterPo .= " AND po.po_date >= :start_date";
+            $paramsSi['start_date'] = $startDate;
+            $paramsPo['start_date'] = $startDate;
+            $paramsCust['start_date'] = $startDate;
+        }
+        if ($endDate) {
+            $dateFilterSi .= " AND si.invoice_date <= :end_date";
+            $dateFilterPo .= " AND po.po_date <= :end_date";
+            $paramsSi['end_date'] = $endDate;
+            $paramsPo['end_date'] = $endDate;
+            $paramsCust['end_date'] = $endDate;
+        }
+
+        // Basic metrics: Total Sold, Revenue (FC), Last Sold Date, 30-Day Velocity
+        $metricsStmt = $this->db->prepare("
+            SELECT 
+                COALESCE(SUM(sid.quantity), 0) AS total_sold,
+                COALESCE(SUM(sid.total_price_fc), 0) AS total_revenue,
+                MAX(si.invoice_date) AS last_sold_date,
+                (SELECT COALESCE(SUM(sid2.quantity), 0) 
+                 FROM si_details sid2 
+                 JOIN sales_invoices si2 ON si2.id = sid2.sales_invoice_id 
+                 WHERE sid2.item_id = :item1 
+                   AND si2.business_id = :biz1 
+                   AND si2.status IN ('DELIVERED', 'PAID')
+                   AND si2.invoice_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                ) AS units_sold_30_days
+            FROM si_details sid
+            JOIN sales_invoices si ON si.id = sid.sales_invoice_id
+            WHERE sid.item_id = :item2 
+              AND si.business_id = :biz2 
+              AND si.status IN ('DELIVERED', 'PAID')
+              {$dateFilterSi}
+        ");
+        $metricsStmt->execute($paramsSi);
+        $metrics = $metricsStmt->fetch(PDO::FETCH_ASSOC);
+
+        // Purchases Metrics: Total Bought, Cost (FC), Last Bought Date
+        $poStmt = $this->db->prepare("
+            SELECT 
+                COALESCE(SUM(pod.quantity), 0) AS total_bought,
+                COALESCE(SUM(pod.total_price_fc), 0) AS total_cost,
+                MAX(po.po_date) AS last_bought_date
+            FROM po_details pod
+            JOIN purchase_orders po ON po.id = pod.purchase_order_id
+            WHERE pod.item_id = :item 
+              AND po.business_id = :biz 
+              AND po.status IN ('RECEIVED')
+              {$dateFilterPo}
+        ");
+        $poStmt->execute($paramsPo);
+        $poMetrics = $poStmt->fetch(PDO::FETCH_ASSOC);
+
+        // Top 3 Customers
+        $customersStmt = $this->db->prepare("
+            SELECT pe.name AS customer_name,
+                   COALESCE(SUM(sid.quantity), 0) AS quantity,
+                   COALESCE(SUM(sid.total_price_fc), 0) AS revenue
+            FROM si_details sid
+            JOIN sales_invoices si ON si.id = sid.sales_invoice_id
+            JOIN payees p ON p.id = si.customer_id
+            JOIN people pe ON pe.id = p.people_id
+            WHERE sid.item_id = :item
+              AND si.business_id = :biz
+              AND si.status IN ('DELIVERED', 'PAID')
+              {$dateFilterSi}
+            GROUP BY pe.id, pe.name
+            ORDER BY quantity DESC, revenue DESC
+            LIMIT 3
+        ");
+        $customersStmt->execute($paramsCust);
+        $topCustomers = $customersStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $totalSold = (float)($metrics['total_sold'] ?? 0);
+        $totalRevenue = (float)($metrics['total_revenue'] ?? 0);
+        $avgPrice = $totalSold > 0 ? $totalRevenue / $totalSold : 0;
+
+        $totalBought = (float)($poMetrics['total_bought'] ?? 0);
+        $totalCost = (float)($poMetrics['total_cost'] ?? 0);
+        $avgBuyingPrice = $totalBought > 0 ? $totalCost / $totalBought : 0;
+
+        return [
+            'total_sold' => $totalSold,
+            'total_revenue' => $totalRevenue,
+            'average_price' => $avgPrice,
+            'last_sold_date' => $metrics['last_sold_date'] ?? null,
+            'units_sold_30_days' => (float)($metrics['units_sold_30_days'] ?? 0),
+            'total_bought' => $totalBought,
+            'total_cost' => $totalCost,
+            'average_buying_price' => $avgBuyingPrice,
+            'last_bought_date' => $poMetrics['last_bought_date'] ?? null,
+            'top_customers' => $topCustomers
+        ];
     }
 
     public function insert(array $data): int {
