@@ -137,7 +137,7 @@ class SettlementEngine {
 
         // Fetch collection slips for this customer that have unallocated amounts
         $stmt = $this->db->prepare("
-            SELECT cs.id, cs.total_bc, cs.total_fc,
+            SELECT cs.id, cs.total_bc,
                    COALESCE((SELECT SUM(ca.amount_bc) FROM collection_allocations ca WHERE ca.collection_slip_id = cs.id), 0) AS allocated_bc
             FROM collection_slips cs
             WHERE cs.payee_id = :payee_id AND cs.business_id = :business_id
@@ -206,7 +206,7 @@ class SettlementEngine {
 
         // Fetch payment slips for this supplier that have unallocated amounts
         $stmt = $this->db->prepare("
-            SELECT ps.id, ps.total_bc, ps.total_fc,
+            SELECT ps.id, ps.total_bc,
                    COALESCE((SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.payment_slip_id = ps.id), 0) AS allocated_bc
             FROM payment_slips ps
             WHERE ps.payee_id = :payee_id AND ps.business_id = :business_id

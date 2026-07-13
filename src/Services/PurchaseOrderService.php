@@ -16,6 +16,7 @@ class PurchaseOrderService {
     private ItemService             $itemService;
     private BatchService            $batchService;
     private NotificationService     $notificationService;
+    private SettlementEngine        $settlementEngine;
     private PDO                     $db;
 
     public function __construct(PDO $db) {
@@ -27,6 +28,7 @@ class PurchaseOrderService {
         $this->itemService         = new ItemService($db);
         $this->batchService        = new BatchService($db);
         $this->notificationService = new NotificationService($db);
+        $this->settlementEngine    = new SettlementEngine($db);
     }
 
     /**

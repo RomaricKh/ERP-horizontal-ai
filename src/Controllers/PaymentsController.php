@@ -254,17 +254,17 @@ class PaymentsController extends BaseController {
         $stmt = $db->prepare("
             SELECT
                 pd.id,
-                pd.profit_record_id,
-                CONCAT('PROFIT-', pd.profit_record_id) AS doc_number,
+                pd.business_profit_id,
+                CONCAT('PROFIT-', pd.business_profit_id) AS doc_number,
                 bp.period_end AS doc_date,
                 pd.amount_bc AS total_amount_bc,
                 'PARTNER_PROFIT' AS reference_type,
                 COALESCE(
-                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'PARTNER_PROFIT' AND pa.reference_id = pd.profit_record_id),
+                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'PARTNER_PROFIT' AND pa.reference_id = pd.business_profit_id),
                     0
                 ) AS allocated_bc
             FROM profit_distributions pd
-            JOIN business_profit bp ON bp.id = pd.profit_record_id
+            JOIN business_profit bp ON bp.id = pd.business_profit_id
             WHERE pd.partner_id = :payee_id
               AND bp.business_id = :business_id
               AND bp.status IN ('FINALIZED', 'DISTRIBUTED')
@@ -274,12 +274,13 @@ class PaymentsController extends BaseController {
 
         foreach ($profitRows as $row) {
             $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
-            if ($remaining > 0.001) {
+            if ($remaining > 0) {
                 $documents[] = [
-                    'id'             => (int) $row['profit_record_id'],
+                    'reference_type' => 'PARTNER_PROFIT',
+                    'id'             => (int) $row['business_profit_id'],
                     'doc_number'     => $row['doc_number'],
                     'doc_date'       => $row['doc_date'],
-                    'reference_type' => 'PARTNER_PROFIT',
+                    'total_amount_bc'=> (float) $row['total_amount_bc'],
                     'total_bc'       => (float) $row['total_amount_bc'],
                     'total_fc'       => (float) $row['total_amount_bc'],
                     'allocated_bc'   => (float) $row['allocated_bc'],
