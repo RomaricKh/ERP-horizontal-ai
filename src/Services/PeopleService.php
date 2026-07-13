@@ -42,6 +42,10 @@ class PeopleService {
     public function create(int $tenantId, int $businessId, int $editorId, array $data): int {
         $this->db->beginTransaction();
         try {
+            if (empty($data['payee_type_ids']) || !is_array($data['payee_type_ids'])) {
+                throw new \InvalidArgumentException('At least one payee type must be selected.');
+            }
+
             $personId = $this->peopleRepo->create([
                 'tenant_id'  => $tenantId,
                 'name'       => trim($data['name']),
@@ -78,6 +82,10 @@ class PeopleService {
     public function update(int $id, int $tenantId, int $businessId, int $editorId, array $data): void {
         $this->db->beginTransaction();
         try {
+            if (empty($data['payee_type_ids']) || !is_array($data['payee_type_ids'])) {
+                throw new \InvalidArgumentException('At least one payee type must be selected.');
+            }
+
             $before = $this->peopleRepo->findById($id, $tenantId);
             if (!$before) throw new \RuntimeException('Person not found');
 

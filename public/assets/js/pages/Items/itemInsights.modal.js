@@ -1,7 +1,7 @@
 // assets/js/pages/Items/itemInsights.modal.js
 
 import { apiFetch } from '../../Auth/apiFetch.js';
-import { getFormatter } from '../../i18n/translationClient.js';
+import { getFormatter, t } from '../../i18n/translationClient.js';
 
 let modalRoot;
 let currentItemId;
@@ -88,10 +88,37 @@ async function fetchInsights() {
         F.totalRevenue().textContent = f.formatNumber(insights.total_revenue, 2);
         F.avgPrice().textContent = f.formatNumber(insights.average_price, 2);
         
-        F.totalBought().textContent = f.formatNumber(insights.total_bought, 3);
-        F.totalCost().textContent = f.formatNumber(insights.total_cost, 2);
-        F.avgBuyingPrice().textContent = f.formatNumber(insights.average_buying_price, 2);
-        F.lastBoughtDate().textContent = insights.last_bought_date ? f.formatDate(insights.last_bought_date) : '--';
+        if (insights.is_manufactured) {
+            modalRoot.querySelector('#insightsPurchaseTitle').textContent = t('items.production_summary') !== 'items.production_summary' ? t('items.production_summary') : 'Production Summary';
+            modalRoot.querySelector('#insightsTotalBoughtTitle').textContent = t('items.total_produced') !== 'items.total_produced' ? t('items.total_produced') : 'Total Produced';
+            modalRoot.querySelector('#insightsAvgBuyingPriceTitle').textContent = t('items.avg_production_cost') !== 'items.avg_production_cost' ? t('items.avg_production_cost') : 'Avg. Production Cost';
+            modalRoot.querySelector('#insightsLastBoughtDateTitle').textContent = t('items.last_produced_date') !== 'items.last_produced_date' ? t('items.last_produced_date') : 'Last Produced Date';
+
+            F.totalBought().textContent = f.formatNumber(insights.total_produced, 3);
+            F.totalCost().textContent = f.formatNumber(insights.total_production_cost, 2);
+            F.avgBuyingPrice().textContent = f.formatNumber(insights.average_production_cost, 2);
+            F.lastBoughtDate().textContent = insights.last_produced_date ? f.formatDate(insights.last_produced_date) : '--';
+            
+            const icon = modalRoot.querySelector('#insightsPurchaseIcon');
+            if (icon) {
+                icon.className = 'fas fa-industry me-1';
+            }
+        } else {
+            modalRoot.querySelector('#insightsPurchaseTitle').textContent = t('items.purchase_summary') !== 'items.purchase_summary' ? t('items.purchase_summary') : 'Purchase Summary';
+            modalRoot.querySelector('#insightsTotalBoughtTitle').textContent = t('items.total_bought') !== 'items.total_bought' ? t('items.total_bought') : 'Total Bought';
+            modalRoot.querySelector('#insightsAvgBuyingPriceTitle').textContent = t('items.avg_buying_price') !== 'items.avg_buying_price' ? t('items.avg_buying_price') : 'Avg. Buying Price';
+            modalRoot.querySelector('#insightsLastBoughtDateTitle').textContent = t('items.last_bought_date') !== 'items.last_bought_date' ? t('items.last_bought_date') : 'Last Bought Date';
+
+            F.totalBought().textContent = f.formatNumber(insights.total_bought, 3);
+            F.totalCost().textContent = f.formatNumber(insights.total_cost, 2);
+            F.avgBuyingPrice().textContent = f.formatNumber(insights.average_buying_price, 2);
+            F.lastBoughtDate().textContent = insights.last_bought_date ? f.formatDate(insights.last_bought_date) : '--';
+            
+            const icon = modalRoot.querySelector('#insightsPurchaseIcon');
+            if (icon) {
+                icon.className = 'fas fa-shopping-cart me-1';
+            }
+        }
 
         const tbody = F.topCustomersTbody();
         tbody.innerHTML = '';

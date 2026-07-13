@@ -225,6 +225,18 @@ function validateForm() {
         markInvalid(name, 'Full name is required');
         valid = false;
     }
+
+    const checkedIds = modalRoot.querySelectorAll('.payee-type-cb:checked');
+    if (checkedIds.length === 0) {
+        const typesBox = F.typesBox();
+        typesBox.classList.add('is-invalid');
+        let fb = document.createElement('div');
+        fb.className = 'invalid-feedback d-block';
+        fb.textContent = 'At least one Payee Type must be selected';
+        typesBox.parentElement.appendChild(fb);
+        valid = false;
+    }
+
     return valid;
 }
 

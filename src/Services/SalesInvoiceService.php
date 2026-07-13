@@ -103,6 +103,7 @@ class SalesInvoiceService {
                 'currency'         => trim($data['currency']),
                 'exchange_rate'    => $resolvedRate,
                 'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
+                'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0,
                 'notes'            => $data['notes'] ?? null,
                 'created_by'       => $ctx->user_id,
             ]);
@@ -371,6 +372,7 @@ class SalesInvoiceService {
                 'currency'         => trim($data['currency']),
                 'exchange_rate'    => $resolvedRate,
                 'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
+                'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0,
                 'notes'            => $data['notes'] ?? null,
             ]);
 

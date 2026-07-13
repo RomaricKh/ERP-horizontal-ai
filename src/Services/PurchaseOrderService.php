@@ -95,6 +95,7 @@ class PurchaseOrderService {
                 'currency'         => trim($data['currency']),
                 'exchange_rate'    => $resolvedRate,
                 'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
+                'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0,
                 'notes'            => $data['notes'] ?? null,
                 'created_by'       => $ctx->user_id,
             ]);
@@ -187,6 +188,7 @@ class PurchaseOrderService {
                     currency         = :currency,
                     exchange_rate    = :exchange_rate,
                     discount_percent = :discount_percent,
+                    discount_amount  = :discount_amount,
                     notes            = :notes,
                     updated_at       = NOW()
                 WHERE id = :id AND business_id = :business_id AND status = 'DRAFT'
@@ -198,6 +200,7 @@ class PurchaseOrderService {
                 'currency'         => $currency,
                 'exchange_rate'    => $resolvedRate,
                 'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : ($po['discount_percent'] ?? 0),
+                'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : ($po['discount_amount'] ?? 0),
                 'notes'            => array_key_exists('notes', $data) ? ($data['notes'] ?: null) : $po['notes'],
                 'id'               => $id,
                 'business_id'      => $ctx->business_id,
@@ -783,6 +786,7 @@ class PurchaseOrderService {
                 'unit_price_bc'    => $line['unit_price_bc'],
                 'tax_rate'         => $line['tax_rate'] ?? 0,
                 'discount_percent' => $line['discount_percent'] ?? 0,
+                'discount_amount'  => $line['discount_amount'] ?? 0,
             ];
         }, $lines);
 

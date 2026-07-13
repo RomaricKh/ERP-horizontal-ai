@@ -64,6 +64,7 @@ class SalesInvoiceRepository {
                 si.currency,
                 si.exchange_rate,
                 si.discount_percent,
+                si.discount_amount,
                 si.total_amount_fc,
                 si.total_amount_bc,
                 si.notes,
@@ -99,11 +100,11 @@ class SalesInvoiceRepository {
         $stmt = $this->db->prepare("
             INSERT INTO sales_invoices
               (business_id, customer_id, invoice_number, invoice_date, due_date, status,
-               currency, exchange_rate, discount_percent, total_amount_fc, total_amount_bc,
+               currency, exchange_rate, discount_percent, discount_amount, total_amount_fc, total_amount_bc,
                notes, created_at, updated_at, created_by)
             VALUES
               (:business_id, :customer_id, :invoice_number, :invoice_date, :due_date, 'DRAFT',
-               :currency, :exchange_rate, :discount_percent, 0, 0,
+               :currency, :exchange_rate, :discount_percent, :discount_amount, 0, 0,
                :notes, NOW(), NOW(), :created_by)
         ");
         $stmt->execute([
@@ -115,6 +116,7 @@ class SalesInvoiceRepository {
             'currency'         => $data['currency'],
             'exchange_rate'    => $data['exchange_rate'],
             'discount_percent' => $data['discount_percent'] ?? 0,
+            'discount_amount'  => $data['discount_amount'] ?? 0,
             'notes'            => $data['notes'] ?? null,
             'created_by'       => $data['created_by'],
         ]);
@@ -136,25 +138,43 @@ class SalesInvoiceRepository {
                unit_price_fc, unit_price_bc,
                total_price_fc, total_price_bc,
                tax_rate, tax_amount_fc, tax_amount_bc,
-               discount_percent,
+               discount_percent, discount_amount,
                created_at)
             VALUES
               (:invoice_id, :item_id, :service_id, :quantity,
                :unit_price_fc, :unit_price_bc,
                :total_price_fc, :total_price_bc,
                :tax_rate, :tax_amount_fc, :tax_amount_bc,
-               :discount_percent,
+               :discount_percent, :discount_amount,
                NOW())
         ");
         $qty             = (float) $data['quantity'];
         $unitFc          = (float) $data['unit_price_fc'];
         $unitBc          = (float) $data['unit_price_bc'];
         $discountPercent = (float) ($data['discount_percent'] ?? 0);
+        $discountAmount  = (float) ($data['discount_amount'] ?? 0);
+        $exchangeRate    = (float) ($data['exchange_rate'] ?? 1); // We need exchange_rate to convert discount_amount to BC if needed, but it's not passed here. Wait, addLine receives data. Let's assume unit_price_bc / unit_price_fc = exchangeRate.
+        $xr = ($unitFc > 0) ? ($unitBc / $unitFc) : 1;
 
-        // Apply discount before calculating total: discounted = qty × unit × (1 - discount/100)
-        $discountMultiplier = 1 - ($discountPercent / 100);
-        $totalFc = round($qty * $unitFc * $discountMultiplier, 2);
-        $totalBc = round($qty * $unitBc * $discountMultiplier, 2);
+        // Ensure exclusivity: if percent > 0, amount is 0, and vice-versa
+        if ($discountPercent > 0) {
+            $discountAmount = 0;
+        } elseif ($discountAmount > 0) {
+            $discountPercent = 0;
+        }
+
+        // Apply discount before calculating total
+        if ($discountPercent > 0) {
+            $discountMultiplier = 1 - ($discountPercent / 100);
+            $totalFc = round($qty * $unitFc * $discountMultiplier, 2);
+            $totalBc = round($qty * $unitBc * $discountMultiplier, 2);
+        } else {
+            // Apply amount discount (discount amount is in FC, needs to be converted to BC)
+            $subtotalFc = $qty * $unitFc;
+            $subtotalBc = $qty * $unitBc;
+            $totalFc = round(max(0, $subtotalFc - $discountAmount), 2);
+            $totalBc = round(max(0, $subtotalBc - ($discountAmount * $xr)), 2);
+        }
 
         // Tax calculation: tax is applied to the discounted total
         $taxRate     = (float) ($data['tax_rate'] ?? 0);
@@ -178,6 +198,7 @@ class SalesInvoiceRepository {
             'tax_amount_fc'    => $taxAmountFc,
             'tax_amount_bc'    => $taxAmountBc,
             'discount_percent' => $discountPercent,
+            'discount_amount'  => $discountAmount,
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -266,6 +287,7 @@ class SalesInvoiceRepository {
                 currency         = :currency,
                 exchange_rate    = :exchange_rate,
                 discount_percent = :discount_percent,
+                discount_amount  = :discount_amount,
                 notes            = :notes,
                 updated_at       = NOW()
             WHERE id          = :id
@@ -279,6 +301,7 @@ class SalesInvoiceRepository {
             'currency'         => $data['currency'],
             'exchange_rate'    => $data['exchange_rate'],
             'discount_percent' => $data['discount_percent'] ?? 0,
+            'discount_amount'  => $data['discount_amount'] ?? 0,
             'notes'            => $data['notes'] ?? null,
             'id'               => $id,
             'business'         => $businessId,
@@ -316,14 +339,29 @@ class SalesInvoiceRepository {
         $taxFc      = (float) $totals['tax_fc'];
         $taxBc      = (float) $totals['tax_bc'];
 
-        // 2. Fetch global discount_percent from invoice header
-        $discStmt = $conn->prepare("SELECT discount_percent FROM sales_invoices WHERE id = :id");
+        // 2. Fetch global discount_percent and amount from invoice header
+        $discStmt = $conn->prepare("SELECT discount_percent, discount_amount, exchange_rate FROM sales_invoices WHERE id = :id");
         $discStmt->execute(['id' => $id]);
-        $discountPercent = (float) ($discStmt->fetchColumn() ?: 0);
+        $discData = $discStmt->fetch(PDO::FETCH_ASSOC);
+        $discountPercent = (float) ($discData['discount_percent'] ?? 0);
+        $discountAmount = (float) ($discData['discount_amount'] ?? 0);
+        $exchangeRate = (float) ($discData['exchange_rate'] ?? 1);
+
+        // Ensure exclusivity
+        if ($discountPercent > 0) {
+            $discountAmount = 0;
+        } elseif ($discountAmount > 0) {
+            $discountPercent = 0;
+        }
 
         // 3. Apply global discount to subtotals
-        $totalFc = round($subtotalFc * (1 - $discountPercent / 100), 2);
-        $totalBc = round($subtotalBc * (1 - $discountPercent / 100), 2);
+        if ($discountPercent > 0) {
+            $totalFc = round($subtotalFc * (1 - $discountPercent / 100), 2);
+            $totalBc = round($subtotalBc * (1 - $discountPercent / 100), 2);
+        } else {
+            $totalFc = round(max(0, $subtotalFc - $discountAmount), 2);
+            $totalBc = round(max(0, $subtotalBc - ($discountAmount * $exchangeRate)), 2);
+        }
 
         // 4. Grand total = discounted subtotal + tax
         $grandTotalFc = $totalFc + $taxFc;
@@ -395,6 +433,7 @@ class SalesInvoiceRepository {
                 sd.tax_amount_fc,
                 sd.tax_amount_bc,
                 sd.discount_percent,
+                sd.discount_amount,
                 sd.created_at,
                 CASE
                     WHEN sd.item_id IS NOT NULL THEN 'item'

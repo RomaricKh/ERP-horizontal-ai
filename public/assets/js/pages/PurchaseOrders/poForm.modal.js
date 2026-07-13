@@ -80,6 +80,8 @@ export async function mount({ modalRoot: root, data }) {
 
     // Recalculate when global discount changes
     F.globalDiscount()?.addEventListener('input', () => recalcGrandTotal());
+    const globalDiscType = document.getElementById('inputPoGlobalDiscountType');
+    if (globalDiscType) globalDiscType.addEventListener('change', () => recalcGrandTotal());
 
     // Auto-fetch exchange rate when currency changes
     cleanupRateAutoFetch = attachRateAutoFetch(F.currency(), F.exchangeRate());
@@ -161,13 +163,19 @@ export async function mount({ modalRoot: root, data }) {
             if (!validateForm()) return;
 
             const lines = collectLines();
+            const globalDiscountEl = F.globalDiscount();
+            const globalDiscountTypeEl = document.getElementById('inputPoGlobalDiscountType');
+            const globalDiscount = parseFloat(globalDiscountEl?.value) || 0;
+            const globalDiscType = globalDiscountTypeEl?.value || 'percent';
+
             const payload = {
                 supplier_id:      F.supplier().value     || null,
                 po_number:        F.poNumber().value.trim(),
                 po_date:          F.poDate().value,
                 currency:         F.currency().value,
                 exchange_rate:    parseFloat(F.exchangeRate().value),
-                discount_percent: parseFloat(F.globalDiscount()?.value) || 0,
+                discount_percent: globalDiscType === 'percent' ? globalDiscount : 0,
+                discount_amount:  globalDiscType === 'amount' ? globalDiscount : 0,
                 notes:            F.notes().value.trim() || null,
                 lines:            lines,
             };
@@ -248,7 +256,15 @@ async function fetchAndFill(poId) {
         F.currency().value     = po.currency       ?? '';
         F.exchangeRate().value = parseFloat(po.exchange_rate) || '';
         F.notes().value        = po.notes          ?? '';
-        if (F.globalDiscount()) F.globalDiscount().value = po.discount_percent ?? '0';
+
+        const globalDiscTypeEl = document.getElementById('inputPoGlobalDiscountType');
+        if (F.globalDiscount() && po.discount_amount > 0) {
+            F.globalDiscount().value = po.discount_amount;
+            if (globalDiscTypeEl) globalDiscTypeEl.value = 'amount';
+        } else if (F.globalDiscount()) {
+            F.globalDiscount().value = po.discount_percent ?? '0';
+            if (globalDiscTypeEl) globalDiscTypeEl.value = 'percent';
+        }
 
         // Render existing lines
         const lines = po.lines ?? [];
@@ -260,6 +276,7 @@ async function fetchAndFill(poId) {
                 unit_price_bc:    line.unit_price_bc,
                 tax_rate:         line.tax_rate,
                 discount_percent: line.discount_percent,
+                discount_amount:  line.discount_amount,
                 expiry_date:      line.expiry_date || '',
             });
         });
@@ -321,9 +338,23 @@ function addLineRow(prefill) {
     const unitBc   = prefill?.unit_price_bc ?? '';
     const taxRate  = prefill?.tax_rate      ?? '';
     const discountPercent = prefill?.discount_percent ?? '';
+    const discountAmount = prefill?.discount_amount ?? '';
     const expiryDate = prefill?.expiry_date ?? '';
-    const discount = parseFloat(discountPercent) || 0;
-    const totalFc  = (qty && unitFc) ? formatAmount(parseFloat(qty) * parseFloat(unitFc) * (1 - discount / 100)) : '0.00';
+    
+    const isAmountDisc = parseFloat(discountAmount) > 0;
+    const discountVal = isAmountDisc ? discountAmount : discountPercent;
+
+    const qtyNum = parseFloat(qty) || 0;
+    const unitFcNum = parseFloat(unitFc) || 0;
+    const discNum = parseFloat(discountVal) || 0;
+    let totalFc = '0.00';
+    if (qty && unitFc) {
+        if (isAmountDisc) {
+            totalFc = formatAmount(Math.max(0, qtyNum * unitFcNum - discNum));
+        } else {
+            totalFc = formatAmount(qtyNum * unitFcNum * (1 - discNum / 100));
+        }
+    }
 
     // Determine if the prefilled item has expiry tracking
     let hasExpiry = false;
@@ -369,9 +400,15 @@ function addLineRow(prefill) {
                    value="${escHtml(String(taxRate))}" placeholder="0">
         </td>
         <td>
-            <input type="number" class="form-control form-control-sm line-discount"
-                   data-line="${idx}" step="0.01" min="0" max="100"
-                   value="${escHtml(String(discountPercent))}" placeholder="0">
+            <div class="input-group input-group-sm">
+                <input type="number" class="form-control line-discount"
+                       data-line="${idx}" step="0.01" min="0"
+                       value="${escHtml(String(discountVal))}" placeholder="0">
+                <select class="form-select line-discount-type" style="flex: 0 0 auto; width: 45px; padding-left: 4px; padding-right: 4px;" data-line="${idx}">
+                    <option value="percent" ${isAmountDisc ? '' : 'selected'}>%</option>
+                    <option value="amount" ${isAmountDisc ? 'selected' : ''}>$</option>
+                </select>
+            </div>
         </td>
         <td>
             <input type="text" class="form-control form-control-sm line-total-fc bg-light"
@@ -395,6 +432,7 @@ function addLineRow(prefill) {
     tr.querySelector('.line-unit-fc').addEventListener('input', () => recalcLine(tr));
     tr.querySelector('.line-tax-rate').addEventListener('input', () => recalcLine(tr));
     tr.querySelector('.line-discount').addEventListener('input', () => recalcLine(tr));
+    tr.querySelector('.line-discount-type').addEventListener('change', () => recalcLine(tr));
 
     // Item select change: auto-fill cost price + show/hide expiry field
     const itemSelect = tr.querySelector('.line-item-select');
@@ -441,10 +479,17 @@ function recalcLine(tr) {
     const qty      = parseFloat(tr.querySelector('.line-qty').value)      || 0;
     const unitFc   = parseFloat(tr.querySelector('.line-unit-fc').value)  || 0;
     const discount = parseFloat(tr.querySelector('.line-discount').value) || 0;
+    const discType = tr.querySelector('.line-discount-type').value;
     const rate     = parseFloat(F.exchangeRate().value)                   || 0;
 
     const unitBc  = calcBc(unitFc, rate);
-    const totalFc = round2(qty * unitFc * (1 - discount / 100));
+    
+    let totalFc = 0;
+    if (discType === 'percent') {
+        totalFc = round2(qty * unitFc * (1 - discount / 100));
+    } else {
+        totalFc = round2(Math.max(0, qty * unitFc - discount));
+    }
 
     tr.querySelector('.line-unit-bc').value   = formatAmount(unitBc);
     tr.querySelector('.line-total-fc').value  = formatAmount(totalFc);
@@ -470,9 +515,19 @@ function recalcGrandTotal() {
         const unitFc   = parseFloat(tr.querySelector('.line-unit-fc')?.value)  || 0;
         const taxRate  = parseFloat(tr.querySelector('.line-tax-rate')?.value) || 0;
         const discount = parseFloat(tr.querySelector('.line-discount')?.value) || 0;
+        const discType = tr.querySelector('.line-discount-type')?.value || 'percent';
         const unitBc   = calcBc(unitFc, rate);
-        const lineTotalFc = round2(qty * unitFc * (1 - discount / 100));
-        const lineTotalBc = round2(qty * unitBc * (1 - discount / 100));
+
+        let lineTotalFc = 0;
+        let lineTotalBc = 0;
+        if (discType === 'percent') {
+            lineTotalFc = round2(qty * unitFc * (1 - discount / 100));
+            lineTotalBc = round2(qty * unitBc * (1 - discount / 100));
+        } else {
+            lineTotalFc = round2(Math.max(0, qty * unitFc - discount));
+            lineTotalBc = round2(Math.max(0, qty * unitBc - (discount * rate)));
+        }
+
         const lineTaxFc   = round2(lineTotalFc * (taxRate / 100));
         const lineTaxBc   = round2(lineTotalBc * (taxRate / 100));
 
@@ -483,10 +538,22 @@ function recalcGrandTotal() {
     });
 
     // Apply global discount
-    const globalDiscount = parseFloat(F.globalDiscount()?.value) || 0;
-    const discountMultiplier = 1 - (globalDiscount / 100);
-    const afterDiscountFc = round2(subtotalFc * discountMultiplier);
-    const afterDiscountBc = round2(subtotalBc * discountMultiplier);
+    const globalDiscountEl = F.globalDiscount();
+    const globalDiscountTypeEl = document.getElementById('inputPoGlobalDiscountType');
+    const globalDiscount = parseFloat(globalDiscountEl?.value) || 0;
+    const globalDiscType = globalDiscountTypeEl?.value || 'percent';
+
+    let afterDiscountFc = subtotalFc;
+    let afterDiscountBc = subtotalBc;
+
+    if (globalDiscType === 'percent') {
+        const discountMultiplier = 1 - (globalDiscount / 100);
+        afterDiscountFc = round2(subtotalFc * discountMultiplier);
+        afterDiscountBc = round2(subtotalBc * discountMultiplier);
+    } else {
+        afterDiscountFc = round2(Math.max(0, subtotalFc - globalDiscount));
+        afterDiscountBc = round2(Math.max(0, subtotalBc - (globalDiscount * rate)));
+    }
 
     F.subtotalFc().textContent  = formatAmount(subtotalFc);
     F.subtotalBc().textContent  = formatAmount(subtotalBc);
@@ -509,8 +576,12 @@ function collectLines() {
         const unitFc   = parseFloat(tr.querySelector('.line-unit-fc')?.value)  || 0;
         const taxRate  = parseFloat(tr.querySelector('.line-tax-rate')?.value) || 0;
         const discount = parseFloat(tr.querySelector('.line-discount')?.value) || 0;
+        const discType = tr.querySelector('.line-discount-type')?.value || 'percent';
         const unitBc   = calcBc(unitFc, rate);
         const expiryDate = tr.querySelector('.line-expiry-date')?.value || null;
+
+        const discPct = discType === 'percent' ? discount : 0;
+        const discAmt = discType === 'amount' ? discount : 0;
 
         if (itemId && qty > 0) {
             const lineData = {
@@ -519,7 +590,8 @@ function collectLines() {
                 unit_price_fc:    unitFc,
                 unit_price_bc:    unitBc,
                 tax_rate:         taxRate,
-                discount_percent: discount,
+                discount_percent: discPct,
+                discount_amount:  discAmt,
             };
             if (expiryDate) {
                 lineData.expiry_date = expiryDate;

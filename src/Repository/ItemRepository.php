@@ -239,7 +239,54 @@ class ItemRepository {
         $totalCost = (float)($poMetrics['total_cost'] ?? 0);
         $avgBuyingPrice = $totalBought > 0 ? $totalCost / $totalBought : 0;
 
+        // Check if item is manufactured
+        $typeStmt = $this->db->prepare("
+            SELECT it.code AS type_code, it.name AS type_name 
+            FROM items i 
+            JOIN item_types it ON i.item_type_id = it.id 
+            WHERE i.id = :item
+        ");
+        $typeStmt->execute(['item' => $itemId]);
+        $typeRow = $typeStmt->fetch(PDO::FETCH_ASSOC);
+        $isManufactured = ($typeRow && (
+            in_array($typeRow['type_code'], ['MANUFACTURED', 'FINISHED_GOOD']) ||
+            in_array(strtolower($typeRow['type_name']), ['manufactured', 'finished good', 'manufactured item', 'produced'])
+        ));
+
+        $prodMetrics = null;
+        if ($isManufactured) {
+            $dateFilterProd = "";
+            $paramsProd = ['item' => $itemId, 'biz' => $businessId];
+            if ($startDate) {
+                $dateFilterProd .= " AND po.production_date >= :start_date";
+                $paramsProd['start_date'] = $startDate;
+            }
+            if ($endDate) {
+                $dateFilterProd .= " AND po.production_date <= :end_date";
+                $paramsProd['end_date'] = $endDate;
+            }
+
+            $prodStmt = $this->db->prepare("
+                SELECT 
+                    COALESCE(SUM(po.production_quantity), 0) AS total_produced,
+                    COALESCE(SUM(po.manufacturing_cost), 0) AS total_production_cost,
+                    MAX(po.production_date) AS last_produced_date
+                FROM production_orders po
+                WHERE po.manufactured_item_id = :item
+                  AND po.business_id = :biz
+                  AND po.status IN ('COMPLETED')
+                  {$dateFilterProd}
+            ");
+            $prodStmt->execute($paramsProd);
+            $prodMetrics = $prodStmt->fetch(PDO::FETCH_ASSOC);
+        }
+
+        $totalProduced = $prodMetrics ? (float)($prodMetrics['total_produced'] ?? 0) : 0;
+        $totalProductionCost = $prodMetrics ? (float)($prodMetrics['total_production_cost'] ?? 0) : 0;
+        $avgProductionCost = $totalProduced > 0 ? $totalProductionCost / $totalProduced : 0;
+
         return [
+            'is_manufactured' => $isManufactured,
             'total_sold' => $totalSold,
             'total_revenue' => $totalRevenue,
             'average_price' => $avgPrice,
@@ -249,6 +296,10 @@ class ItemRepository {
             'total_cost' => $totalCost,
             'average_buying_price' => $avgBuyingPrice,
             'last_bought_date' => $poMetrics['last_bought_date'] ?? null,
+            'total_produced' => $totalProduced,
+            'total_production_cost' => $totalProductionCost,
+            'average_production_cost' => $avgProductionCost,
+            'last_produced_date' => $prodMetrics['last_produced_date'] ?? null,
             'top_customers' => $topCustomers
         ];
     }

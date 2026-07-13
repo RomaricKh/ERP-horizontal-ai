@@ -165,10 +165,13 @@ async function fetchInstances() {
         const schedules = schedulesData.success ? (schedulesData.data?.schedules ?? []) : [];
         const instances = instancesData.success ? (instancesData.data?.instances ?? []) : [];
 
-        if (instances.length > 0) {
-            allInstances = instances;
-        } else if (schedules.length > 0) {
-            allInstances = schedules.map(s => ({
+        // Build a map of schedules that have instances
+        const schedulesWithInstances = new Set(instances.map(i => i.recurrence_schedule_id));
+
+        // Create placeholders for schedules that don't have any instances yet
+        const placeholders = schedules
+            .filter(s => !schedulesWithInstances.has(s.id))
+            .map(s => ({
                 id: `schedule_${s.id}`,
                 entity_name: s.entity_name || `Schedule #${s.id}`,
                 due_date: s.start_date,
@@ -182,9 +185,8 @@ async function fetchInstances() {
                 exchange_rate: s.exchange_rate || 1.0,
                 metadata: s.metadata || {}
             }));
-        } else {
-            allInstances = [];
-        }
+
+        allInstances = [...instances, ...placeholders];
 
         renderOverdueSection(allInstances);
         renderTable(filterInstances(allInstances));

@@ -60,6 +60,8 @@ class PurchaseOrderRepository {
                 po.status,
                 po.currency,
                 po.exchange_rate,
+                po.discount_percent,
+                po.discount_amount,
                 po.total_amount_fc,
                 po.total_amount_bc,
                 po.notes,
@@ -96,11 +98,11 @@ class PurchaseOrderRepository {
             INSERT INTO purchase_orders
               (business_id, supplier_id, po_number, po_date, status,
                currency, exchange_rate, total_amount_fc, total_amount_bc,
-               discount_percent, notes, created_at, updated_at, created_by)
+               discount_percent, discount_amount, notes, created_at, updated_at, created_by)
             VALUES
               (:business_id, :supplier_id, :po_number, :po_date, 'DRAFT',
                :currency, :exchange_rate, 0, 0,
-               :discount_percent, :notes, NOW(), NOW(), :created_by)
+               :discount_percent, :discount_amount, :notes, NOW(), NOW(), :created_by)
         ");
         $stmt->execute([
             'business_id'      => $data['business_id'],
@@ -110,6 +112,7 @@ class PurchaseOrderRepository {
             'currency'         => $data['currency'],
             'exchange_rate'    => $data['exchange_rate'],
             'discount_percent' => $data['discount_percent'] ?? 0,
+            'discount_amount'  => $data['discount_amount'] ?? 0,
             'notes'            => $data['notes'] ?? null,
             'created_by'       => $data['created_by'],
         ]);
@@ -129,25 +132,42 @@ class PurchaseOrderRepository {
                unit_price_fc, unit_price_bc,
                total_price_fc, total_price_bc,
                tax_rate, tax_amount_fc, tax_amount_bc,
-               discount_percent, expiry_date,
+               discount_percent, discount_amount, expiry_date,
                created_at)
             VALUES
               (:po_id, :item_id, :quantity,
                :unit_price_fc, :unit_price_bc,
                :total_price_fc, :total_price_bc,
                :tax_rate, :tax_amount_fc, :tax_amount_bc,
-               :discount_percent, :expiry_date,
+               :discount_percent, :discount_amount, :expiry_date,
                NOW())
         ");
         $qty             = (float) $data['quantity'];
         $unitFc          = (float) $data['unit_price_fc'];
         $unitBc          = (float) $data['unit_price_bc'];
         $discountPercent = (float) ($data['discount_percent'] ?? 0);
+        $discountAmount  = (float) ($data['discount_amount'] ?? 0);
+        $xr              = ($unitFc > 0) ? ($unitBc / $unitFc) : 1;
 
-        // Apply discount before calculating total: discounted = qty × unit × (1 - discount/100)
-        $discountMultiplier = 1 - ($discountPercent / 100);
-        $totalFc     = round($qty * $unitFc * $discountMultiplier, 2);
-        $totalBc     = round($qty * $unitBc * $discountMultiplier, 2);
+        // Ensure exclusivity
+        if ($discountPercent > 0) {
+            $discountAmount = 0;
+        } elseif ($discountAmount > 0) {
+            $discountPercent = 0;
+        }
+
+        // Apply discount before calculating total
+        if ($discountPercent > 0) {
+            $discountMultiplier = 1 - ($discountPercent / 100);
+            $totalFc     = round($qty * $unitFc * $discountMultiplier, 2);
+            $totalBc     = round($qty * $unitBc * $discountMultiplier, 2);
+        } else {
+            // Apply amount discount
+            $subtotalFc = $qty * $unitFc;
+            $subtotalBc = $qty * $unitBc;
+            $totalFc = round(max(0, $subtotalFc - $discountAmount), 2);
+            $totalBc = round(max(0, $subtotalBc - ($discountAmount * $xr)), 2);
+        }
 
         // Tax calculation: tax is applied to the discounted total
         $taxRate     = (float) ($data['tax_rate'] ?? 0);
@@ -169,6 +189,7 @@ class PurchaseOrderRepository {
             'tax_amount_fc'    => $taxAmountFc,
             'tax_amount_bc'    => $taxAmountBc,
             'discount_percent' => $discountPercent,
+            'discount_amount'  => $discountAmount,
             'expiry_date'      => $expiryDate,
         ]);
         return (int) $this->db->lastInsertId();
@@ -268,6 +289,7 @@ class PurchaseOrderRepository {
                 currency         = :currency,
                 exchange_rate    = :exchange_rate,
                 discount_percent = :discount_percent,
+                discount_amount  = :discount_amount,
                 notes            = :notes,
                 updated_at       = NOW()
             WHERE id          = :id
@@ -280,6 +302,7 @@ class PurchaseOrderRepository {
             'currency'         => $data['currency'],
             'exchange_rate'    => $data['exchange_rate'],
             'discount_percent' => $data['discount_percent'] ?? 0,
+            'discount_amount'  => $data['discount_amount'] ?? 0,
             'notes'            => $data['notes'] ?? null,
             'id'               => $id,
             'business'         => $businessId,
@@ -312,20 +335,35 @@ class PurchaseOrderRepository {
         $stmt->execute(['po_id' => $id]);
         $totals = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Get the header-level discount percent
-        $discStmt = $conn->prepare("SELECT discount_percent FROM purchase_orders WHERE id = :id");
+        // Get the header-level discount percent and amount
+        $discStmt = $conn->prepare("SELECT discount_percent, discount_amount, exchange_rate FROM purchase_orders WHERE id = :id");
         $discStmt->execute(['id' => $id]);
-        $discountPercent = (float) ($discStmt->fetchColumn() ?: 0);
+        $discData = $discStmt->fetch(PDO::FETCH_ASSOC);
+        $discountPercent = (float) ($discData['discount_percent'] ?? 0);
+        $discountAmount = (float) ($discData['discount_amount'] ?? 0);
+        $exchangeRate = (float) ($discData['exchange_rate'] ?? 1);
 
         $subtotalFc = (float) $totals['subtotal_fc'];
         $subtotalBc = (float) $totals['subtotal_bc'];
         $taxFc = (float) $totals['tax_fc'];
         $taxBc = (float) $totals['tax_bc'];
 
-        // Apply global discount to subtotal (tax is not discounted — it's already per-line)
-        $discountMultiplier = 1 - ($discountPercent / 100);
-        $totalFc = round($subtotalFc * $discountMultiplier, 2);
-        $totalBc = round($subtotalBc * $discountMultiplier, 2);
+        // Ensure exclusivity
+        if ($discountPercent > 0) {
+            $discountAmount = 0;
+        } elseif ($discountAmount > 0) {
+            $discountPercent = 0;
+        }
+
+        // Apply global discount to subtotal
+        if ($discountPercent > 0) {
+            $discountMultiplier = 1 - ($discountPercent / 100);
+            $totalFc = round($subtotalFc * $discountMultiplier, 2);
+            $totalBc = round($subtotalBc * $discountMultiplier, 2);
+        } else {
+            $totalFc = round(max(0, $subtotalFc - $discountAmount), 2);
+            $totalBc = round(max(0, $subtotalBc - ($discountAmount * $exchangeRate)), 2);
+        }
 
         $upd = $conn->prepare("
             UPDATE purchase_orders
@@ -389,6 +427,7 @@ class PurchaseOrderRepository {
                 pd.tax_amount_fc,
                 pd.tax_amount_bc,
                 pd.discount_percent,
+                pd.discount_amount,
                 pd.expiry_date,
                 pd.created_at
             FROM po_details pd
