@@ -8,6 +8,12 @@ use App\Support\AuthContext;
 
 $router->get('/services/categories',
     function () {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $service = new ServiceService(Database::getConnection());
         $categories = $service->listCategories();
         http_response_code(200);
@@ -18,6 +24,12 @@ $router->get('/services/categories',
 
 $router->post('/services/categories',
     function () {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $input = json_decode(file_get_contents('php://input'), true);
         $service = new ServiceService(Database::getConnection());
         try {
@@ -34,6 +46,12 @@ $router->post('/services/categories',
 
 $router->put('/services/categories/{id}',
     function ($id) {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $input = json_decode(file_get_contents('php://input'), true);
         $service = new ServiceService(Database::getConnection());
         try {
@@ -49,11 +67,17 @@ $router->put('/services/categories/{id}',
 
 $router->delete('/services/categories/{id}',
     function ($id) {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $service = new ServiceService(Database::getConnection());
         try {
             $service->deleteCategory((int)$id);
             echo json_encode(['success' => true, 'data' => ['id' => (int)$id]]);
-        } catch (\RuntimeException $e) {
+        } catch (\InvalidArgumentException | \RuntimeException $e) {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -65,6 +89,12 @@ $router->delete('/services/categories/{id}',
 
 $router->get('/services',
     function () {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $service = new ServiceService(Database::getConnection());
         $list = $service->list(true); // Include inactive for full management view
         echo json_encode(['success' => true, 'data' => ['services' => $list]]);
@@ -74,6 +104,12 @@ $router->get('/services',
 
 $router->get('/services/{id}',
     function ($id) {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $service = new ServiceService(Database::getConnection());
         try {
             $item = $service->getById((int)$id);
@@ -88,13 +124,19 @@ $router->get('/services/{id}',
 
 $router->post('/services',
     function () {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $input = json_decode(file_get_contents('php://input'), true);
         $service = new ServiceService(Database::getConnection());
         try {
             $id = $service->create($input);
             http_response_code(201);
             echo json_encode(['success' => true, 'data' => ['id' => $id]]);
-        } catch (\InvalidArgumentException $e) {
+        } catch (\InvalidArgumentException | \RuntimeException $e) {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -104,12 +146,18 @@ $router->post('/services',
 
 $router->put('/services/{id}',
     function ($id) {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $input = json_decode(file_get_contents('php://input'), true);
         $service = new ServiceService(Database::getConnection());
         try {
             $service->update((int)$id, $input);
             echo json_encode(['success' => true, 'data' => ['id' => (int)$id]]);
-        } catch (\RuntimeException $e) {
+        } catch (\InvalidArgumentException | \RuntimeException $e) {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -119,11 +167,17 @@ $router->put('/services/{id}',
 
 $router->delete('/services/{id}',
     function ($id) {
+        $ctx = \App\Support\AuthContext::get();
+        if ($ctx->business_id === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Active business context required']);
+            return;
+        }
         $service = new ServiceService(Database::getConnection());
         try {
             $service->deactivate((int)$id);
             echo json_encode(['success' => true, 'data' => ['id' => (int)$id]]);
-        } catch (\RuntimeException $e) {
+        } catch (\InvalidArgumentException | \RuntimeException $e) {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }

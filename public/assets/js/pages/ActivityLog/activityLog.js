@@ -52,7 +52,7 @@ export async function mount() {
 
     unregister = registerPageActions({
 
-        'activityLog.applyFilters': ({ event }) => {
+        'activityLog.applyFilters': async ({ event, el }) => {
             event.preventDefault();
             const form = activityLog_container.querySelector('#activityLogFilterForm');
             if (!form) return;
@@ -61,7 +61,12 @@ export async function mount() {
             currentFilters.to         = form.querySelector('[name="to"]')?.value ?? '';
             currentFilters.page       = 1;
             openDetailRows.clear();
-            fetchActivityLog();
+            try {
+                if (el) el.disabled = true;
+                await fetchActivityLog();
+            } finally {
+                if (el) el.disabled = false;
+            }
         },
 
         'activityLog.toggleDetails': ({ el }) => {

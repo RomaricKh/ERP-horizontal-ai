@@ -50,6 +50,7 @@ export async function mount({ modalRoot: root, data }) {
             const res = await apiFetch('/api/partner-shares');
             const json = await res.json();
             if (json.success) {
+                // TODO: Replace with direct /api/partner-shares/{id} endpoint call once implemented
                 const shares = json.data.shares ?? json.data?.partner_shares ?? json.data ?? [];
                 const share = shares.find(s => s.id == currentShareId);
                 if (share) {

@@ -85,6 +85,12 @@ class PurchaseOrderService {
             $poNumber = $this->repo->generatePoNumber($ctx->business_id);
         }
 
+        $discountPercent = isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0;
+        $discountAmount  = isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0;
+        if ($discountPercent > 0 && $discountAmount > 0) {
+            throw new \InvalidArgumentException('Cannot apply both percentage and amount discounts simultaneously');
+        }
+
         $this->db->beginTransaction();
         try {
             $poId = $this->repo->create([
@@ -94,13 +100,15 @@ class PurchaseOrderService {
                 'po_date'          => $data['po_date'],
                 'currency'         => trim($data['currency']),
                 'exchange_rate'    => $resolvedRate,
-                'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
-                'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0,
+                'discount_percent' => $discountPercent,
+                'discount_amount'  => $discountAmount,
                 'notes'            => $data['notes'] ?? null,
                 'created_by'       => $ctx->user_id,
             ]);
 
             foreach ($lines as $line) {
+                $item = $this->itemService->getById((int) $line['item_id']);
+                $this->itemService->validateFractionalQuantity((float) $line['quantity'], $item['unit']);
                 $this->repo->addLine($poId, $line);
             }
 
@@ -177,6 +185,12 @@ class PurchaseOrderService {
             : (float) $data['exchange_rate'];
         $resolvedRate = $this->exchangeRateService->resolveRate($currency, $providedRate);
 
+        $discountPercent = isset($data['discount_percent']) ? (float) $data['discount_percent'] : (float) ($po['discount_percent'] ?? 0);
+        $discountAmount  = isset($data['discount_amount']) ? (float) $data['discount_amount'] : (float) ($po['discount_amount'] ?? 0);
+        if ($discountPercent > 0 && $discountAmount > 0) {
+            throw new \InvalidArgumentException('Cannot apply both percentage and amount discounts simultaneously');
+        }
+
         $this->db->beginTransaction();
         try {
             // Update header
@@ -210,6 +224,8 @@ class PurchaseOrderService {
             if ($lines !== null) {
                 $this->repo->deleteLines($id);
                 foreach ($lines as $line) {
+                    $item = $this->itemService->getById((int) $line['item_id']);
+                    $this->itemService->validateFractionalQuantity((float) $line['quantity'], $item['unit']);
                     $this->repo->addLine($id, $line);
                 }
                 $this->repo->recalculateTotals($id, $this->db);
@@ -325,6 +341,9 @@ class PurchaseOrderService {
 
         $this->db->beginTransaction();
         try {
+            $item = $this->itemService->getById((int) $data['item_id']);
+            $this->itemService->validateFractionalQuantity((float) $data['quantity'], $item['unit']);
+
             $lineId = $this->repo->addLine($poId, $data);
             $this->repo->recalculateTotals($poId, $this->db);
 

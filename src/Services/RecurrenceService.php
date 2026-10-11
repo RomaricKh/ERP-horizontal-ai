@@ -104,10 +104,10 @@ class RecurrenceService
             'end_date'         => $data['end_date'] ?? null,
         ]);
 
-        // Immediately generate instances up to today (don't wait for cron)
-        $today = date('Y-m-d');
-        if ($data['start_date'] <= $today) {
-            $this->generatorService->generateForAllBusinesses($today, $this->db);
+        // Immediately generate instances up to 30 days ahead (don't wait for cron)
+        $lookaheadDate = date('Y-m-d', strtotime('+30 days'));
+        if ($data['start_date'] <= $lookaheadDate) {
+            $this->generatorService->generateForAllBusinesses($lookaheadDate, $this->db);
         }
 
         // Log audit entry
@@ -386,6 +386,81 @@ class RecurrenceService
         return $this->scheduleRepo->findActiveByBusiness($filters);
     }
 
+    /**
+     * List recurrence schedules enriched with entity metadata.
+     *
+     * Retrieves schedules for the current business and enriches each with:
+     * - entity_name (payee + category for expenses, person name for salaries)
+     * - payee_id
+     * - exchange_rate
+     *
+     * @param array $filters Optional filters: entity_type, is_active
+     * @return array Enriched schedule records
+     */
+    public function listSchedulesEnriched(array $filters = []): array
+    {
+        return $this->scheduleRepo->findAllEnrichedForBusiness(AuthContext::businessId(), $filters);
+    }
+
+    /**
+     * List recurrence instances enriched with entity metadata and days_overdue.
+     *
+     * Retrieves instances for the current business and enriches each with:
+     * - entity_name (payee + category for expenses, person name for salaries)
+     * - payee_id
+     * - exchange_rate
+     * - days_overdue (computed from due_date vs today for overdue/pending-past-due instances)
+     *
+     * Also transitions status from 'pending' to 'overdue' if due_date < today.
+     *
+     * @param array $filters Optional filters: status, entity_type, due_date_from, due_date_to, recurrence_schedule_id
+     * @return array Enriched instance records
+     */
+    public function listInstancesEnriched(array $filters = []): array
+    {
+        $instances = $this->listInstances($filters);
+        $today = date('Y-m-d');
+        $businessId = AuthContext::businessId();
+
+        foreach ($instances as &$instance) {
+            // Compute days_overdue and transition pending → overdue if past due
+            if ($instance['status'] === 'overdue' && $instance['due_date'] < $today) {
+                $instance['days_overdue'] = (int) ((strtotime($today) - strtotime($instance['due_date'])) / 86400);
+            } elseif ($instance['status'] === 'pending' && $instance['due_date'] < $today) {
+                $instance['status'] = 'overdue';
+                $instance['days_overdue'] = (int) ((strtotime($today) - strtotime($instance['due_date'])) / 86400);
+            } else {
+                $instance['days_overdue'] = 0;
+            }
+
+            // Enrich with entity metadata from the schedule
+            $scheduleId = $instance['recurrence_schedule_id'] ?? null;
+            if ($scheduleId) {
+                $schedule = $this->scheduleRepo->findById((int) $scheduleId);
+                if ($schedule) {
+                    $metadata = $this->scheduleRepo->findScheduleEntityMetadata(
+                        $schedule['entity_type'],
+                        (int) $schedule['entity_id'],
+                        $businessId
+                    );
+                    $instance['entity_name'] = $metadata['entity_name'];
+                    $instance['payee_id'] = $metadata['payee_id'];
+                    $instance['exchange_rate'] = $metadata['exchange_rate'];
+                } else {
+                    $instance['entity_name'] = '—';
+                    $instance['payee_id'] = null;
+                    $instance['exchange_rate'] = 1.0;
+                }
+            } else {
+                $instance['entity_name'] = '—';
+                $instance['payee_id'] = null;
+                $instance['exchange_rate'] = 1.0;
+            }
+        }
+
+        return $instances;
+    }
+
     // ─── Instance Status Management ─────────────────────────────────────────
 
     /**
@@ -421,6 +496,12 @@ class RecurrenceService
         $instance = $this->instanceRepo->findById($instanceId);
         if (!$instance) {
             throw new \RuntimeException('Recurring instance not found');
+        }
+
+        // Verify the parent schedule belongs to the current business
+        $schedule = $this->scheduleRepo->findById((int) $instance['recurrence_schedule_id']);
+        if (!$schedule || (int) $schedule['business_id'] !== AuthContext::businessId()) {
+            throw new \RuntimeException('Schedule not found');
         }
 
         if ($status === 'paid') {
@@ -853,6 +934,11 @@ class RecurrenceService
         $schedule = $this->scheduleRepo->findById($scheduleId);
         if (!$schedule) {
             throw new \RuntimeException('Recurrence schedule not found');
+        }
+
+        // Verify the schedule belongs to the current business
+        if ((int) $schedule['business_id'] !== AuthContext::businessId()) {
+            throw new \RuntimeException('Schedule not found');
         }
 
         // Validate schedule is active
@@ -1793,20 +1879,17 @@ class RecurrenceService
     }
 
     /**
-     * Validate that the referenced entity exists and meets type constraints.
+     * Validate that the referenced entity exists, belongs to the current business,
+     * and meets type constraints (Employee type for SALARY).
      *
-     * - expense_category: must exist and have is_fixed = 1
-     * - salary: payee must exist and be of type 'Employee'
-     *
-     * @throws \InvalidArgumentException
+     * @throws \RuntimeException with "Entity not found" if ownership check fails (maps to HTTP 404)
      */
     private function validateEntity(string $entityType, int $entityId): void
     {
-        $tenantId = AuthContext::tenantId();
         $businessId = AuthContext::businessId();
 
         if ($entityType === 'EXPENSE') {
-            // Validate that the expense exists and belongs to this business
+            // Verify the expense exists and belongs to the current business
             $stmt = $this->db->prepare("
                 SELECT id FROM expenses
                 WHERE id = :id AND business_id = :business_id
@@ -1814,25 +1897,19 @@ class RecurrenceService
             ");
             $stmt->execute(['id' => $entityId, 'business_id' => $businessId]);
             if (!$stmt->fetch(\PDO::FETCH_ASSOC)) {
-                throw new \InvalidArgumentException('Expense not found');
+                throw new \RuntimeException('Entity not found');
             }
         } elseif ($entityType === 'SALARY') {
-            // For salary, entityId is the people_id (person/employee)
+            // For salary, entityId is the payee_id — verify payee belongs to business
             $payee = $this->peopleRepo->findPayee($entityId, $businessId);
             if (!$payee) {
-                throw new \InvalidArgumentException('Payee not found');
+                throw new \RuntimeException('Entity not found');
             }
 
-            // Check that the payee has the 'Employee' type
-            $typeIds = $this->peopleRepo->getPayeeTypeIds((int) $payee['id']);
-            if (empty($typeIds)) {
-                throw new \InvalidArgumentException('Salary recurrence can only be configured for employees');
-            }
-
-            // Look up the type names to verify at least one is 'Employee'
+            // Verify the payee is of type Employee
             $isEmployee = $this->checkPayeeIsEmployee((int) $payee['id']);
             if (!$isEmployee) {
-                throw new \InvalidArgumentException('Salary recurrence can only be configured for employees');
+                throw new \RuntimeException('Entity not found');
             }
         }
     }

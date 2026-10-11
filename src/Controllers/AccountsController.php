@@ -12,7 +12,10 @@ class AccountsController extends BaseController {
         $this->service = new AccountService(Database::getConnection());
     }
 
-    // GET /accounts
+    /**
+     * Return all accounts for a business, ordered by name.
+     * Support optional filtering by currency via query parameter.
+     */
     public function index(): void {
         try {
             $this->auth();
@@ -47,7 +50,8 @@ class AccountsController extends BaseController {
         } catch (\InvalidArgumentException $e) {
             $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to create account: ' . $e->getMessage());
+            $this->logError('Accounts', 'store', $e);
+            $this->serverError('Failed to create account');
         }
     }
 

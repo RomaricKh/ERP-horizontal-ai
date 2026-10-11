@@ -62,4 +62,31 @@ abstract class BaseController
         $this->json(false, null, $message, 500);
         exit;
     }
+
+    protected function logError(string $module, string $method, \Throwable $e): void
+    {
+        try {
+            $userId = AuthContext::userId();
+        } catch (\Throwable $_) {
+            $userId = 'unknown';
+        }
+
+        try {
+            $businessId = AuthContext::businessId();
+        } catch (\Throwable $_) {
+            $businessId = 'unknown';
+        }
+
+        error_log(sprintf(
+            '[%s] %s: %s - %s (user=%s, business=%s)',
+            $module,
+            $method,
+            get_class($e),
+            $e->getMessage(),
+            $userId,
+            $businessId
+        ));
+
+        error_log($e->getTraceAsString());
+    }
 }

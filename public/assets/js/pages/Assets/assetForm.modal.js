@@ -29,7 +29,7 @@ export async function mount({ modalRoot: root, data }) {
             const form = modalRoot.querySelector('#assetForm');
             const payload = {
                 name: form.querySelector('#inputAssetName').value.trim(),
-                category: form.querySelector('#inputAssetCategory').value.trim(),
+                category: form.querySelector('#inputAssetCategory').options[form.querySelector('#inputAssetCategory').selectedIndex]?.text || form.querySelector('#inputAssetCategory').value.trim(),
                 category_id: form.querySelector('#inputAssetCategory').value ? parseInt(form.querySelector('#inputAssetCategory').value, 10) : null,
                 asset_type: form.querySelector('#inputAssetType').value,
                 depreciation_method: form.querySelector('#inputAssetDepreciationMethod').value,

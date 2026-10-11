@@ -17,6 +17,7 @@ class BusinessRepository {
 								b.address, b.phone, b.email, b.currency
 						FROM 	businesses b
 						INNER JOIN user_roles ur ON ur.business_id = b.id AND ur.user_id = :user_id
+						WHERE b.is_active = 1
 						GROUP BY b.id
 		");
         $stmt->execute([
@@ -43,7 +44,7 @@ class BusinessRepository {
 	
 	public function getBusinessByID(int $business_id): ?array {
 		$stmt = $this->db->prepare("
-						SELECT 	b.id, b.name, b.legal_name, b.registration_no, 
+						SELECT 	b.id, b.tenant_id, b.name, b.legal_name, b.registration_no, 
 								b.address, b.phone, b.email, b.currency, b.business_type_id
 						FROM 	businesses b
 						WHERE b.id = :business_id

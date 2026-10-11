@@ -193,6 +193,7 @@
     </ul>
     <div class="section-label">Roadmap</div>
     <ul>
+      <li><a href="#recent-upgrades">Recent Core Enhancements</a></li>
       <li><a href="#roadmap">Future Improvements</a></li>
     </ul>
   </nav>
@@ -225,7 +226,7 @@
     <div class="stat-box"><div class="stat-num">44</div><div class="stat-label">Repositories</div></div>
     <div class="stat-box"><div class="stat-num">46</div><div class="stat-label">Services</div></div>
     <div class="stat-box"><div class="stat-num">20</div><div class="stat-label">Frontend Modules</div></div>
-    <div class="stat-box"><div class="stat-num">34</div><div class="stat-label">Completed Improvements</div></div>
+    <div class="stat-box"><div class="stat-num">48</div><div class="stat-label">Completed Improvements</div></div>
   </div>
 
   <h3 class="sub-title">Tech Stack</h3>
@@ -689,6 +690,7 @@
       <tr><td>batch_transactions</td><td>batch_id, type, quantity, reference</td><td>Batch-level movement log</td></tr>
       <tr><td>item_price_history</td><td>item_id, old_cost, new_cost, old_sale, new_sale, changed_at, changed_by</td><td>Price change audit trail with UI modal for viewing</td></tr>
       <tr><td>supplier_item_prices</td><td>supplier_id, item_id, tenant_id, last_price, avg_price, min_price, max_price, purchase_count, is_preferred</td><td>Supplier pricing intelligence</td></tr>
+      <tr><td>item_pending_prices</td><td>id, business_id, item_id, suggested_sale_price, status (PENDING/ACCEPTED/REJECTED)</td><td>Queue for price change approvals triggered by cost increases.</td></tr>
     </tbody>
   </table></div>
 
@@ -711,7 +713,8 @@
     <div class="card accent-blue"><div class="card-title">Item Types</div><div class="card-desc">System-typed classification with module gating. System types are immutable.</div></div>
     <div class="card accent-blue"><div class="card-title">Stock View</div><div class="card-desc">Current stock levels with transaction history per item.</div></div>
     <div class="card accent-blue"><div class="card-title">Stock Adjust</div><div class="card-desc">Manual stock adjustment with reason/notes. Negative stock prevention enforced.</div></div>
-    <div class="card accent-blue"><div class="card-title">Batches</div><div class="card-desc">Batch/lot management for expiry-tracked items.</div></div>
+    <div class="card accent-blue"><div class="card-title">Batches</div><div class="card-desc">Batch/lot management for expiry-tracked items. Enhanced with preserved deletion UI states.</div></div>
+    <div class="card accent-blue"><div class="card-title">Pending Prices</div><div class="card-desc">UI Queue allowing users to accept or reject automatic sale price suggestions with bulk selection capabilities.</div></div>
   </div>
 
   <h3 class="sub-title">Key Features</h3>
@@ -1176,6 +1179,7 @@
     <li>Production reversal (REVERSED status)</li>
     <li>Cascading cost recalculation for nested recipes</li>
     <li>Negative stock prevention on component deduction</li>
+    <li>Dynamic Recipe Component UI rendering to list active inputs seamlessly</li>
   </ul>
 </section>
 
@@ -1347,22 +1351,21 @@
   <div class="tbl-wrap"><table>
     <thead><tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr></thead>
     <tbody>
-      <tr><td>notifications</td><td>id, notification_type_id, title, body, sender_id, recipient_id, business_id, entity_type, entity_id, is_read, read_at, deleted_at</td><td>recipient_id directly targets a user. notification_type_id links to typed notifications. Soft-delete support.</td></tr>
-      <tr><td>notification_types</td><td>id, name, code, description</td><td>Seeded notification type registry (e.g., INVOICE_OVERDUE, LOW_STOCK, etc.)</td></tr>
-      <tr><td>notification_preferences</td><td>id, user_id, notification_type_id, is_enabled</td><td>User opt-in/out preferences per notification type</td></tr>
+      <tr><td>notifications</td><td>id, notification_type, type, title, message, body, sender_id, recipient_id, business_id, entity_type, entity_id, is_read</td><td>recipient_id targets a user. Bridges legacy schema (notification_type int) with modern enum type.</td></tr>
+      <tr><td>notification_types</td><td>id, code, description</td><td>Legacy lookup table for notification types.</td></tr>
+      <tr><td>notification_preferences</td><td>id, user_id, business_id, type, enabled</td><td>User opt-in/out preferences per business and notification type (enum based)</td></tr>
     </tbody>
   </table></div>
 
-  <h3 class="sub-title">Key Features</h3>
+  <h3 class="sub-title">Key Features & Security</h3>
   <ul style="padding-left:1.5rem; font-size:.87rem; line-height:2; color:#444;">
-    <li>recipient_id on notifications table for direct user targeting</li>
-    <li>notification_type_id FK for typed notifications</li>
-    <li>Seeded notification_types registry</li>
-    <li>User notification preferences (opt-in/out per type)</li>
+    <li>Strict Tenant Owner Context Routing (tenant_id mapping)</li>
+    <li>Recipient validation to prevent multi-tenant cross-business data bleeding</li>
+    <li>Automated backend triggers for Sales, Purchases, Inventory, and HR modules</li>
+    <li>UI Double-submit protection locks against rapid repeated clicks</li>
     <li>Soft-delete with auto-cleanup (permanentDeleteOlderThan)</li>
-    <li>Batch mark-as-read</li>
-    <li>Pagination support</li>
-    <li>Entity linking (entity_type + entity_id) for navigation</li>
+    <li>Batch mark-as-read and pagination support</li>
+    <li>Entity linking (entity_type + entity_id) for one-click navigation</li>
     <li>Polling-based real-time updates</li>
   </ul>
 </section>
@@ -1505,11 +1508,39 @@
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION: RECENT CORE ENHANCEMENTS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="recent-upgrades">
+  <h2 class="section-title">🛡️ Recent Core Enhancements</h2>
+  <p>During the most recent system-wide code reviews, several foundational stability and security improvements were rolled out to elevate the ERP's reliability:</p>
+  
+  <div class="card-grid">
+    <div class="card accent-green"><div class="card-title">Cross-Business Data Isolation</div><div class="card-desc">Strict scoping applied to Reports, Dashboard, and Activities. A Business Owner cannot spoof IDs to view parallel business data.</div></div>
+    <div class="card accent-blue"><div class="card-title">Strict State Machines</div><div class="card-desc">Sales Invoices and Purchase Orders now have rigid state locks, preventing allocations to DRAFT or CANCELLED documents.</div></div>
+    <div class="card accent-yellow"><div class="card-title">Partner Currency Precision</div><div class="card-desc">Partner investments gracefully handle Foreign Currency (FC) inputs but strictly calculate Base Currency (BC) for the Balance Sheet without double-counting.</div></div>
+    <div class="card accent-teal"><div class="card-title">Concurrency API Locks</div><div class="card-desc">Financial reporting generators across the frontend now lock the UI, preventing multi-click race conditions and database spam.</div></div>
+    <div class="card accent-red"><div class="card-title">Historical Statement Accuracy</div><div class="card-desc">Balance Sheets rigorously filter modern AR/AP allocations (Credit Notes, Collections, Payments) that occur after the historical snapshot date.</div></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- SECTION: FUTURE ROADMAP -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <section class="section" id="roadmap">
   <h2 class="section-title">🚀 Future Roadmap</h2>
   <p>The following improvements are planned for future releases. They represent features found in mature ERPs (SAP B1, Odoo, ERPNext) that would elevate this system further. Organized by priority and module.</p>
+
+  <h3 class="sub-title">Next Generation — AI Upgrades 🧠</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Feature</th><th>Module</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>AI-Driven Predictive Inventory</td><td>Inventory</td><td>Analyze past consumption/sales to automatically forecast low stock before min_stock thresholds are even hit.</td></tr>
+      <tr><td>Automated OCR Invoice Processing</td><td>Purchasing</td><td>Allow suppliers to email invoices, use AI OCR (Optical Character Recognition) to parse data, and automatically draft POs or AP entries.</td></tr>
+      <tr><td>Cashflow Forecasting</td><td>Finance</td><td>Utilize machine learning on historical payment speed, AR, and AP aging to predict cash crunches 30-90 days out.</td></tr>
+      <tr><td>Smart Customer Segmentation</td><td>Sales</td><td>Automatically group clients based on purchase behaviors (RFM analysis) to offer highly targeted discounts and alerts.</td></tr>
+      <tr><td>NLP Natural Language Reporting</td><td>Reports</td><td>Allow business owners to type "Show me the top 5 highest grossing items last month" and instantly render the report via LLM-to-SQL logic.</td></tr>
+    </tbody>
+  </table></div>
 
   <h3 class="sub-title">High Priority — Operations</h3>
   <div class="tbl-wrap"><table>
@@ -1581,6 +1612,19 @@
     <div class="card accent-blue"><div class="card-title">Progressive Web App</div><div class="card-desc">PWA manifest + service worker for offline access and mobile home screen installation.</div></div>
     <div class="card accent-green"><div class="card-title">Multi-Language Expansion</div><div class="card-desc">Add more languages beyond EN/AR/FR. Community-contributed translation packs.</div></div>
   </div>
+
+  <h3 class="sub-title">Database Fields to Upgrade in the Future</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Table</th><th>Proposed Field</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>partner_shares</code></td><td><code>share_class</code> (enum)</td><td>Differentiate between voting (Class A) and non-voting (Class B) equity.</td></tr>
+      <tr><td><code>partner_equity</code></td><td><code>exchange_rate_date</code> (date)</td><td>Pinpoint the exact market date the foreign currency conversion was locked in for historical audit.</td></tr>
+      <tr><td><code>items</code></td><td><code>is_archived</code> (boolean)</td><td>Soft-delete items instead of full deletion, preserving historical invoice references without breaking constraints.</td></tr>
+      <tr><td><code>inventory_transactions</code></td><td><code>batch_number</code> (varchar)</td><td>Track specific production batches or manufacturing lots for precise quality control and recall capabilities.</td></tr>
+      <tr><td><code>users</code></td><td><code>last_ip_address</code> (varchar)</td><td>Enhance the audit log and user profile to track the exact IP location of the last login for security anomaly detection.</td></tr>
+      <tr><td><code>sales_invoices</code></td><td><code>digital_signature</code> (varchar)</td><td>Store cryptographic hash for e-invoicing compliance (e.g., ZATCA in Saudi Arabia or European standards).</td></tr>
+    </tbody>
+  </table></div>
 
   <h3 class="sub-title">Per-Module Improvement Notes</h3>
   <div class="insight-grid">

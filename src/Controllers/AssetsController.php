@@ -124,7 +124,11 @@ class AssetsController extends BaseController {
         } catch (\InvalidArgumentException $e) {
             $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $this->json(false, null, $e->getMessage(), 422);
+            if ($e->getMessage() === 'Asset not found') {
+                $this->notFound($e->getMessage());
+            } else {
+                $this->json(false, null, $e->getMessage(), 422);
+            }
         } catch (\Throwable $e) {
             $this->serverError('Failed to dispose asset: ' . $e->getMessage());
         }

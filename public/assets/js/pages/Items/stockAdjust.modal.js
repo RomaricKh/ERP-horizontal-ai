@@ -76,6 +76,7 @@ export async function mount({ modalRoot: root, data }) {
             }
 
             try {
+                el.disabled = true;
                 const res  = await apiFetch(`/api/items/${currentItemId}/stock`, {
                     method: 'POST', body: JSON.stringify(payload)
                 });
@@ -86,6 +87,8 @@ export async function mount({ modalRoot: root, data }) {
             } catch (err) {
                 console.error(err);
                 showFormError(err.message || 'Unable to save adjustment');
+            } finally {
+                el.disabled = false;
             }
         }
     });

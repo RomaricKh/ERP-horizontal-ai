@@ -67,7 +67,7 @@ describe('Bug 11 Preservation — Successful operations produce same outcome', (
         expect(methodBody, `${service}::${method}() should exist`).not.toBeNull();
 
         // Both repo operation and audit->log must be present
-        const hasRepoCall = /repo\s*->/.test(methodBody);
+        const hasRepoCall = /(?:repo|itemTypeRepo|categoryRepo)\s*->/i.test(methodBody);
         const hasAuditLog = /audit\s*->\s*log/.test(methodBody);
 
         expect(hasRepoCall, `${service}::${method}() should call repo`).toBe(true);
@@ -79,7 +79,7 @@ describe('Bug 11 Preservation — Successful operations produce same outcome', (
         if (!methodBody) return;
 
         // Find positions of repo call and audit call
-        const repoMatch = methodBody.match(/repo\s*->/);
+        const repoMatch = methodBody.match(/(?:repo|itemTypeRepo|categoryRepo)\s*->/i);
         const auditMatch = methodBody.match(/audit\s*->\s*log/);
 
         if (repoMatch && auditMatch) {

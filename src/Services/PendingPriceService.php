@@ -35,16 +35,16 @@ class PendingPriceService {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function applyPendingPrices(array $pendingPriceIds, int $tenantId, int $userId): int {
+    public function applyPendingPrices(array $pendingPriceIds, int $tenantId, int $businessId, int $userId): int {
         if (empty($pendingPriceIds)) return 0;
         
         $placeholders = str_repeat('?,', count($pendingPriceIds) - 1) . '?';
-        $params = array_merge([$tenantId], $pendingPriceIds);
+        $params = array_merge([$tenantId, $businessId], $pendingPriceIds);
         
         $stmt = $this->db->prepare("
             SELECT id, item_id, pending_sale_price 
             FROM item_pending_prices 
-            WHERE tenant_id = ? AND status = 'PENDING' AND id IN ($placeholders)
+            WHERE tenant_id = ? AND business_id = ? AND status = 'PENDING' AND id IN ($placeholders)
         ");
         $stmt->execute($params);
         $pendingPrices = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -85,16 +85,16 @@ class PendingPriceService {
         }
     }
 
-    public function cancelPendingPrices(array $pendingPriceIds, int $tenantId, int $userId): int {
+    public function cancelPendingPrices(array $pendingPriceIds, int $tenantId, int $businessId, int $userId): int {
         if (empty($pendingPriceIds)) return 0;
         
         $placeholders = str_repeat('?,', count($pendingPriceIds) - 1) . '?';
-        $params = array_merge([$userId, $tenantId], $pendingPriceIds);
+        $params = array_merge([$userId, $tenantId, $businessId], $pendingPriceIds);
         
         $stmt = $this->db->prepare("
             UPDATE item_pending_prices 
             SET status = 'CANCELLED', applied_at = NOW(), applied_by = ? 
-            WHERE tenant_id = ? AND status = 'PENDING' AND id IN ($placeholders)
+            WHERE tenant_id = ? AND business_id = ? AND status = 'PENDING' AND id IN ($placeholders)
         ");
         $stmt->execute($params);
         

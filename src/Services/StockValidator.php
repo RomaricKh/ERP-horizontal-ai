@@ -16,17 +16,32 @@ class StockValidator {
 
     /**
      * Assert that sufficient stock is available for an item in a business.
+     * Uses SELECT ... FOR UPDATE to lock the row within the caller's transaction.
      * Throws RuntimeException if stock is insufficient.
      *
      * @param int   $itemId     The item to check
      * @param int   $businessId The business context
      * @param float $quantity   The required quantity
      *
+     * @throws \InvalidArgumentException if quantity is invalid
      * @throws \RuntimeException if available stock < requested quantity
      */
     public function assertSufficientStock(int $itemId, int $businessId, float $quantity): void {
-        $stock = $this->itemRepo->getStockEntry($itemId, $businessId);
-        $current = $stock ? (float) $stock['quantity'] : 0.0;
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('Quantity must be greater than zero');
+        }
+        if ($quantity > 999999999) {
+            throw new \InvalidArgumentException('Quantity exceeds maximum allowed value');
+        }
+
+        // Use FOR UPDATE to lock the row within the caller's transaction
+        $stmt = $this->db->prepare(
+            "SELECT quantity FROM stock WHERE item_id = :item AND business_id = :business LIMIT 1 FOR UPDATE"
+        );
+        $stmt->execute(['item' => $itemId, 'business' => $businessId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $current = $row ? (float) $row['quantity'] : 0.0;
+
         if ($current < $quantity) {
             $item = $this->itemRepo->getById($itemId, AuthContext::tenantId());
             $name = $item['name'] ?? "Item #{$itemId}";
@@ -39,9 +54,16 @@ class StockValidator {
     /**
      * Check if requested quantity is available for an item.
      *
+     * @throws \InvalidArgumentException if quantity is invalid
      * @throws \RuntimeException with formatted error if insufficient
      */
     public function assertAvailable(int $itemId, float $requestedQty, int $businessId): void {
+        if ($requestedQty <= 0) {
+            throw new \InvalidArgumentException('Quantity must be greater than zero');
+        }
+        if ($requestedQty > 999999999) {
+            throw new \InvalidArgumentException('Quantity exceeds maximum allowed value');
+        }
         $available = $this->getAvailableStock($itemId, $businessId);
         if ($available < $requestedQty) {
             $itemName = $this->getItemName($itemId);

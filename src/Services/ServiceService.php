@@ -71,12 +71,22 @@ class ServiceService {
             throw new \InvalidArgumentException('Service rate must be a non-negative number');
         }
 
+        // Validate category_id exists and belongs to this business
+        $categoryId = $data['category_id'] ?? null;
+        if ($categoryId !== null) {
+            $categoryId = (int) $categoryId;
+            $category = $this->categoryRepo->findById($categoryId, $ctx->tenant_id, $ctx->business_id);
+            if (!$category) {
+                throw new \InvalidArgumentException('Invalid service category');
+            }
+        }
+
         $this->db->beginTransaction();
         try {
             $id = $this->repo->create([
                 'tenant_id'   => $ctx->tenant_id,
                 'business_id' => $ctx->business_id,
-                'category_id' => $data['category_id'] ?? null,
+                'category_id' => $categoryId,
                 'name'        => $name,
                 'description' => $data['description'] ?? null,
                 'unit'        => $unit,
@@ -143,6 +153,16 @@ class ServiceService {
             $data['rate'] = (float) $rate;
         }
 
+        // Validate category_id exists and belongs to this business (if being changed)
+        if (array_key_exists('category_id', $data) && $data['category_id'] !== null) {
+            $categoryId = (int) $data['category_id'];
+            $category = $this->categoryRepo->findById($categoryId, $ctx->tenant_id, $ctx->business_id);
+            if (!$category) {
+                throw new \InvalidArgumentException('Invalid service category');
+            }
+            $data['category_id'] = $categoryId;
+        }
+
         // Determine which fields actually changed
         $allowed  = ['name', 'description', 'unit', 'rate', 'category_id', 'is_active'];
         $changes  = [];
@@ -160,7 +180,7 @@ class ServiceService {
 
         $this->db->beginTransaction();
         try {
-            $this->repo->update($id, $changes);
+            $this->repo->update($id, $changes, $ctx->business_id, $ctx->tenant_id);
 
             $this->audit->log(
                 'UPDATE',
@@ -281,9 +301,13 @@ class ServiceService {
      */
     public function updateCategory(int $id, string $name): void {
         $ctx     = AuthContext::get();
-        $current = $this->categoryRepo->findById($id, $ctx->tenant_id);
+        $current = $this->categoryRepo->findById($id, $ctx->tenant_id, $ctx->business_id);
         if (!$current) {
             throw new \RuntimeException('Service category not found');
+        }
+
+        if (!empty($current['is_system'])) {
+            throw new \RuntimeException('Cannot modify a system-defined service category');
         }
 
         $trimmed = trim($name);
@@ -297,7 +321,7 @@ class ServiceService {
 
         $this->db->beginTransaction();
         try {
-            $this->categoryRepo->update($id, $ctx->tenant_id, $trimmed);
+            $this->categoryRepo->update($id, $ctx->tenant_id, $ctx->business_id, $trimmed);
 
             $this->audit->log(
                 'UPDATE',
@@ -332,9 +356,13 @@ class ServiceService {
      */
     public function deleteCategory(int $id): void {
         $ctx     = AuthContext::get();
-        $current = $this->categoryRepo->findById($id, $ctx->tenant_id);
+        $current = $this->categoryRepo->findById($id, $ctx->tenant_id, $ctx->business_id);
         if (!$current) {
             throw new \RuntimeException('Service category not found');
+        }
+
+        if (!empty($current['is_system'])) {
+            throw new \RuntimeException('Cannot delete a system-defined service category');
         }
 
         $count = $this->categoryRepo->countServicesForCategory($id, $ctx->business_id, $ctx->tenant_id);

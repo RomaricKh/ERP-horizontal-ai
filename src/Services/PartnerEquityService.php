@@ -92,8 +92,8 @@ class PartnerEquityService {
             }
         }
 
-        // Determine the capital adjustment amount
-        $capitalAdjustment = ($equityType === 'CONTRIBUTION') ? $amount : -$amount;
+        // Determine the capital adjustment amount (MUST be in Base Currency)
+        $capitalAdjustment = ($equityType === 'CONTRIBUTION') ? $amountBc : -$amountBc;
 
         // Use transaction for atomicity
         $this->db->beginTransaction();
@@ -167,13 +167,16 @@ class PartnerEquityService {
 
             // Insert the equity record
             $record = [
-                'business_id' => $ctx->business_id,
-                'partner_id'  => $partnerId,
-                'equity_type' => $equityType,
-                'amount'      => $amount,
-                'slip_type'   => $slipType,
-                'slip_id'     => $slipId,
-                'notes'       => $notes,
+                'business_id'   => $ctx->business_id,
+                'partner_id'    => $partnerId,
+                'equity_type'   => $equityType,
+                'amount'        => $amount,
+                'currency'      => $currency,
+                'exchange_rate' => $exchangeRate,
+                'amount_bc'     => $amountBc,
+                'slip_type'     => $slipType,
+                'slip_id'       => $slipId,
+                'notes'         => $notes,
             ];
 
             $id = $this->equityRepo->insert($record);
@@ -224,14 +227,7 @@ class PartnerEquityService {
         $businessId = $ctx->business_id;
 
         // Find the original equity entry
-        $entries = $this->equityRepo->findAll($businessId);
-        $original = null;
-        foreach ($entries as $entry) {
-            if ((int) $entry['id'] === $equityId) {
-                $original = $entry;
-                break;
-            }
-        }
+        $original = $this->equityRepo->findById($equityId, $businessId);
 
         if (!$original) {
             throw new \InvalidArgumentException('Equity entry not found.');
@@ -262,34 +258,34 @@ class PartnerEquityService {
             }
         }
 
+        // Initialize defaults
+        $currency     = $original['currency'] ?? 'USD';
+        $exchangeRate = (float) ($original['exchange_rate'] ?? 1.0);
+        $amountBc     = (float) ($original['amount_bc'] ?? round($amount * $exchangeRate, 2));
+
         // Determine account ID from original slip if not provided
         if ($accountId === null) {
             if ($original['slip_type'] === 'COLLECTION_SLIP' && $original['slip_id']) {
-                $stmt = $this->db->prepare("SELECT account_id, currency, exchange_rate FROM collection_slips WHERE id = :id");
+                $stmt = $this->db->prepare("SELECT account_id FROM collection_slip_lines WHERE collection_slip_id = :id LIMIT 1");
                 $stmt->execute(['id' => $original['slip_id']]);
                 $slipData = $stmt->fetch(\PDO::FETCH_ASSOC);
-                $accountId    = $slipData ? (int) $slipData['account_id'] : null;
-                $currency     = $slipData['currency'] ?? 'USD';
-                $exchangeRate = (float) ($slipData['exchange_rate'] ?? 1.0);
+                if ($slipData) {
+                    $accountId = (int) $slipData['account_id'];
+                }
             } elseif ($original['slip_type'] === 'PAYMENT_SLIP' && $original['slip_id']) {
-                $stmt = $this->db->prepare("SELECT account_id, currency, exchange_rate FROM payment_slips WHERE id = :id");
+                $stmt = $this->db->prepare("SELECT account_id FROM payment_slip_lines WHERE payment_slip_id = :id LIMIT 1");
                 $stmt->execute(['id' => $original['slip_id']]);
                 $slipData = $stmt->fetch(\PDO::FETCH_ASSOC);
-                $accountId    = $slipData ? (int) $slipData['account_id'] : null;
-                $currency     = $slipData['currency'] ?? 'USD';
-                $exchangeRate = (float) ($slipData['exchange_rate'] ?? 1.0);
+                if ($slipData) {
+                    $accountId = (int) $slipData['account_id'];
+                }
             }
         }
 
-        // Defaults if we couldn't resolve from the original slip
-        $currency     = $currency ?? 'USD';
-        $exchangeRate = $exchangeRate ?? 1.0;
-        $amountBc     = round($amount * $exchangeRate, 2);
-
         $notes = "Reversal of entry #{$equityId}";
 
-        // Capital adjustment is opposite of the reversal type
-        $capitalAdjustment = ($reverseType === 'CONTRIBUTION') ? $amount : -$amount;
+        // Capital adjustment is opposite of the reversal type (MUST be in Base Currency)
+        $capitalAdjustment = ($reverseType === 'CONTRIBUTION') ? $amountBc : -$amountBc;
 
         $this->db->beginTransaction();
         try {
@@ -302,7 +298,7 @@ class PartnerEquityService {
                     'business_id'   => $businessId,
                     'account_id'    => $accountId,
                     'payee_id'      => $partnerId,
-                    'slip_number'   => 'PC-REV-' . $businessId . '-' . $partnerId . '-' . time(),
+                    'slip_number'   => 'PC-REV-' . $businessId . '-' . $partnerId . '-' . uniqid(),
                     'slip_date'     => date('Y-m-d'),
                     'currency'      => $currency,
                     'exchange_rate' => $exchangeRate,
@@ -325,7 +321,7 @@ class PartnerEquityService {
                     'business_id'    => $businessId,
                     'account_id'     => $accountId,
                     'payee_id'       => $partnerId,
-                    'payment_number' => 'PW-REV-' . $businessId . '-' . $partnerId . '-' . time(),
+                    'payment_number' => 'PW-REV-' . $businessId . '-' . $partnerId . '-' . uniqid(),
                     'payment_date'   => date('Y-m-d'),
                     'currency'       => $currency,
                     'exchange_rate'  => $exchangeRate,
@@ -346,13 +342,16 @@ class PartnerEquityService {
 
             // Insert the reversal equity record
             $record = [
-                'business_id' => $businessId,
-                'partner_id'  => $partnerId,
-                'equity_type' => $reverseType,
-                'amount'      => $amount,
-                'slip_type'   => $slipType,
-                'slip_id'     => $slipId,
-                'notes'       => $notes,
+                'business_id'   => $businessId,
+                'partner_id'    => $partnerId,
+                'equity_type'   => $reverseType,
+                'amount'        => $amount,
+                'currency'      => $currency,
+                'exchange_rate' => $exchangeRate,
+                'amount_bc'     => $amountBc,
+                'slip_type'     => $slipType,
+                'slip_id'       => $slipId,
+                'notes'         => $notes,
             ];
 
             $id = $this->equityRepo->insert($record);

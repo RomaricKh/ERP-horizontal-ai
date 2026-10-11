@@ -48,7 +48,7 @@ export async function mount({ modalRoot: root, data }) {
     await loadItems();
 
     // Recalculate expiry dates if the PO date is changed
-    F.poDate().addEventListener('change', recalcExpiryDates);
+    F.poDate()?.addEventListener('change', recalcExpiryDates);
 
     if (currentPoId) {
         await fetchAndFill(currentPoId);
@@ -76,7 +76,7 @@ export async function mount({ modalRoot: root, data }) {
     }
 
     // Recalculate BC when exchange rate changes
-    F.exchangeRate().addEventListener('input', () => recalcAllLines());
+    F.exchangeRate()?.addEventListener('input', () => recalcAllLines());
 
     // Recalculate when global discount changes
     F.globalDiscount()?.addEventListener('input', () => recalcGrandTotal());

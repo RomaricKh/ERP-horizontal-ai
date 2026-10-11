@@ -31,15 +31,22 @@ function bindEvents() {
     const form = document.getElementById('cfFilterForm');
     form?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        await fetchReport();
+        const btn = e.submitter || form.querySelector('button[type="submit"]');
+        await fetchReport(btn);
     });
 }
 
-async function fetchReport() {
+async function fetchReport(btn = null) {
     const start = document.getElementById('cfStartDate').value;
     const end = document.getElementById('cfEndDate').value;
 
     if (!start || !end) return;
+
+    const originalContent = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
+    }
 
     try {
         const res = await apiFetch(`/api/reports/cash-flow?start=${start}&end=${end}`);
@@ -51,6 +58,11 @@ async function fetchReport() {
         renderReport(json.data?.report);
     } catch (err) {
         console.error('Failed to fetch Cash Flow report:', err);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+        }
     }
 }
 

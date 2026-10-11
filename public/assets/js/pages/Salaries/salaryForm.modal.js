@@ -14,6 +14,12 @@ let currentSalaryId = null;
 let currentPayeeId = null;
 let hasExistingRecurrence = false;
 
+// Stored handler references for proper event listener cleanup
+let handleGrossInput = null;
+let handleTaxInput = null;
+let handleEmployeeChange = null;
+let handleRecurrenceToggle = null;
+
 const F = {
     title:        () => document.getElementById('salaryModalTitle'),
     employee:     () => document.getElementById('inputSalaryEmployee'),
@@ -57,8 +63,10 @@ export async function mount({ modalRoot: root, data }) {
     }
 
     // Auto-calculate net_amount_fc when gross or tax changes
-    F.grossAmountFc().addEventListener('input', recalcNet);
-    F.taxFc().addEventListener('input', recalcNet);
+    handleGrossInput = recalcNet;
+    handleTaxInput = recalcNet;
+    F.grossAmountFc().addEventListener('input', handleGrossInput);
+    F.taxFc().addEventListener('input', handleTaxInput);
 
     // Auto-fetch exchange rate when currency changes
     cleanupRateAutoFetch = attachRateAutoFetch(F.currency(), F.exchangeRate());
@@ -72,7 +80,7 @@ export async function mount({ modalRoot: root, data }) {
     const recurrenceToggle = RF.toggle();
     const recurrenceFields = RF.fields();
     if (recurrenceToggle) {
-        recurrenceToggle.addEventListener('change', async () => {
+        handleRecurrenceToggle = async () => {
             if (recurrenceToggle.checked) {
                 recurrenceFields.style.display = '';
                 // Pre-populate recurrence fields from current salary values if not already set
@@ -96,7 +104,8 @@ export async function mount({ modalRoot: root, data }) {
                 }
                 recurrenceFields.style.display = 'none';
             }
-        });
+        };
+        recurrenceToggle.addEventListener('change', handleRecurrenceToggle);
     }
 
     // If editing, track payee_id from the loaded record and load existing recurrence
@@ -105,9 +114,10 @@ export async function mount({ modalRoot: root, data }) {
     }
 
     // Track employee select changes to update currentPayeeId
-    F.employee().addEventListener('change', () => {
+    handleEmployeeChange = () => {
         currentPayeeId = F.employee().value || null;
-    });
+    };
+    F.employee().addEventListener('change', handleEmployeeChange);
 
     unregister = registerPageActions({
         'salaries.create-employee': async () => {
@@ -164,6 +174,28 @@ export async function mount({ modalRoot: root, data }) {
 }
 
 export function unmount() {
+    // Remove input event listeners on grossAmountFc and taxFc
+    if (handleGrossInput) {
+        F.grossAmountFc()?.removeEventListener('input', handleGrossInput);
+        handleGrossInput = null;
+    }
+    if (handleTaxInput) {
+        F.taxFc()?.removeEventListener('input', handleTaxInput);
+        handleTaxInput = null;
+    }
+
+    // Remove change event listener on employee select
+    if (handleEmployeeChange) {
+        F.employee()?.removeEventListener('change', handleEmployeeChange);
+        handleEmployeeChange = null;
+    }
+
+    // Remove change event listener on recurrence toggle
+    if (handleRecurrenceToggle) {
+        RF.toggle()?.removeEventListener('change', handleRecurrenceToggle);
+        handleRecurrenceToggle = null;
+    }
+
     cleanupRateAutoFetch?.();
     cleanupRateAutoFetch = null;
     unregister?.();
@@ -217,17 +249,47 @@ function validateForm() {
         markInvalid(F.periodEnd(), 'Period end is required');
         valid = false;
     }
+
+    // Validate period_end >= period_start
+    if (F.periodStart().value && F.periodEnd().value && F.periodEnd().value < F.periodStart().value) {
+        markInvalid(F.periodEnd(), 'Period end must be on or after period start');
+        valid = false;
+    }
+
     if (!F.currency().value) {
         markInvalid(F.currency(), 'Currency is required');
         valid = false;
     }
-    if (!F.exchangeRate().value) {
+
+    // Validate exchange_rate: must be a positive number
+    const rateValue = F.exchangeRate().value;
+    if (!rateValue) {
         markInvalid(F.exchangeRate(), 'Exchange rate is required');
         valid = false;
+    } else if (isNaN(parseFloat(rateValue)) || parseFloat(rateValue) <= 0) {
+        markInvalid(F.exchangeRate(), 'Exchange rate must be a positive number');
+        valid = false;
     }
-    if (!F.grossAmountFc().value) {
+
+    // Validate gross_amount_fc: must be a positive number
+    const grossValue = F.grossAmountFc().value;
+    if (!grossValue) {
         markInvalid(F.grossAmountFc(), 'Gross amount is required');
         valid = false;
+    } else if (isNaN(parseFloat(grossValue)) || parseFloat(grossValue) <= 0) {
+        markInvalid(F.grossAmountFc(), 'Gross amount must be a positive number');
+        valid = false;
+    }
+
+    // Validate tax_fc: if provided, must be >= 0 and <= gross_amount_fc
+    const taxValue = F.taxFc().value;
+    if (taxValue !== '') {
+        const taxNum = parseFloat(taxValue);
+        const grossNum = parseFloat(grossValue) || 0;
+        if (isNaN(taxNum) || taxNum < 0 || taxNum > grossNum) {
+            markInvalid(F.taxFc(), 'Tax must be between 0 and gross amount');
+            valid = false;
+        }
     }
 
     // Recurrence date validation: end_date >= start_date

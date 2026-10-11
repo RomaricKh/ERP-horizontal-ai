@@ -184,9 +184,9 @@ function renderTable(entries) {
         equityDataTable = createDataTable('#partnerEquityTable', {
             columnDefs: [
                 { targets: '_all', className: 'text-nowrap' },
-                { targets: 6, className: 'text-center', orderable: false, searchable: false }
+                { targets: 7, className: 'text-center', orderable: false, searchable: false }
             ],
-            order: [[5, 'desc']]
+            order: [[6, 'desc']]
         });
     }
 
@@ -194,11 +194,21 @@ function renderTable(entries) {
     const fmt = getFormatter();
 
     entries.forEach(entry => {
-        const amount = fmt.formatNumber(entry.amount ?? 0, 2);
+        const amountFc = fmt.formatNumber(entry.amount ?? 0, 2);
+        const amountBc = fmt.formatNumber(entry.amount_bc ?? 0, 2);
+        const currency = entry.currency ?? 'USD';
 
         const typeBadge = entry.equity_type === 'CONTRIBUTION'
             ? '<span class="badge bg-success">Contribution</span>'
             : '<span class="badge bg-danger">Withdrawal</span>';
+
+        const formattedFc = entry.equity_type === 'CONTRIBUTION'
+            ? `<span class="text-success">+${amountFc} ${currency}</span>`
+            : `<span class="text-danger">-${amountFc} ${currency}</span>`;
+
+        const formattedBc = entry.equity_type === 'CONTRIBUTION'
+            ? `<span class="text-success">+${amountBc}</span>`
+            : `<span class="text-danger">-${amountBc}</span>`;
 
         // Slip reference link
         let slipRef = '—';
@@ -210,14 +220,17 @@ function renderTable(entries) {
 
         const date = fmt.formatDate(entry.created_at ?? '') || (entry.created_at ?? '');
 
-        const actions = `<button data-action="partnerEquity.reverse" data-id="${entry.id}" class="btn btn-light btn-circle btn-sm" title="Reverse"><i class="fas fa-undo text-warning"></i></button>`;
+        const canManage = hasPermission('partners.manage');
+        let actions = '';
+        if (canManage) {
+            actions = `<button data-action="partnerEquity.reverse" data-id="${entry.id}" class="btn btn-light btn-circle btn-sm" title="Reverse"><i class="fas fa-undo text-warning"></i></button>`;
+        }
 
         equityDataTable.row.add([
             escHtml(entry.partner_name ?? '—'),
             typeBadge,
-            entry.equity_type === 'CONTRIBUTION'
-                ? `<span class="text-success">+${amount}</span>`
-                : `<span class="text-danger">-${amount}</span>`,
+            formattedFc,
+            formattedBc,
             slipRef,
             escHtml(entry.notes ?? ''),
             date,

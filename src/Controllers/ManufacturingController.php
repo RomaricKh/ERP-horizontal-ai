@@ -56,6 +56,17 @@ class ManufacturingController extends BaseController
         try {
             $this->auth();
             $data   = $this->input(['name', 'components', 'yield_quantity']);
+
+            // Controller-level type validation
+            if (!is_array($data['components'] ?? null) || empty($data['components'])) {
+                $this->json(false, null, 'Components must be a non-empty array', 422);
+                return;
+            }
+            if (!is_numeric($data['yield_quantity'] ?? null) || (float) $data['yield_quantity'] <= 0) {
+                $this->json(false, null, 'Yield quantity must be a positive number', 422);
+                return;
+            }
+
             $result = $this->service->createRecipe($data);
             $this->json(true, ['recipe_id' => $result['recipe_id'], 'item_id' => $result['item_id']], null, 201);
         } catch (\InvalidArgumentException $e) {
@@ -107,9 +118,17 @@ class ManufacturingController extends BaseController
             $this->auth();
             $filters = [];
             if (!empty($_GET['start_date'])) {
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['start_date'])) {
+                    $this->json(false, null, 'Invalid start_date format (expected YYYY-MM-DD)', 422);
+                    return;
+                }
                 $filters['start_date'] = $_GET['start_date'];
             }
             if (!empty($_GET['end_date'])) {
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['end_date'])) {
+                    $this->json(false, null, 'Invalid end_date format (expected YYYY-MM-DD)', 422);
+                    return;
+                }
                 $filters['end_date'] = $_GET['end_date'];
             }
             if (!empty($_GET['manufactured_item_id'])) {
@@ -146,7 +165,10 @@ class ManufacturingController extends BaseController
             $this->json(true, ['id' => $orderId], null, 201);
         } catch (\InvalidArgumentException $e) {
             $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
+            $this->logError('Manufacturing', 'storeOrder', $e);
             $this->serverError('Failed to create production order');
         }
     }
@@ -187,7 +209,14 @@ class ManufacturingController extends BaseController
         try {
             $this->auth();
             $data = $this->input(['markup_percent']);
-            $this->service->setAutoMarkupConfig($itemId, (float) $data['markup_percent']);
+            $markupPercent = (float) $data['markup_percent'];
+
+            if ($markupPercent < 0 || $markupPercent > 1000) {
+                $this->json(false, null, 'Markup percentage must be between 0 and 1000', 422);
+                return;
+            }
+
+            $this->service->setAutoMarkupConfig($itemId, $markupPercent);
             $this->json(true, ['item_id' => $itemId]);
         } catch (\InvalidArgumentException $e) {
             $this->json(false, null, $e->getMessage(), 422);
@@ -219,8 +248,13 @@ class ManufacturingController extends BaseController
 
             $result = $this->service->previewExpiryForProduction($recipeId, $productionQty, $ctx->business_id);
             $this->json(true, $result);
-        } catch (\Throwable $e) {
+        } catch (\InvalidArgumentException $e) {
             $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->logError('Manufacturing', 'previewExpiry', $e);
+            $this->serverError('Failed to preview expiry');
         }
     }
 }

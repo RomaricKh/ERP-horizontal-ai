@@ -6,6 +6,7 @@ import { apiFetch } from '../../Auth/apiFetch.js';
 let modalRoot;
 let unregister;
 let currentRoleId = null;
+let isTemplateMode = false;
 let allPermissionsFlat = [];
 
 const MODULE_LABELS = {
@@ -55,10 +56,11 @@ const F = {
 };
 
 export async function mount({ modalRoot: root, data }) {
-    modalRoot     = root;
-    currentRoleId = data?.role_id ?? null;
+    modalRoot      = root;
+    currentRoleId  = data?.role_id ?? null;
+    isTemplateMode = data?.isTemplate ?? false;
 
-    F.title().textContent = currentRoleId ? 'Edit Role' : 'Create Role';
+    F.title().textContent = currentRoleId ? 'Edit Role' : (isTemplateMode ? 'Create Template Role' : 'Create Role');
 
     // Load permissions and render grouped checkboxes
     allPermissionsFlat = await fetchPermissions();
@@ -333,7 +335,7 @@ async function handleSave() {
         permission_ids: permissionIds
     };
 
-    const url    = currentRoleId ? `/api/roles/${currentRoleId}` : '/api/roles';
+    const url    = currentRoleId ? `/api/roles/${currentRoleId}` : (isTemplateMode ? '/api/roles/template' : '/api/roles');
     const method = currentRoleId ? 'PUT' : 'POST';
 
     try {

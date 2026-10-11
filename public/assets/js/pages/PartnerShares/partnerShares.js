@@ -92,9 +92,7 @@ export async function mount() {
         },
 
         'partnerShares.contribute': async ({ el }) => {
-            const tr = el.closest('tr');
-            const rowData = dataTable.row(tr).data();
-            const partnerId = rowData[0];
+            const partnerId = el.dataset.partnerId;
             if (!partnerId) return;
 
             await openModal({
@@ -107,9 +105,7 @@ export async function mount() {
         },
 
         'partnerShares.withdraw': async ({ el }) => {
-            const tr = el.closest('tr');
-            const rowData = dataTable.row(tr).data();
-            const partnerId = rowData[0];
+            const partnerId = el.dataset.partnerId;
             if (!partnerId) return;
 
             await openModal({
@@ -180,9 +176,9 @@ function renderTable(shares) {
     shares.forEach(share => {
         let actions = '';
         if (canManage) {
-            actions += `<button data-action="partnerShares.contribute" class="btn btn-light btn-circle btn-sm me-1" title="Contribute">
+            actions += `<button data-action="partnerShares.contribute" data-partner-id="${share.partner_id}" class="btn btn-light btn-circle btn-sm me-1" title="Contribute">
                             <i class="fas fa-plus-circle text-success"></i></button>`;
-            actions += `<button data-action="partnerShares.withdraw" class="btn btn-light btn-circle btn-sm me-1" title="Withdraw">
+            actions += `<button data-action="partnerShares.withdraw" data-partner-id="${share.partner_id}" class="btn btn-light btn-circle btn-sm me-1" title="Withdraw">
                             <i class="fas fa-minus-circle text-warning"></i></button>`;
             actions += `<button data-action="partnerShares.equity-history" class="btn btn-light btn-circle btn-sm me-1" title="Equity History">
                             <i class="fas fa-history text-secondary"></i></button>`;

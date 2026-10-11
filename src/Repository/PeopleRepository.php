@@ -10,6 +10,8 @@ class PeopleRepository {
         $this->db = $db;
     }
 
+    // region Person CRUD
+
     /**
      * List all people for a tenant who have a payee record in the current
      * business AND at least one payee type assigned via people_types junction.
@@ -39,6 +41,15 @@ class PeopleRepository {
                 ON ptp.people_id = p.id AND ptp.business_id = :business_id3
             LEFT JOIN payee_types pt
                 ON pt.id = ptp.payee_type_id
+                AND (
+                    pt.module_id IS NULL
+                    OR pt.module_id IN (
+                        SELECT btm.module_id
+                        FROM business_type_modules btm
+                        JOIN businesses b ON b.business_type_id = btm.business_type_id
+                        WHERE b.id = :business_id4
+                    )
+                )
             WHERE p.tenant_id = :tenant_id
             GROUP BY p.id, p.name, p.phone, p.email, p.address, p.tax_number,
                      p.iban, p.created_at, py.id, py.balance, py.notes
@@ -50,6 +61,7 @@ class PeopleRepository {
             'business_id'  => $businessId,
             'business_id2' => $businessId,
             'business_id3' => $businessId,
+            'business_id4' => $businessId,
         ]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -143,6 +155,32 @@ class PeopleRepository {
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    /** Search all people in a tenant across all businesses */
+    public function searchTenantPeople(int $tenantId, string $query, int $limit = 20): array {
+        if (trim($query) === '') {
+            return [];
+        }
+        $searchTerm = '%' . trim($query) . '%';
+        $stmt = $this->db->prepare("
+            SELECT id, name, phone, email, tax_number 
+            FROM people 
+            WHERE tenant_id = :tenant_id 
+              AND (name LIKE :q1 OR phone LIKE :q2 OR email LIKE :q3)
+            ORDER BY name ASC 
+            LIMIT " . (int)$limit . "
+        ");
+        $stmt->bindValue(':tenant_id', $tenantId, PDO::PARAM_INT);
+        $stmt->bindValue(':q1', $searchTerm, PDO::PARAM_STR);
+        $stmt->bindValue(':q2', $searchTerm, PDO::PARAM_STR);
+        $stmt->bindValue(':q3', $searchTerm, PDO::PARAM_STR);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // endregion
+
+    // region Payee Lifecycle
+
     /** Check if a payee record exists for this person in this business */
     public function findPayee(int $peopleId, int $businessId): ?array {
         $stmt = $this->db->prepare("
@@ -167,6 +205,81 @@ class PeopleRepository {
         ]);
         return (int) $this->db->lastInsertId();
     }
+
+    /** Count payees linked to a person across all businesses */
+    public function countPayeesForPerson(int $peopleId): int {
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) FROM payees WHERE people_id = ?"
+        );
+        $stmt->execute([$peopleId]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /** Delete a payee record entirely */
+    public function deletePayee(int $payeeId): void {
+        $stmt = $this->db->prepare("SELECT people_id, business_id FROM payees WHERE id = ? LIMIT 1");
+        $stmt->execute([$payeeId]);
+        $payee = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($payee) {
+            $this->db->prepare("
+                DELETE FROM people_types 
+                WHERE people_id = ? AND business_id = ?
+            ")->execute([$payee['people_id'], $payee['business_id']]);
+        }
+
+        $this->db->prepare("DELETE FROM payees WHERE id = ?")->execute([$payeeId]);
+    }
+
+    /** Update notes for a specific payee record */
+    public function updatePayeeNotes(int $payeeId, ?string $notes): void {
+        $stmt = $this->db->prepare("UPDATE payees SET notes = :notes, updated_at = NOW() WHERE id = :id");
+        $stmt->execute(['notes' => $notes, 'id' => $payeeId]);
+    }
+
+    /**
+     * Verify that a payee belongs to the specified business.
+     * Returns the payee record (id, people_id, balance, payee_name) or null if not found.
+     *
+     * @param int $payeeId   The payee ID to verify
+     * @param int $businessId The business ID to check against
+     * @return array|null Payee data if found, null otherwise
+     */
+    public function verifyPayeeBelongsToBusiness(int $payeeId, int $businessId): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT p.id, p.people_id, p.balance, pe.name AS payee_name
+             FROM payees p
+             JOIN people pe ON pe.id = p.people_id
+             WHERE p.id = :id AND p.business_id = :bid
+             LIMIT 1"
+        );
+        $stmt->execute(['id' => $payeeId, 'bid' => $businessId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * Ensure that a payee belongs to the specified business.
+     * Throws InvalidArgumentException if the payee is not found for the given business.
+     *
+     * @param int $payeeId   The payee ID to verify
+     * @param int $businessId The business ID to check against
+     * @throws \InvalidArgumentException If payee not found in this business
+     */
+    public function ensurePayeeBelongsToBusiness(int $payeeId, int $businessId): void
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id FROM payees WHERE id = ? AND business_id = ?"
+        );
+        $stmt->execute([$payeeId, $businessId]);
+        if (!$stmt->fetch()) {
+            throw new \InvalidArgumentException("Employee not found in this business");
+        }
+    }
+
+    // endregion
+
+    // region Junction Management
 
     /** Assign payee types to a person via people_types junction (replaces existing) */
     public function setPayeeTypes(int $payeeId, array $typeIds): void {
@@ -213,58 +326,9 @@ class PeopleRepository {
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    /** Count payees linked to a person across all businesses */
-    public function countPayeesForPerson(int $peopleId): int {
-        $stmt = $this->db->prepare(
-            "SELECT COUNT(*) FROM payees WHERE people_id = ?"
-        );
-        $stmt->execute([$peopleId]);
-        return (int) $stmt->fetchColumn();
-    }
+    // endregion
 
-    /** Delete a payee record entirely */
-    public function deletePayee(int $payeeId): void {
-        $stmt = $this->db->prepare("SELECT people_id, business_id FROM payees WHERE id = ? LIMIT 1");
-        $stmt->execute([$payeeId]);
-        $payee = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($payee) {
-            $this->db->prepare("
-                DELETE FROM people_types 
-                WHERE people_id = ? AND business_id = ?
-            ")->execute([$payee['people_id'], $payee['business_id']]);
-        }
-
-        $this->db->prepare("DELETE FROM payees WHERE id = ?")->execute([$payeeId]);
-    }
-
-    /** Update notes for a specific payee record */
-    public function updatePayeeNotes(int $payeeId, ?string $notes): void {
-        $stmt = $this->db->prepare("UPDATE payees SET notes = :notes, updated_at = NOW() WHERE id = :id");
-        $stmt->execute(['notes' => $notes, 'id' => $payeeId]);
-    }
-
-    /** Search all people in a tenant across all businesses */
-    public function searchTenantPeople(int $tenantId, string $query, int $limit = 20): array {
-        if (trim($query) === '') {
-            return [];
-        }
-        $searchTerm = '%' . trim($query) . '%';
-        $stmt = $this->db->prepare("
-            SELECT id, name, phone, email, tax_number 
-            FROM people 
-            WHERE tenant_id = :tenant_id 
-              AND (name LIKE :q1 OR phone LIKE :q2 OR email LIKE :q3)
-            ORDER BY name ASC 
-            LIMIT " . (int)$limit . "
-        ");
-        $stmt->bindValue(':tenant_id', $tenantId, PDO::PARAM_INT);
-        $stmt->bindValue(':q1', $searchTerm, PDO::PARAM_STR);
-        $stmt->bindValue(':q2', $searchTerm, PDO::PARAM_STR);
-        $stmt->bindValue(':q3', $searchTerm, PDO::PARAM_STR);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+    // region Transaction Queries
 
     /**
      * Atomically adjust the payee balance by delta (positive or negative).
@@ -281,18 +345,48 @@ class PeopleRepository {
         $stmt->execute(['delta' => $delta, 'id' => $payeeId]);
     }
 
-    /** Count transactions (expenses, invoices, POs) for a payee */
-    public function countTransactionsForPayee(int $payeeId): int {
+    /**
+     * Count transactions for a payee across all transaction tables.
+     * Returns an associative array of [table_label => count] for tables with records,
+     * or an empty array if no transactions exist.
+     *
+     * Tables checked: expenses, sales_invoices, purchase_orders, payment_slips,
+     * collection_slips, salaries, profit_distributions
+     */
+    public function countTransactionsForPayee(int $payeeId): array {
         $stmt = $this->db->prepare("
-            SELECT
-                (SELECT COUNT(*) FROM expenses        WHERE payee_id = :id1) +
-                (SELECT COUNT(*) FROM sales_invoices  WHERE customer_id = :id2) +
-                (SELECT COUNT(*) FROM purchase_orders WHERE supplier_id = :id3) +
-                (SELECT COUNT(*) FROM payment_slips   WHERE payee_id = :id4) +
-                (SELECT COUNT(*) FROM collection_slips WHERE payee_id = :id5)
-            AS total
+            SELECT 'expenses' AS source, COUNT(*) AS cnt FROM expenses WHERE payee_id = :id1
+            UNION ALL
+            SELECT 'sales_invoices', COUNT(*) FROM sales_invoices WHERE customer_id = :id2
+            UNION ALL
+            SELECT 'purchase_orders', COUNT(*) FROM purchase_orders WHERE supplier_id = :id3
+            UNION ALL
+            SELECT 'payment_slips', COUNT(*) FROM payment_slips WHERE payee_id = :id4
+            UNION ALL
+            SELECT 'collection_slips', COUNT(*) FROM collection_slips WHERE payee_id = :id5
+            UNION ALL
+            SELECT 'salaries', COUNT(*) FROM salaries WHERE payee_id = :id6
+            UNION ALL
+            SELECT 'profit_distributions', COUNT(*) FROM profit_distributions WHERE partner_id = :id7
         ");
-        $stmt->execute(['id1' => $payeeId, 'id2' => $payeeId, 'id3' => $payeeId, 'id4' => $payeeId, 'id5' => $payeeId]);
-        return (int) $stmt->fetchColumn();
+        $stmt->execute([
+            'id1' => $payeeId,
+            'id2' => $payeeId,
+            'id3' => $payeeId,
+            'id4' => $payeeId,
+            'id5' => $payeeId,
+            'id6' => $payeeId,
+            'id7' => $payeeId,
+        ]);
+
+        $results = [];
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            if ((int) $row['cnt'] > 0) {
+                $results[$row['source']] = (int) $row['cnt'];
+            }
+        }
+        return $results;
     }
+
+    // endregion
 }

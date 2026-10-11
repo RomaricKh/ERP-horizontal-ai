@@ -91,6 +91,11 @@ class RolesController extends BaseController {
                 $businessId = AuthContext::businessId();
             }
 
+            if ($businessId === null) {
+                $this->json(false, null, 'Cannot create a custom role without an active business context', 422);
+                return;
+            }
+
             $this->service->create($businessId, $ctx->tenant_id, $name, $description, $permissionIds);
 
             $this->json(true, null, 'Role created successfully', 201);
@@ -101,10 +106,41 @@ class RolesController extends BaseController {
         }
     }
 
+    // POST /roles/template
+    public function storeTemplate(): void {
+        try {
+            $ctx  = $this->auth();
+            $data = $this->input(['name']);
+
+            // Only Tenant Owners can create TEMPLATE roles
+            if (!AuthContext::isTenantOwner()) {
+                $this->forbidden('Access denied: Tenant Owner privileges required');
+                return;
+            }
+
+            $name          = $data['name'];
+            $description   = $data['description'] ?? null;
+            $permissionIds = $data['permission_ids'] ?? [];
+
+            $this->service->createTemplate($ctx->tenant_id, $name, $description, $permissionIds);
+
+            $this->json(true, null, 'Template role created successfully', 201);
+        } catch (\InvalidArgumentException $e) {
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            $this->serverError('Failed to create template role');
+        }
+    }
+
     // PUT /roles/{id}
     public function update(int $id): void {
         try {
             $ctx  = $this->auth();
+            $businessId = $ctx->business_id;
+            if ($businessId === null) {
+                $this->json(false, null, 'Cannot update a role without an active business context', 422);
+                return;
+            }
 
             // Enforce role immutability rules before processing
             $roleType = $this->roleRepo->findRoleType($id);
@@ -127,7 +163,7 @@ class RolesController extends BaseController {
             $description   = $data['description'] ?? null;
             $permissionIds = $data['permission_ids'] ?? [];
 
-            $this->service->update($id, $ctx->business_id, $name, $description, $permissionIds);
+            $this->service->update($id, $businessId, $name, $description, $permissionIds);
 
             $this->json(true, null, 'Role updated successfully');
         } catch (\RuntimeException $e) {
@@ -143,6 +179,11 @@ class RolesController extends BaseController {
     public function delete(int $id): void {
         try {
             $ctx = $this->auth();
+            $businessId = $ctx->business_id;
+            if ($businessId === null) {
+                $this->json(false, null, 'Cannot delete a role without an active business context', 422);
+                return;
+            }
 
             // Enforce role immutability rules before processing
             $roleType = $this->roleRepo->findRoleType($id);
@@ -159,7 +200,7 @@ class RolesController extends BaseController {
                 return;
             }
 
-            $this->service->delete($id, $ctx->business_id);
+            $this->service->delete($id, $businessId);
 
             $this->json(true, null, 'Role deleted successfully');
         } catch (\RuntimeException $e) {

@@ -106,21 +106,28 @@ class AssetService {
             'notes'                    => $data['notes'] ?? null,
         ];
 
-        $id = $this->repo->insert($record);
+        $this->db->beginTransaction();
+        try {
+            $id = $this->repo->insert($record);
 
-        $this->audit->log(
-            'CREATE',
-            'assets',
-            $id,
-            'CREATE',
-            null,
-            $record,
-            $ctx->user_id,
-            $ctx->tenant_id,
-            $ctx->business_id
-        );
+            $this->audit->log(
+                'CREATE',
+                'assets',
+                $id,
+                'CREATE',
+                null,
+                $record,
+                $ctx->user_id,
+                $ctx->tenant_id,
+                $ctx->business_id
+            );
 
-        return $id;
+            $this->db->commit();
+            return $id;
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -148,9 +155,26 @@ class AssetService {
             throw new \RuntimeException('Asset not found');
         }
 
+        // AS7: Resolve category if changed
+        $categoryId = $before['category_id'];
+        $categoryName = $before['category'];
+        if (isset($data['category_id']) || isset($data['category'])) {
+            $categoryId   = isset($data['category_id']) && $data['category_id'] !== null
+                ? (int) $data['category_id']
+                : (is_numeric($data['category'] ?? null) ? (int) $data['category'] : null);
+            $categoryName = $data['category'] ?? '';
+            if ($categoryId !== null) {
+                $cat = $this->categoryRepo->findById($categoryId, $ctx->tenant_id);
+                if ($cat) {
+                    $categoryName = $cat['name'];
+                }
+            }
+        }
+
         $updateData = [
             'name'                => $data['name'] ?? $before['name'],
-            'category'            => $data['category'] ?? $before['category'],
+            'category'            => $categoryName,
+            'category_id'         => $categoryId,
             'asset_type'          => $data['asset_type'] ?? $before['asset_type'],
             'depreciation_method' => $data['depreciation_method'] ?? $before['depreciation_method'],
             'useful_life'         => $data['useful_life'] ?? $before['useful_life'],
@@ -158,19 +182,27 @@ class AssetService {
             'notes'               => $data['notes'] ?? $before['notes'],
         ];
 
-        $this->repo->update($id, $ctx->business_id, $updateData);
+        $this->db->beginTransaction();
+        try {
+            $this->repo->update($id, $ctx->business_id, $updateData);
 
-        $this->audit->log(
-            'UPDATE',
-            'assets',
-            $id,
-            'UPDATE',
-            $before,
-            $updateData,
-            $ctx->user_id,
-            $ctx->tenant_id,
-            $ctx->business_id
-        );
+            $this->audit->log(
+                'UPDATE',
+                'assets',
+                $id,
+                'UPDATE',
+                $before,
+                $updateData,
+                $ctx->user_id,
+                $ctx->tenant_id,
+                $ctx->business_id
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -187,19 +219,27 @@ class AssetService {
             throw new \RuntimeException('Asset not found');
         }
 
-        $this->repo->delete($id, $ctx->business_id);
+        $this->db->beginTransaction();
+        try {
+            $this->repo->delete($id, $ctx->business_id);
 
-        $this->audit->log(
-            'DELETE',
-            'assets',
-            $id,
-            'DELETE',
-            $before,
-            null,
-            $ctx->user_id,
-            $ctx->tenant_id,
-            $ctx->business_id
-        );
+            $this->audit->log(
+                'DELETE',
+                'assets',
+                $id,
+                'DELETE',
+                $before,
+                null,
+                $ctx->user_id,
+                $ctx->tenant_id,
+                $ctx->business_id
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -263,21 +303,8 @@ class AssetService {
             $newCurrentValue = round($valueBc - $newAccumulated, 2);
         }
 
-        // Update the asset directly in the database
-        $stmt = $this->db->prepare("
-            UPDATE assets
-            SET accumulated_depreciation = :accumulated,
-                current_value_bc         = :current_value,
-                updated_at               = NOW()
-            WHERE id          = :id
-              AND business_id = :business
-        ");
-        $stmt->execute([
-            'accumulated'   => $newAccumulated,
-            'current_value' => $newCurrentValue,
-            'id'            => $id,
-            'business'      => $ctx->business_id,
-        ]);
+        // AS1: Use repository method instead of raw SQL in service
+        $this->repo->updateDepreciation($id, $ctx->business_id, $newAccumulated, $newCurrentValue);
 
         $this->audit->log(
             'UPDATE',
@@ -335,22 +362,8 @@ class AssetService {
         $disposalProceeds  = isset($data['disposal_proceeds']) ? (float) $data['disposal_proceeds'] : 0;
         $disposalGainLoss  = round($disposalProceeds - $currentValueBc, 2);
 
-        $stmt = $this->db->prepare("
-            UPDATE assets
-            SET status              = 'DISPOSED',
-                disposal_date       = :disposal_date,
-                disposal_proceeds   = :disposal_proceeds,
-                disposal_gain_loss  = :disposal_gain_loss,
-                updated_at          = NOW()
-            WHERE id = :id AND business_id = :business
-        ");
-        $stmt->execute([
-            'disposal_date'      => $data['disposal_date'],
-            'disposal_proceeds'  => $disposalProceeds,
-            'disposal_gain_loss' => $disposalGainLoss,
-            'id'                 => $id,
-            'business'           => $ctx->business_id,
-        ]);
+        // AS2: Use repository method instead of raw SQL in service
+        $this->repo->markDisposed($id, $ctx->business_id, $data['disposal_date'], $disposalProceeds, $disposalGainLoss);
 
         $this->audit->log(
             'UPDATE', 'assets', $id, 'DISPOSE',

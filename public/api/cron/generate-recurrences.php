@@ -54,9 +54,10 @@ try {
     $db = Database::getConnection();
     $today = date('Y-m-d');
 
-    // Task 1: Generate instances for all active schedules up to today
+    // Task 1: Generate instances for all active schedules up to 30 days in advance
     $generatorService = new ScheduleGeneratorService();
-    $generateResult = $generatorService->generateForAllBusinesses($today, $db);
+    $lookaheadDate = date('Y-m-d', strtotime('+30 days'));
+    $generateResult = $generatorService->generateForAllBusinesses($lookaheadDate, $db);
 
     // Task 2: Mark overdue instances (pending with due_date < today)
     $recurrenceService = new RecurrenceService($db);

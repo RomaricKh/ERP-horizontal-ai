@@ -128,6 +128,10 @@ export async function mount() {
             await changeStatus(el, 'DELIVERED', 'Mark this invoice as delivered? Stock will be deducted.');
         },
 
+        'invoice.revert': async ({ el }) => {
+            await changeStatus(el, 'DRAFT', 'Revert this delivery? Stock will be returned, the invoice will become a DRAFT, and any payments allocated to it will be unlinked and returned to the customer\'s balance.');
+        },
+
         'invoice.cancel': async ({ el }) => {
             await changeStatus(el, 'CANCELLED', 'Cancel this sales invoice?');
         },
@@ -466,6 +470,9 @@ function buildActionItems(inv, perms) {
     // Secondary
     if (hasPermission('invoices.edit')) {
         items.push({ action: 'invoice.edit-number', icon: 'fa-edit text-info', label: 'Edit ID Number' });
+    }
+    if (perms.canDeliver && inv.status === 'DELIVERED') {
+        items.push({ action: 'invoice.revert', icon: 'fa-undo-alt text-primary', label: 'Revert Delivery' });
     }
     if (perms.canDeliver && (inv.status === 'DRAFT' || inv.status === 'DELIVERED')) {
         items.push({ action: 'invoice.cancel', icon: 'fa-ban text-warning', label: 'Cancel' });

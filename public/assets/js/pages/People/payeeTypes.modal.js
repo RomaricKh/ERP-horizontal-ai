@@ -7,6 +7,7 @@ import { confirm } from '../../components/modals.js';
 let modalRoot;
 let unregister;
 let types = [];
+let activeEditListeners = []; // Track inline edit listeners for cleanup
 
 export async function mount({ modalRoot: root }) {
     modalRoot = root;
@@ -17,11 +18,14 @@ export async function mount({ modalRoot: root }) {
         'payee-types.add': async () => {
             const input = document.getElementById('newPayeeTypeName');
             const name  = input?.value.trim();
+
+            // Clear previous validation state
+            clearInputValidation(input);
+
             if (!name) {
-                input?.classList.add('is-invalid');
+                markInputInvalid(input, 'Type name is required and cannot be empty.');
                 return;
             }
-            input.classList.remove('is-invalid');
 
             try {
                 const res  = await apiFetch('/api/people/payee-types', {
@@ -57,7 +61,12 @@ export async function mount({ modalRoot: root }) {
 
             const save = async () => {
                 const newName = input.value.trim();
-                if (!newName || newName === type.name) {
+                if (!newName) {
+                    input.classList.add('is-invalid');
+                    input.focus();
+                    return;
+                }
+                if (newName === type.name) {
                     await loadTypes();
                     return;
                 }
@@ -76,11 +85,20 @@ export async function mount({ modalRoot: root }) {
                 }
             };
 
-            input.addEventListener('blur',  save);
-            input.addEventListener('keydown', e => {
+            const blurHandler = () => save();
+            const keydownHandler = (e) => {
                 if (e.key === 'Enter')  { e.preventDefault(); save(); }
                 if (e.key === 'Escape') { loadTypes(); }
-            });
+            };
+
+            input.addEventListener('blur', blurHandler);
+            input.addEventListener('keydown', keydownHandler);
+
+            // Track listeners for cleanup
+            activeEditListeners.push(
+                { el: input, event: 'blur', handler: blurHandler },
+                { el: input, event: 'keydown', handler: keydownHandler }
+            );
         },
 
         'payee-types.delete': async ({ el }) => {
@@ -108,9 +126,16 @@ export async function mount({ modalRoot: root }) {
 }
 
 export function unmount() {
+    // Remove tracked inline edit listeners
+    activeEditListeners.forEach(({ el, event, handler }) => {
+        el.removeEventListener(event, handler);
+    });
+    activeEditListeners = [];
+
     unregister?.();
     unregister = null;
     types = [];
+    modalRoot = null;
 }
 
 async function loadTypes() {
@@ -162,4 +187,32 @@ function escHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/**
+ * Mark an input as invalid and show feedback message.
+ */
+function markInputInvalid(input, message) {
+    if (!input) return;
+    input.classList.add('is-invalid');
+    let fb = input.parentElement.querySelector('.invalid-feedback');
+    if (!fb) {
+        fb = document.createElement('div');
+        fb.className = 'invalid-feedback';
+        input.parentElement.appendChild(fb);
+    }
+    fb.textContent = message;
+    fb.style.display = 'block';
+}
+
+/**
+ * Clear validation state from an input.
+ */
+function clearInputValidation(input) {
+    if (!input) return;
+    input.classList.remove('is-invalid');
+    const fb = input.parentElement?.querySelector('.invalid-feedback');
+    if (fb) {
+        fb.style.display = 'none';
+    }
 }

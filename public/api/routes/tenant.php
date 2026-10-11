@@ -1,7 +1,10 @@
 <?php
 
-use App\Controllers\TenantController;
-use App\Support\AuthContext;
+use App\Controllers\Tenant\TenantCoreController;
+use App\Controllers\Tenant\TenantBusinessController;
+use App\Controllers\Tenant\TenantUserController;
+use App\Controllers\Tenant\TenantRoleController;
+use App\Controllers\Tenant\TenantOwnerController;
 
 /* =====================================================================
  * TENANT OWNER ROUTES
@@ -11,18 +14,7 @@ use App\Support\AuthContext;
  * HTTP 403 if the user is not a verified Tenant Owner.
  * ===================================================================== */
 
-$tenantGuard = function (): bool {
-    if (!AuthContext::isTenantOwner()) {
-        http_response_code(403);
-        echo json_encode([
-            'success' => false,
-            'data'    => null,
-            'message' => 'Access denied: Tenant Owner privileges required'
-        ]);
-        return false;
-    }
-    return true;
-};
+$tenantGuard = require __DIR__ . '/_guards.php';
 
 /* ========= TENANT CRUD ========= */
 
@@ -30,7 +22,7 @@ $tenantGuard = function (): bool {
 $router->get('/tenant/tenants',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->listTenants();
+        (new TenantCoreController())->listTenants();
     }
 );
 
@@ -38,7 +30,15 @@ $router->get('/tenant/tenants',
 $router->post('/tenant/tenants',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->createTenant();
+        (new TenantCoreController())->createTenant();
+    }
+);
+
+// GET /tenant/tenants/{id}
+$router->get('/tenant/tenants/{id}',
+    function ($id) use ($tenantGuard) {
+        if (!$tenantGuard()) return;
+        (new TenantCoreController())->viewTenant((int) $id);
     }
 );
 
@@ -46,7 +46,7 @@ $router->post('/tenant/tenants',
 $router->put('/tenant/tenants/{id}',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->updateTenant((int) $id);
+        (new TenantCoreController())->updateTenant((int) $id);
     }
 );
 
@@ -54,7 +54,7 @@ $router->put('/tenant/tenants/{id}',
 $router->patch('/tenant/tenants/{id}/active',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->toggleTenantActive((int) $id);
+        (new TenantCoreController())->toggleTenantActive((int) $id);
     }
 );
 
@@ -64,7 +64,7 @@ $router->patch('/tenant/tenants/{id}/active',
 $router->get('/tenant/businesses',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->listBusinesses();
+        (new TenantBusinessController())->listBusinesses();
     }
 );
 
@@ -72,7 +72,7 @@ $router->get('/tenant/businesses',
 $router->get('/tenant/businesses/{id}',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->viewBusiness((int) $id);
+        (new TenantBusinessController())->viewBusiness((int) $id);
     }
 );
 
@@ -80,7 +80,7 @@ $router->get('/tenant/businesses/{id}',
 $router->post('/tenant/businesses',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->createBusiness();
+        (new TenantBusinessController())->createBusiness();
     }
 );
 
@@ -88,7 +88,7 @@ $router->post('/tenant/businesses',
 $router->put('/tenant/businesses/{id}',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->updateBusiness((int) $id);
+        (new TenantBusinessController())->updateBusiness((int) $id);
     }
 );
 
@@ -96,7 +96,7 @@ $router->put('/tenant/businesses/{id}',
 $router->put('/tenant/businesses/{id}/type',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->changeBusinessType((int) $id);
+        (new TenantBusinessController())->changeBusinessType((int) $id);
     }
 );
 
@@ -104,7 +104,7 @@ $router->put('/tenant/businesses/{id}/type',
 $router->delete('/tenant/businesses/{id}',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->deleteBusiness((int) $id);
+        (new TenantBusinessController())->deleteBusiness((int) $id);
     }
 );
 
@@ -114,7 +114,7 @@ $router->delete('/tenant/businesses/{id}',
 $router->get('/tenant/modules',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->listModules();
+        (new TenantCoreController())->listModules();
     }
 );
 
@@ -129,7 +129,7 @@ $router->get('/tenant/modules',
 $router->get('/tenant/users',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->listUsers();
+        (new TenantUserController())->listUsers();
     }
 );
 
@@ -137,7 +137,7 @@ $router->get('/tenant/users',
 $router->get('/tenant/users/{id}',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->viewUser((int) $id);
+        (new TenantUserController())->viewUser((int) $id);
     }
 );
 
@@ -145,7 +145,7 @@ $router->get('/tenant/users/{id}',
 $router->post('/tenant/users',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->createUser();
+        (new TenantUserController())->createUser();
     }
 );
 
@@ -153,7 +153,7 @@ $router->post('/tenant/users',
 $router->post('/tenant/users/reassign',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->reassignUser();
+        (new TenantUserController())->reassignUser();
     }
 );
 
@@ -161,7 +161,7 @@ $router->post('/tenant/users/reassign',
 $router->put('/tenant/users/{id}/deactivate',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->deactivateUser((int) $id);
+        (new TenantUserController())->deactivateUser((int) $id);
     }
 );
 
@@ -169,7 +169,7 @@ $router->put('/tenant/users/{id}/deactivate',
 $router->put('/tenant/users/{id}/activate',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->reactivateUser((int) $id);
+        (new TenantUserController())->reactivateUser((int) $id);
     }
 );
 
@@ -179,7 +179,7 @@ $router->put('/tenant/users/{id}/activate',
 $router->get('/tenant/businesses/{id}/roles',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->listRolesForBusiness((int) $id);
+        (new TenantRoleController())->listRolesForBusiness((int) $id);
     }
 );
 
@@ -187,7 +187,7 @@ $router->get('/tenant/businesses/{id}/roles',
 $router->post('/tenant/roles',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->createRole();
+        (new TenantRoleController())->createRole();
     }
 );
 
@@ -195,7 +195,7 @@ $router->post('/tenant/roles',
 $router->post('/tenant/roles/assign',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->assignRole();
+        (new TenantRoleController())->assignRole();
     }
 );
 
@@ -203,7 +203,7 @@ $router->post('/tenant/roles/assign',
 $router->post('/tenant/roles/template',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->createTemplateRole();
+        (new TenantRoleController())->createTemplateRole();
     }
 );
 
@@ -213,7 +213,7 @@ $router->post('/tenant/roles/template',
 $router->get('/tenant/owners',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->listOwners();
+        (new TenantOwnerController())->listOwners();
     }
 );
 
@@ -221,7 +221,7 @@ $router->get('/tenant/owners',
 $router->post('/tenant/owners',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->designateOwner();
+        (new TenantOwnerController())->designateOwner();
     }
 );
 
@@ -229,7 +229,7 @@ $router->post('/tenant/owners',
 $router->delete('/tenant/owners/{id}',
     function ($id) use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->revokeOwner((int) $id);
+        (new TenantOwnerController())->revokeOwner((int) $id);
     }
 );
 
@@ -239,7 +239,7 @@ $router->delete('/tenant/owners/{id}',
 $router->get('/tenant/dashboard',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->dashboard();
+        (new TenantCoreController())->dashboard();
     }
 );
 
@@ -247,6 +247,6 @@ $router->get('/tenant/dashboard',
 $router->post('/tenant/reports',
     function () use ($tenantGuard) {
         if (!$tenantGuard()) return;
-        (new TenantController())->generateReport();
+        (new TenantCoreController())->generateReport();
     }
 );

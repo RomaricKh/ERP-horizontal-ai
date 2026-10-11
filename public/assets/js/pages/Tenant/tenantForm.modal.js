@@ -35,11 +35,11 @@ export function unmount() {
 
 async function fetchAndFill(id) {
     try {
-        const res = await apiFetch('/api/tenant/tenants');
+        const res = await apiFetch(`/api/tenant/tenants/${id}`);
         const json = await res.json();
         if (!res.ok || !json.success) return;
 
-        const tenant = (json.data?.tenants || []).find(t => t.id === id);
+        const tenant = json.data?.tenant;
         if (!tenant) return;
 
         const nameInput = modalRoot.querySelector('#inputTenantName');

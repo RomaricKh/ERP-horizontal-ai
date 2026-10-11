@@ -48,6 +48,36 @@ class SalaryService {
     }
 
     /**
+     * Generate a payslip PDF for the given salary record.
+     *
+     * Orchestrates: salary lookup → business info → HTML render → Dompdf generation.
+     *
+     * @param int $salaryId
+     * @return array{content: string, filename: string} PDF bytes and sanitized filename
+     * @throws \RuntimeException if salary not found
+     */
+    public function generatePayslipPdf(int $salaryId): array {
+        $salary = $this->getById($salaryId);
+
+        $business = $this->repo->findBusinessInfo(AuthContext::businessId());
+
+        $html = \App\Templates\PayslipPdf::render($salary, $business);
+
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $filename = 'payslip-' . ($salary['employee_name'] ?? 'unknown') . '-' . $salary['period_start'] . '.pdf';
+        $filename = preg_replace('/[^a-zA-Z0-9_\-.]/', '_', $filename);
+
+        return [
+            'content'  => $dompdf->output(),
+            'filename' => $filename,
+        ];
+    }
+
+    /**
      * Create a new salary record.
      *
      * Business logic:
@@ -66,8 +96,13 @@ class SalaryService {
 
         $this->validateData($data);
 
-        // Period overlap validation
+        // Payee ownership verification
         $payeeId = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
+        if ($payeeId) {
+            $this->peopleRepo->ensurePayeeBelongsToBusiness($payeeId, $ctx->business_id);
+        }
+
+        // Period overlap validation
         if ($payeeId) {
             $this->checkPeriodOverlap($payeeId, $ctx->business_id, $data['period_start'], $data['period_end']);
         }
@@ -149,8 +184,13 @@ class SalaryService {
 
         $this->validateData($data);
 
-        // Period overlap validation (exclude current record)
+        // Payee ownership verification
         $newPayeeIdCheck = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
+        if ($newPayeeIdCheck) {
+            $this->peopleRepo->ensurePayeeBelongsToBusiness($newPayeeIdCheck, $ctx->business_id);
+        }
+
+        // Period overlap validation (exclude current record)
         if ($newPayeeIdCheck) {
             $this->checkPeriodOverlap($newPayeeIdCheck, $ctx->business_id, $data['period_start'], $data['period_end'], $id);
         }
@@ -241,14 +281,7 @@ class SalaryService {
         }
 
         // Guard: reject deletion if payment allocations exist
-        $stmt = $this->db->prepare("
-            SELECT COALESCE(SUM(amount_bc), 0)
-            FROM payment_allocations
-            WHERE reference_type = 'SALARY'
-              AND reference_id = :id
-        ");
-        $stmt->execute(['id' => $id]);
-        $paidAmount = (float) $stmt->fetchColumn();
+        $paidAmount = $this->repo->sumPaymentAllocationsForSalary($id);
         if ($paidAmount > 0) {
             throw new \RuntimeException('Cannot delete salary with existing payment allocations. Remove related payments first.');
         }
@@ -308,23 +341,7 @@ class SalaryService {
         $periodEnd   = $data['period_end'];
 
         // Get all employees in this business (people with type 'Employee')
-        $stmt = $this->db->prepare("
-            SELECT py.id AS payee_id, p.name AS employee_name,
-                   rs.default_amount, rs.default_currency, rs.frequency, rs.entity_id AS schedule_entity_id
-            FROM payees py
-            JOIN people p ON p.id = py.people_id
-            JOIN people_types pt ON pt.people_id = p.id
-            JOIN payee_types ptype ON ptype.id = pt.payee_type_id
-            LEFT JOIN recurrence_schedules rs ON rs.entity_type = 'SALARY'
-                AND rs.entity_id = py.id AND rs.is_active = 1 AND rs.business_id = :business_id
-            WHERE py.business_id = :biz_id
-              AND ptype.name = 'Employee'
-        ");
-        $stmt->execute([
-            'business_id' => $ctx->business_id,
-            'biz_id'      => $ctx->business_id,
-        ]);
-        $employees = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $employees = $this->repo->findEmployeesWithRecurrences($ctx->business_id);
 
         // Filter by specific payee IDs if provided
         $targetPayeeIds = $data['payee_ids'] ?? null;
@@ -340,20 +357,7 @@ class SalaryService {
                 $payeeId = (int) $emp['payee_id'];
 
                 // Check if salary already exists for this employee in this period
-                $existingStmt = $this->db->prepare("
-                    SELECT COUNT(*) FROM salaries
-                    WHERE payee_id = :payee_id
-                      AND business_id = :business_id
-                      AND period_start <= :period_end
-                      AND period_end >= :period_start
-                ");
-                $existingStmt->execute([
-                    'payee_id'     => $payeeId,
-                    'business_id'  => $ctx->business_id,
-                    'period_start' => $periodStart,
-                    'period_end'   => $periodEnd,
-                ]);
-                if ((int) $existingStmt->fetchColumn() > 0) {
+                if ($this->repo->existsOverlappingPeriod($payeeId, $ctx->business_id, $periodStart, $periodEnd)) {
                     $summary['skipped']++;
                     $summary['details'][] = [
                         'payee_id' => $payeeId,
@@ -365,15 +369,7 @@ class SalaryService {
                 }
 
                 // Determine amounts: use latest salary as template, fallback to recurrence schedule
-                $templateSalary = null;
-                $latestSalaryStmt = $this->db->prepare("
-                    SELECT gross_amount_fc, tax_fc, net_amount_fc, currency, exchange_rate
-                    FROM salaries
-                    WHERE payee_id = :payee_id AND business_id = :business_id
-                    ORDER BY period_start DESC LIMIT 1
-                ");
-                $latestSalaryStmt->execute(['payee_id' => $payeeId, 'business_id' => $ctx->business_id]);
-                $templateSalary = $latestSalaryStmt->fetch(\PDO::FETCH_ASSOC);
+                $templateSalary = $this->repo->findLatestForPayee($payeeId, $ctx->business_id);
 
                 if ($templateSalary) {
                     $grossAmountFc = (float) $templateSalary['gross_amount_fc'];
@@ -505,6 +501,31 @@ class SalaryService {
             throw new \InvalidArgumentException('Gross amount is required');
         }
 
+        // Gross amount must be numeric and positive
+        if (!is_numeric($data['gross_amount_fc']) || (float) $data['gross_amount_fc'] <= 0) {
+            throw new \InvalidArgumentException('Gross amount must be greater than zero');
+        }
+
+        // Tax must be numeric and non-negative (if provided)
+        if (isset($data['tax_fc']) && $data['tax_fc'] !== '') {
+            if (!is_numeric($data['tax_fc']) || (float) $data['tax_fc'] < 0) {
+                throw new \InvalidArgumentException('Tax amount must not be negative');
+            }
+        }
+
+        // Exchange rate must be positive (if provided)
+        if (isset($data['exchange_rate']) && $data['exchange_rate'] !== '') {
+            if (!is_numeric($data['exchange_rate']) || (float) $data['exchange_rate'] <= 0) {
+                throw new \InvalidArgumentException('Exchange rate must be positive');
+            }
+        }
+
+        // Validate period_start date format
+        $this->validateDate($data['period_start'], 'period_start');
+
+        // Validate period_end date format
+        $this->validateDate($data['period_end'], 'period_end');
+
         // Date range validation
         if ($data['period_end'] < $data['period_start']) {
             throw new \InvalidArgumentException('Period end must not be before period start');
@@ -515,6 +536,27 @@ class SalaryService {
         $taxFc = isset($data['tax_fc']) && $data['tax_fc'] !== '' ? (float) $data['tax_fc'] : 0.0;
         if ($taxFc > $grossAmountFc) {
             throw new \InvalidArgumentException('Tax cannot exceed gross amount');
+        }
+    }
+
+    /**
+     * Validate that a date string matches YYYY-MM-DD format and represents a valid calendar date.
+     *
+     * @throws \InvalidArgumentException if the date is malformed or invalid
+     */
+    private function validateDate(string $date, string $fieldName): void
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            throw new \InvalidArgumentException("Invalid date format for {$fieldName}. Expected YYYY-MM-DD");
+        }
+
+        $parts = explode('-', $date);
+        $year  = (int) $parts[0];
+        $month = (int) $parts[1];
+        $day   = (int) $parts[2];
+
+        if (!checkdate($month, $day, $year)) {
+            throw new \InvalidArgumentException("Invalid date format for {$fieldName}. Expected YYYY-MM-DD");
         }
     }
 

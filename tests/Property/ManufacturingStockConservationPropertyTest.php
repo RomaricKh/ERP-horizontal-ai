@@ -383,6 +383,7 @@ class ManufacturingStockConservationPropertyTest extends TestCase
             'is_active'              => 1,
             'created_by'             => $this->userId,
             'manufactured_item_name' => 'Manufactured_Item',
+            'unit'                   => 'kg',
         ];
 
         // Build production order data (returned by getProductionOrderById after execution)
@@ -499,6 +500,8 @@ class ManufacturingStockConservationPropertyTest extends TestCase
                 $this->businessId = $businessId;
             }
 
+            public function assertSufficientStock(int $itemId, int $businessId, float $quantity): void {}
+
             public function assertAvailable(int $itemId, float $requestedQty, int $businessId): void {}
 
             public function checkBatch(array $requirements, int $businessId): array {
@@ -585,6 +588,7 @@ class ManufacturingStockConservationPropertyTest extends TestCase
             'is_active'              => 1,
             'created_by'             => $this->userId,
             'manufactured_item_name' => 'Manufactured_Item',
+            'unit'                   => 'kg',
         ];
 
         // Mock ManufacturingRepository
@@ -665,6 +669,8 @@ class ManufacturingStockConservationPropertyTest extends TestCase
                 $this->components = $components;
                 $this->businessId = $businessId;
             }
+
+            public function assertSufficientStock(int $itemId, int $businessId, float $quantity): void {}
 
             public function assertAvailable(int $itemId, float $requestedQty, int $businessId): void {}
 

@@ -28,10 +28,15 @@ class ReportServiceProfitLossTest extends TestCase
      */
     public function testProfitLossCalculation(): void
     {
-        // Revenue query returns 8000
+        // Gross Revenue query returns 8000
         $revenueStmt = $this->createMock(PDOStatement::class);
         $revenueStmt->method('execute')->willReturn(true);
         $revenueStmt->method('fetchColumn')->willReturn('8000.00');
+
+        // Credit notes query returns 0
+        $creditNotesStmt = $this->createMock(PDOStatement::class);
+        $creditNotesStmt->method('execute')->willReturn(true);
+        $creditNotesStmt->method('fetchColumn')->willReturn('0.00');
 
         // COGS query returns 2000
         $cogsStmt = $this->createMock(PDOStatement::class);
@@ -46,11 +51,18 @@ class ReportServiceProfitLossTest extends TestCase
             ['category' => 'Utilities', 'total' => '300.00'],
         ]);
 
+        // Salaries query returns 0
+        $salariesStmt = $this->createMock(PDOStatement::class);
+        $salariesStmt->method('execute')->willReturn(true);
+        $salariesStmt->method('fetchColumn')->willReturn('0.00');
+
         $pdo = $this->createMock(PDO::class);
         $pdo->method('prepare')->willReturnOnConsecutiveCalls(
             $revenueStmt,
+            $creditNotesStmt,
             $cogsStmt,
-            $expensesStmt
+            $expensesStmt,
+            $salariesStmt
         );
 
         $service = new ReportService($pdo);
@@ -77,6 +89,10 @@ class ReportServiceProfitLossTest extends TestCase
         $revenueStmt->method('execute')->willReturn(true);
         $revenueStmt->method('fetchColumn')->willReturn('0');
 
+        $creditNotesStmt = $this->createMock(PDOStatement::class);
+        $creditNotesStmt->method('execute')->willReturn(true);
+        $creditNotesStmt->method('fetchColumn')->willReturn('0');
+
         $cogsStmt = $this->createMock(PDOStatement::class);
         $cogsStmt->method('execute')->willReturn(true);
         $cogsStmt->method('fetchColumn')->willReturn('0');
@@ -85,11 +101,17 @@ class ReportServiceProfitLossTest extends TestCase
         $expensesStmt->method('execute')->willReturn(true);
         $expensesStmt->method('fetchAll')->willReturn([]);
 
+        $salariesStmt = $this->createMock(PDOStatement::class);
+        $salariesStmt->method('execute')->willReturn(true);
+        $salariesStmt->method('fetchColumn')->willReturn('0');
+
         $pdo = $this->createMock(PDO::class);
         $pdo->method('prepare')->willReturnOnConsecutiveCalls(
             $revenueStmt,
+            $creditNotesStmt,
             $cogsStmt,
-            $expensesStmt
+            $expensesStmt,
+            $salariesStmt
         );
 
         $service = new ReportService($pdo);
@@ -119,6 +141,10 @@ class ReportServiceProfitLossTest extends TestCase
         $revenueStmt->method('execute')->willReturn(true);
         $revenueStmt->method('fetchColumn')->willReturn('1000.00');
 
+        $creditNotesStmt = $this->createMock(PDOStatement::class);
+        $creditNotesStmt->method('execute')->willReturn(true);
+        $creditNotesStmt->method('fetchColumn')->willReturn('0');
+
         $cogsStmt = $this->createMock(PDOStatement::class);
         $cogsStmt->method('execute')->willReturn(true);
         $cogsStmt->method('fetchColumn')->willReturn('1500.00');
@@ -129,11 +155,17 @@ class ReportServiceProfitLossTest extends TestCase
             ['category' => 'Rent', 'total' => '200.00'],
         ]);
 
+        $salariesStmt = $this->createMock(PDOStatement::class);
+        $salariesStmt->method('execute')->willReturn(true);
+        $salariesStmt->method('fetchColumn')->willReturn('0');
+
         $pdo = $this->createMock(PDO::class);
         $pdo->method('prepare')->willReturnOnConsecutiveCalls(
             $revenueStmt,
+            $creditNotesStmt,
             $cogsStmt,
-            $expensesStmt
+            $expensesStmt,
+            $salariesStmt
         );
 
         $service = new ReportService($pdo);
@@ -155,6 +187,10 @@ class ReportServiceProfitLossTest extends TestCase
         $revenueStmt->method('execute')->willReturn(true);
         $revenueStmt->method('fetchColumn')->willReturn('0');
 
+        $creditNotesStmt = $this->createMock(PDOStatement::class);
+        $creditNotesStmt->method('execute')->willReturn(true);
+        $creditNotesStmt->method('fetchColumn')->willReturn('0');
+
         $cogsStmt = $this->createMock(PDOStatement::class);
         $cogsStmt->method('execute')->willReturn(true);
         $cogsStmt->method('fetchColumn')->willReturn('0');
@@ -163,11 +199,17 @@ class ReportServiceProfitLossTest extends TestCase
         $expensesStmt->method('execute')->willReturn(true);
         $expensesStmt->method('fetchAll')->willReturn([]);
 
+        $salariesStmt = $this->createMock(PDOStatement::class);
+        $salariesStmt->method('execute')->willReturn(true);
+        $salariesStmt->method('fetchColumn')->willReturn('0');
+
         $pdo = $this->createMock(PDO::class);
         $pdo->method('prepare')->willReturnOnConsecutiveCalls(
             $revenueStmt,
+            $creditNotesStmt,
             $cogsStmt,
-            $expensesStmt
+            $expensesStmt,
+            $salariesStmt
         );
 
         $service = new ReportService($pdo);

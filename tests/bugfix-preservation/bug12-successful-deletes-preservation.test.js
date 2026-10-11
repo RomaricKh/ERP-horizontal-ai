@@ -93,7 +93,7 @@ describe('Bug 12 Preservation — Successful deletes and non-delete operations',
     const methodBody = extractMethodBody(source, 'deleteType');
     expect(methodBody).not.toBeNull();
 
-    expect(methodBody).toContain('repo->deleteType');
+    expect(methodBody).toContain('itemTypeRepo->delete');
     expect(methodBody).toContain('audit->log');
   });
 
@@ -156,7 +156,7 @@ describe('Bug 12 Preservation — Successful deletes and non-delete operations',
         file: 'src/Services/ItemService.php',
         method: 'deleteType',
         guards: ['countItemsForType'],
-        repoCall: 'repo->deleteType',
+        repoCall: 'itemTypeRepo->delete',
       },
       {
         file: 'src/Services/PeopleService.php',

@@ -18,7 +18,7 @@ export async function mount() {
 
     unregister = registerPageActions({
 
-        'profile.save': async () => {
+        'profile.save': async ({ el }) => {
             const firstName = profile_container.querySelector('#profileFirstName')?.value?.trim() ?? '';
             const lastName = profile_container.querySelector('#profileLastName')?.value?.trim() ?? '';
             const email = profile_container.querySelector('#profileEmail')?.value?.trim() ?? '';
@@ -29,6 +29,7 @@ export async function mount() {
             }
 
             try {
+                if (el) el.disabled = true;
                 const res = await apiFetch('/api/users/me', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
@@ -44,10 +45,12 @@ export async function mount() {
             } catch (err) {
                 console.error('Profile save failed:', err);
                 await alert({ title: 'Error', alertText: 'An unexpected error occurred.' });
+            } finally {
+                if (el) el.disabled = false;
             }
         },
 
-        'profile.changePassword': async () => {
+        'profile.changePassword': async ({ el }) => {
             const currentPassword = profile_container.querySelector('#profileCurrentPassword')?.value ?? '';
             const newPassword = profile_container.querySelector('#profileNewPassword')?.value ?? '';
             const confirmPassword = profile_container.querySelector('#profileConfirmPassword')?.value ?? '';
@@ -68,6 +71,7 @@ export async function mount() {
             }
 
             try {
+                if (el) el.disabled = true;
                 const res = await apiFetch('/api/users/me/password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -87,6 +91,8 @@ export async function mount() {
             } catch (err) {
                 console.error('Password change failed:', err);
                 await alert({ title: 'Error', alertText: 'An unexpected error occurred.' });
+            } finally {
+                if (el) el.disabled = false;
             }
         }
     });

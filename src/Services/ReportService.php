@@ -93,7 +93,7 @@ class ReportService
 
             // Convert to base currency if needed
             $businessCurrency = $business['currency'] ?? 'USD';
-            $rate = $this->getExchangeRate($businessCurrency, $baseCurrency, $tenantId);
+            $rate = $this->getExchangeRate($businessCurrency, $baseCurrency, (int) $business['id']);
 
             $convertedRevenue = round($businessData['revenue'] * $rate, 2);
             $convertedExpenses = round($businessData['expenses'] * $rate, 2);
@@ -315,12 +315,12 @@ class ReportService
         $ctx = AuthContext::get();
 
         // Tenant Owners always have access (Req 8.8)
-        if ($ctx->is_tenant_owner) {
+        if (!empty($ctx->is_tenant_owner)) {
             return;
         }
 
-        // Business Owners need "reports.export" permission (Req 8.9)
-        if (in_array('reports.export', $ctx->permissions ?? [], true)) {
+        // Business Owners need "reports.export" permission AND must be requesting for their active business (Req 8.9)
+        if ($ctx->business_id === $businessId && in_array('reports.export', $ctx->permissions ?? [], true)) {
             return;
         }
 
@@ -540,39 +540,27 @@ class ReportService
      *
      * If source and base are the same, returns 1.0.
      * Looks up the most recent exchange rate from the exchange_rates table
-     * for the given tenant.
+     * scoped to the specific business (Req 8.10).
      *
-     * @throws RuntimeException if exchange rate is missing (Req 8.10)
+     * @throws RuntimeException if exchange rate is missing
      */
-    private function getExchangeRate(string $fromCurrency, string $baseCurrency, int $tenantId): float
+    private function getExchangeRate(string $fromCurrency, string $baseCurrency, int $businessId): float
     {
         // Same currency — no conversion needed
         if ($fromCurrency === $baseCurrency) {
             return 1.0;
         }
 
-        // Look up the latest exchange rate for this currency pair within the tenant
-        $stmt = $this->db->prepare("
-            SELECT rate
-            FROM exchange_rates
-            WHERE tenant_id = :tenant_id
-              AND currency = :currency
-            ORDER BY rate_date DESC
-            LIMIT 1
-        ");
-        $stmt->execute([
-            'tenant_id' => $tenantId,
-            'currency' => $fromCurrency,
-        ]);
-        $rate = $stmt->fetchColumn();
+        // Look up the latest exchange rate for this currency scoped to the business
+        $row = $this->exchangeRateRepo->getLatestRate($fromCurrency, $businessId);
 
-        if ($rate === false || $rate === null) {
+        if (!$row) {
             throw new RuntimeException(
                 "Missing exchange rate for currency pair: {$fromCurrency}/{$baseCurrency}"
             );
         }
 
-        return (float) $rate;
+        return (float) $row['rate'];
     }
 
     /* =====================================================================
@@ -676,21 +664,61 @@ class ReportService
      */
     public function getCashFlow(int $businessId, string $start, string $end): array
     {
-        // Inflows: collection slips (all cash received)
-        $stmt = $this->db->prepare("
-            SELECT COALESCE(SUM(total_bc), 0) FROM collection_slips
-            WHERE business_id = :bid AND slip_date >= :s AND slip_date <= :e
-        ");
-        $stmt->execute(['bid' => $businessId, 's' => $start, 'e' => $end]);
-        $collections = (float) $stmt->fetchColumn();
+        $exchangeRateService = new ExchangeRateService($this->db);
 
-        // Outflows: total payment slips
-        $stmt = $this->db->prepare("
+        // Inflows: collection slips (dynamically converted)
+        $stmtIn = $this->db->prepare("
+            SELECT csl.currency, COALESCE(SUM(csl.amount_fc), 0) as total_fc
+            FROM collection_slip_lines csl
+            JOIN collection_slips cs ON cs.id = csl.collection_slip_id
+            WHERE cs.business_id = :bid AND cs.slip_date >= :s AND cs.slip_date <= :e
+            GROUP BY csl.currency
+        ");
+        $stmtIn->execute(['bid' => $businessId, 's' => $start, 'e' => $end]);
+        $inByCurrency = $stmtIn->fetchAll(\PDO::FETCH_ASSOC);
+
+        $collections = 0.0;
+        foreach ($inByCurrency as $row) {
+            if (empty($row['currency'])) {
+                $collections += (float) $row['total_fc'];
+                continue;
+            }
+            $rateLookup = $exchangeRateService->getLatestForLookupAsOf($row['currency'], $end);
+            $rate = $rateLookup['rate'] !== null ? (float) $rateLookup['rate'] : 1.0;
+            $collections += round((float) $row['total_fc'] * $rate, 2);
+        }
+
+        // Outflows: total payment slips (dynamically converted)
+        $stmtOut = $this->db->prepare("
+            SELECT psl.currency, COALESCE(SUM(psl.amount_fc), 0) as total_fc
+            FROM payment_slip_lines psl
+            JOIN payment_slips ps ON ps.id = psl.payment_slip_id
+            WHERE ps.business_id = :bid AND ps.payment_date >= :s AND ps.payment_date <= :e
+            GROUP BY psl.currency
+        ");
+        $stmtOut->execute(['bid' => $businessId, 's' => $start, 'e' => $end]);
+        $outByCurrency = $stmtOut->fetchAll(\PDO::FETCH_ASSOC);
+
+        $payments = 0.0;
+        foreach ($outByCurrency as $row) {
+            if (empty($row['currency'])) {
+                $payments += (float) $row['total_fc'];
+                continue;
+            }
+            $rateLookup = $exchangeRateService->getLatestForLookupAsOf($row['currency'], $end);
+            $rate = $rateLookup['rate'] !== null ? (float) $rateLookup['rate'] : 1.0;
+            $payments += round((float) $row['total_fc'] * $rate, 2);
+        }
+
+        // We need historical payments to calculate the conversion ratio for allocations
+        $stmtHistOut = $this->db->prepare("
             SELECT COALESCE(SUM(total_bc), 0) FROM payment_slips
             WHERE business_id = :bid AND payment_date >= :s AND payment_date <= :e
         ");
-        $stmt->execute(['bid' => $businessId, 's' => $start, 'e' => $end]);
-        $payments = (float) $stmt->fetchColumn();
+        $stmtHistOut->execute(['bid' => $businessId, 's' => $start, 'e' => $end]);
+        $historicalPayments = (float) $stmtHistOut->fetchColumn();
+
+        $conversionRatio = $historicalPayments > 0 ? ($payments / $historicalPayments) : 1.0;
 
         // Categorize payments based on payment_allocations
         $stmt = $this->db->prepare("
@@ -714,7 +742,7 @@ class ReportService
 
         $totalAllocated = 0.0;
         foreach ($allocations as $alloc) {
-            $amt = (float) $alloc['allocated_amount'];
+            $amt = round((float) $alloc['allocated_amount'] * $conversionRatio, 2);
             $totalAllocated += $amt;
             switch ($alloc['reference_type']) {
                 case 'EXPENSE':
@@ -760,24 +788,68 @@ class ReportService
      */
     public function getBalanceSheet(int $businessId, string $asOf): array
     {
-        // ASSETS
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(balance), 0) FROM business_accounts WHERE business_id = :bid");
-        $stmt->execute(['bid' => $businessId]);
-        $cashBank = (float) $stmt->fetchColumn();
+        // ASSETS: Cash at Bank (dynamically evaluated using market value as of $asOf)
+        $cashBank = 0.0;
+        $stmtAccounts = $this->db->prepare("SELECT id, currency FROM business_accounts WHERE business_id = :bid");
+        $stmtAccounts->execute(['bid' => $businessId]);
+        $accounts = $stmtAccounts->fetchAll(\PDO::FETCH_ASSOC);
+
+        $exchangeRateService = new ExchangeRateService($this->db);
+        foreach ($accounts as $account) {
+            // 1. Inflows
+            $stmtIn = $this->db->prepare("SELECT COALESCE(SUM(csl.amount_fc), 0) FROM collection_slip_lines csl JOIN collection_slips cs ON cs.id = csl.collection_slip_id WHERE csl.account_id = :aid AND cs.slip_date <= :d");
+            $stmtIn->execute(['aid' => $account['id'], 'd' => $asOf]);
+            $in = (float)$stmtIn->fetchColumn();
+
+            // 2. Outflows
+            $stmtOut = $this->db->prepare("SELECT COALESCE(SUM(psl.amount_fc), 0) FROM payment_slip_lines psl JOIN payment_slips ps ON ps.id = psl.payment_slip_id WHERE psl.account_id = :aid AND ps.payment_date <= :d");
+            $stmtOut->execute(['aid' => $account['id'], 'd' => $asOf]);
+            $out = (float)$stmtOut->fetchColumn();
+            
+            // 3. Transfers In
+            $stmtTransIn = $this->db->prepare("SELECT COALESCE(SUM(amount_to), 0) FROM account_transfers WHERE to_account_id = :aid AND transfer_date <= :d");
+            $stmtTransIn->execute(['aid' => $account['id'], 'd' => $asOf]);
+            $transIn = (float)$stmtTransIn->fetchColumn();
+            
+            // 4. Transfers Out
+            $stmtTransOut = $this->db->prepare("SELECT COALESCE(SUM(amount_from), 0) FROM account_transfers WHERE from_account_id = :aid AND transfer_date <= :d");
+            $stmtTransOut->execute(['aid' => $account['id'], 'd' => $asOf]);
+            $transOut = (float)$stmtTransOut->fetchColumn();
+
+            $historicalFC = $in - $out + $transIn - $transOut;
+
+            // Convert to BC using the exchange rate active on the $asOf date
+            $lookup = $exchangeRateService->getLatestForLookupAsOf($account['currency'], $asOf);
+            $rate = $lookup['rate'] !== null ? (float)$lookup['rate'] : 1.0;
+            
+            if (!$lookup['is_base'] && $rate > 0) {
+                $cashBank += round($historicalFC * $rate, 2);
+            } else {
+                $cashBank += round($historicalFC, 2);
+            }
+        }
 
         // AR: delivered invoices - credit notes - collections received
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(total_amount_bc), 0) FROM sales_invoices WHERE business_id = :bid AND status = 'DELIVERED' AND invoice_date <= :d");
+        $ar = 0.0;
+        $arByCurrency = [];
+        $stmt = $this->db->prepare("SELECT currency, COALESCE(SUM(total_amount_fc), 0) as fc FROM sales_invoices WHERE business_id = :bid AND status = 'DELIVERED' AND invoice_date <= :d GROUP BY currency");
         $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
-        $arGross = (float) $stmt->fetchColumn();
-
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(cn.total_amount_bc), 0) FROM credit_notes cn JOIN sales_invoices si ON si.id = cn.sales_invoice_id WHERE cn.business_id = :bid AND cn.status = 'ISSUED'");
-        $stmt->execute(['bid' => $businessId]);
-        $arCN = (float) $stmt->fetchColumn();
-
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(ca.amount_bc), 0) FROM collection_allocations ca JOIN collection_slips cs ON cs.id = ca.collection_slip_id WHERE cs.business_id = :bid AND ca.reference_type = 'SALES_INVOICE'");
-        $stmt->execute(['bid' => $businessId]);
-        $arColl = (float) $stmt->fetchColumn();
-        $ar = round(max(0, $arGross - $arCN - $arColl), 2);
+        foreach ($stmt->fetchAll() as $row) { $arByCurrency[$row['currency']] = (float)$row['fc']; }
+        
+        $stmt = $this->db->prepare("SELECT si.currency, COALESCE(SUM(cn.total_amount_fc), 0) as fc FROM credit_notes cn JOIN sales_invoices si ON si.id = cn.sales_invoice_id WHERE cn.business_id = :bid AND cn.status = 'ISSUED' AND cn.credit_note_date <= :d GROUP BY si.currency");
+        $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
+        foreach ($stmt->fetchAll() as $row) { $arByCurrency[$row['currency']] = ($arByCurrency[$row['currency']] ?? 0.0) - (float)$row['fc']; }
+        
+        $stmt = $this->db->prepare("SELECT si.currency, COALESCE(SUM(ca.amount_fc), 0) as fc FROM collection_allocations ca JOIN collection_slips cs ON cs.id = ca.collection_slip_id JOIN sales_invoices si ON si.id = ca.reference_id WHERE cs.business_id = :bid AND ca.reference_type = 'SALES_INVOICE' AND cs.slip_date <= :d GROUP BY si.currency");
+        $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
+        foreach ($stmt->fetchAll() as $row) { $arByCurrency[$row['currency']] = ($arByCurrency[$row['currency']] ?? 0.0) - (float)$row['fc']; }
+        
+        foreach ($arByCurrency as $currency => $fcAmount) {
+            $lookup = $exchangeRateService->getLatestForLookupAsOf($currency, $asOf);
+            $rate = $lookup['rate'] !== null ? (float)$lookup['rate'] : 1.0;
+            $ar += $lookup['is_base'] ? round($fcAmount, 2) : round($fcAmount * $rate, 2);
+        }
+        $ar = max(0, $ar);
 
         $stmt = $this->db->prepare("SELECT COALESCE(SUM(s.quantity * COALESCE(i.cost_price, 0)), 0) FROM stock s JOIN items i ON i.id = s.item_id WHERE s.business_id = :bid");
         $stmt->execute(['bid' => $businessId]);
@@ -790,36 +862,62 @@ class ReportService
         $totalAssets = round($cashBank + $ar + $inventory + $fixedAssets, 2);
 
         // LIABILITIES: AP = received POs - debit notes - payments allocated to POs
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(total_amount_bc), 0) FROM purchase_orders WHERE business_id = :bid AND status = 'RECEIVED' AND po_date <= :d");
+        $ap = 0.0;
+        $apByCurrency = [];
+        $stmt = $this->db->prepare("SELECT currency, COALESCE(SUM(total_amount_fc), 0) as fc FROM purchase_orders WHERE business_id = :bid AND status = 'RECEIVED' AND po_date <= :d GROUP BY currency");
         $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
-        $apGross = (float) $stmt->fetchColumn();
+        foreach ($stmt->fetchAll() as $row) { $apByCurrency[$row['currency']] = (float)$row['fc']; }
 
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(dn.total_amount_bc), 0) FROM debit_notes dn WHERE dn.business_id = :bid AND dn.status = 'ISSUED'");
-        $stmt->execute(['bid' => $businessId]);
-        $apDN = (float) $stmt->fetchColumn();
+        $stmt = $this->db->prepare("SELECT po.currency, COALESCE(SUM(dn.total_amount_fc), 0) as fc FROM debit_notes dn JOIN purchase_orders po ON po.id = dn.purchase_order_id WHERE dn.business_id = :bid AND dn.status = 'ISSUED' AND dn.debit_note_date <= :d GROUP BY po.currency");
+        $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
+        foreach ($stmt->fetchAll() as $row) { $apByCurrency[$row['currency']] = ($apByCurrency[$row['currency']] ?? 0.0) - (float)$row['fc']; }
 
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(pa.amount_bc), 0) FROM payment_allocations pa JOIN payment_slips ps ON ps.id = pa.payment_slip_id WHERE ps.business_id = :bid AND pa.reference_type = 'PURCHASE_ORDER'");
-        $stmt->execute(['bid' => $businessId]);
-        $apPaid = (float) $stmt->fetchColumn();
-        $ap = round(max(0, $apGross - $apDN - $apPaid), 2);
+        $stmt = $this->db->prepare("SELECT po.currency, COALESCE(SUM(pa.amount_fc), 0) as fc FROM payment_allocations pa JOIN payment_slips ps ON ps.id = pa.payment_slip_id JOIN purchase_orders po ON po.id = pa.reference_id WHERE ps.business_id = :bid AND pa.reference_type = 'PURCHASE_ORDER' AND ps.payment_date <= :d GROUP BY po.currency");
+        $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
+        foreach ($stmt->fetchAll() as $row) { $apByCurrency[$row['currency']] = ($apByCurrency[$row['currency']] ?? 0.0) - (float)$row['fc']; }
+
+        foreach ($apByCurrency as $currency => $fcAmount) {
+            $lookup = $exchangeRateService->getLatestForLookupAsOf($currency, $asOf);
+            $rate = $lookup['rate'] !== null ? (float)$lookup['rate'] : 1.0;
+            $ap += $lookup['is_base'] ? round($fcAmount, 2) : round($fcAmount * $rate, 2);
+        }
+        $ap = max(0, $ap);
 
         // Unpaid expenses
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(e.amount_bc), 0) FROM expenses e WHERE e.business_id = :bid AND e.expense_date <= :d");
+        $unpaidExp = 0.0;
+        $expByCurrency = [];
+        $stmt = $this->db->prepare("SELECT currency, COALESCE(SUM(amount_fc), 0) as fc FROM expenses WHERE business_id = :bid AND expense_date <= :d GROUP BY currency");
         $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
-        $expTotal = (float) $stmt->fetchColumn();
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(pa.amount_bc), 0) FROM payment_allocations pa JOIN payment_slips ps ON ps.id = pa.payment_slip_id WHERE ps.business_id = :bid AND pa.reference_type = 'EXPENSE'");
-        $stmt->execute(['bid' => $businessId]);
-        $expPaid = (float) $stmt->fetchColumn();
-        $unpaidExp = round(max(0, $expTotal - $expPaid), 2);
+        foreach ($stmt->fetchAll() as $row) { $expByCurrency[$row['currency']] = (float)$row['fc']; }
+
+        $stmt = $this->db->prepare("SELECT e.currency, COALESCE(SUM(pa.amount_fc), 0) as fc FROM payment_allocations pa JOIN payment_slips ps ON ps.id = pa.payment_slip_id JOIN expenses e ON e.id = pa.reference_id WHERE ps.business_id = :bid AND pa.reference_type = 'EXPENSE' AND ps.payment_date <= :d GROUP BY e.currency");
+        $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
+        foreach ($stmt->fetchAll() as $row) { $expByCurrency[$row['currency']] = ($expByCurrency[$row['currency']] ?? 0.0) - (float)$row['fc']; }
+
+        foreach ($expByCurrency as $currency => $fcAmount) {
+            $lookup = $exchangeRateService->getLatestForLookupAsOf($currency, $asOf);
+            $rate = $lookup['rate'] !== null ? (float)$lookup['rate'] : 1.0;
+            $unpaidExp += $lookup['is_base'] ? round($fcAmount, 2) : round($fcAmount * $rate, 2);
+        }
+        $unpaidExp = max(0, $unpaidExp);
 
         // Unpaid salaries
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(s.net_amount_bc), 0) FROM salaries s WHERE s.business_id = :bid AND s.period_start <= :d");
+        $unpaidSal = 0.0;
+        $salByCurrency = [];
+        $stmt = $this->db->prepare("SELECT currency, COALESCE(SUM(net_amount_fc), 0) as fc FROM salaries WHERE business_id = :bid AND period_start <= :d GROUP BY currency");
         $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
-        $salTotal = (float) $stmt->fetchColumn();
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(pa.amount_bc), 0) FROM payment_allocations pa JOIN payment_slips ps ON ps.id = pa.payment_slip_id WHERE ps.business_id = :bid AND pa.reference_type = 'SALARY'");
-        $stmt->execute(['bid' => $businessId]);
-        $salPaid = (float) $stmt->fetchColumn();
-        $unpaidSal = round(max(0, $salTotal - $salPaid), 2);
+        foreach ($stmt->fetchAll() as $row) { $salByCurrency[$row['currency']] = (float)$row['fc']; }
+
+        $stmt = $this->db->prepare("SELECT s.currency, COALESCE(SUM(pa.amount_fc), 0) as fc FROM payment_allocations pa JOIN payment_slips ps ON ps.id = pa.payment_slip_id JOIN salaries s ON s.id = pa.reference_id WHERE ps.business_id = :bid AND pa.reference_type = 'SALARY' AND ps.payment_date <= :d GROUP BY s.currency");
+        $stmt->execute(['bid' => $businessId, 'd' => $asOf]);
+        foreach ($stmt->fetchAll() as $row) { $salByCurrency[$row['currency']] = ($salByCurrency[$row['currency']] ?? 0.0) - (float)$row['fc']; }
+
+        foreach ($salByCurrency as $currency => $fcAmount) {
+            $lookup = $exchangeRateService->getLatestForLookupAsOf($currency, $asOf);
+            $rate = $lookup['rate'] !== null ? (float)$lookup['rate'] : 1.0;
+            $unpaidSal += $lookup['is_base'] ? round($fcAmount, 2) : round($fcAmount * $rate, 2);
+        }
+        $unpaidSal = max(0, $unpaidSal);
 
         $totalLiab = round($ap + $unpaidExp + $unpaidSal, 2);
 

@@ -297,6 +297,42 @@ class ManufacturingRepository {
     }
 
     /**
+     * Insert production order waste items (batch insert).
+     *
+     * Each item in $items should have: item_id, quantity
+     */
+    public function insertProductionOrderWaste(int $orderId, array $items): void {
+        $stmt = $this->db->prepare("
+            INSERT INTO production_order_waste
+              (production_order_id, item_id, quantity)
+            VALUES
+              (:production_order_id, :item_id, :quantity)
+        ");
+        foreach ($items as $item) {
+            $stmt->execute([
+                'production_order_id' => $orderId,
+                'item_id'             => $item['item_id'],
+                'quantity'            => $item['quantity'],
+            ]);
+        }
+    }
+
+    /**
+     * Return all waste items for a given production order.
+     */
+    public function getProductionOrderWaste(int $orderId): array {
+        $stmt = $this->db->prepare("
+            SELECT pow.id, pow.production_order_id, pow.item_id,
+                   pow.quantity, i.name AS item_name, i.unit
+            FROM production_order_waste pow
+            JOIN items i ON i.id = pow.item_id
+            WHERE pow.production_order_id = :order_id
+        ");
+        $stmt->execute(['order_id' => $orderId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Return all items for a given production order.
      */
     public function getProductionOrderItems(int $orderId): array {
@@ -392,16 +428,23 @@ class ManufacturingRepository {
     /**
      * Update the status of a production order.
      */
-    public function updateProductionOrderStatus(int $id, string $status): void {
+    public function updateProductionOrderStatus(int $id, string $status, int $tenantId, int $businessId): void {
         $stmt = $this->db->prepare("
             UPDATE production_orders
             SET status = :status
             WHERE id = :id
+              AND tenant_id = :tenant_id
+              AND business_id = :business_id
         ");
         $stmt->execute([
-            'status' => $status,
-            'id'     => $id,
+            'status'      => $status,
+            'id'          => $id,
+            'tenant_id'   => $tenantId,
+            'business_id' => $businessId,
         ]);
+        if ($stmt->rowCount() === 0) {
+            throw new \RuntimeException('Production order not found or not allowed');
+        }
     }
 
     /**

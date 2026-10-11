@@ -269,6 +269,7 @@ class ExpenseReferenceAndAttachmentTest extends TestCase
         $peopleRepo = new class extends PeopleRepository {
             public function __construct() {}
             public function updatePayeeBalance(int $payeeId, float $delta): void {}
+            public function ensurePayeeBelongsToBusiness(int $payeeId, int $businessId): void {}
         };
 
         $audit = new class extends AuditService {

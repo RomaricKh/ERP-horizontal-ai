@@ -21,7 +21,12 @@ class UsersController extends BaseController {
     public function index(): void {
         try {
 			$ctx = $this->auth();
-            $users = $this->service->listForCurrentBusiness($ctx->business_id);
+            $businessId = $ctx->business_id;
+            if ($businessId === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            $users = $this->service->listForCurrentBusiness($businessId);
             $this->json(true, ['users' => $users]);
         } catch (\Throwable $e) {
             $this->serverError('Failed to fetch users '.$e);
@@ -32,7 +37,12 @@ class UsersController extends BaseController {
     public function viewById(int $id): void {
         try {
 			$ctx = $this->auth();
-            $user = $this->service->getByUserId($id, $ctx->business_id);
+            $businessId = $ctx->business_id;
+            if ($businessId === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            $user = $this->service->getByUserId($id, $businessId);
             $this->json(true, ['user' => $user]);
         } catch (\Throwable $e) {
             $this->notFound('User not found '.$e);
@@ -43,6 +53,11 @@ class UsersController extends BaseController {
 	public function lookup() {
 		try {
 			$ctx = $this->auth();
+            $businessId = $ctx->business_id;
+            if ($businessId === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
 			$result = $this->service->lookup($_GET);
 
             $this->json(true, $result);
@@ -55,6 +70,11 @@ class UsersController extends BaseController {
     public function store(): void {
         try {
 			$ctx = $this->auth();
+            $businessId = $ctx->business_id;
+            if ($businessId === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
 			
             $data = $this->input(['username', 'email', 'first_name', 'last_name', 'password', 'role_id', 'is_active']);
 
@@ -74,12 +94,12 @@ class UsersController extends BaseController {
             }
 
             // The selected role must belong to the current business (business-scoped roles only)
-            if ($role['business_id'] === null || (int) $role['business_id'] !== $ctx->business_id) {
+            if ($role['business_id'] === null || (int) $role['business_id'] !== $businessId) {
                 $this->json(false, null, 'Selected role does not belong to this business', 422);
                 return;
             }
 
-            $userId = $this->service->createForCurrentBusiness($ctx->business_id, $ctx->user_id, $data);
+            $userId = $this->service->createForCurrentBusiness($businessId, $ctx->user_id, $data);
 			
             $this->json(true, ['user_id' => $userId]);
         } catch (\InvalidArgumentException $e) {
@@ -95,10 +115,29 @@ class UsersController extends BaseController {
     public function update(int $id): void {
         try {
 			$ctx = $this->auth();
+            $businessId = $ctx->business_id;
+            if ($businessId === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
 			$selfModified = ($id === $ctx->user_id);
 			
-            $identity = $this->input(['username', 'email', 'first_name', 'last_name']);
+            // Add 'password' to the identity input extraction
+            $identity = $this->input(['username', 'email', 'first_name', 'last_name', 'password']);
             $access = $this->input(['role_id', 'is_active']);
+
+            // Guard: reject if target user is a Tenant Owner in this tenant
+            $db = \App\Config\Database::getConnection();
+            $stmt = $db->prepare("
+                SELECT COUNT(*) FROM user_roles ur
+                JOIN roles r ON r.id = ur.role_id
+                WHERE ur.user_id = :user_id AND ur.tenant_id = :tenant_id AND r.type = 'TENANT_OWNER'
+            ");
+            $stmt->execute(['user_id' => $id, 'tenant_id' => $ctx->tenant_id]);
+            if ((int) $stmt->fetchColumn() > 0) {
+                $this->json(false, null, 'This user is a Tenant Owner and cannot be assigned a business-level role or modified by a business admin in this tenant', 403);
+                return;
+            }
 
             // Validate role assignment if role_id is provided
             if (isset($access['role_id']) && $access['role_id'] !== null) {
@@ -117,26 +156,13 @@ class UsersController extends BaseController {
                 }
 
                 // The selected role must belong to the current business
-                if ($role['business_id'] === null || (int) $role['business_id'] !== $ctx->business_id) {
+                if ($role['business_id'] === null || (int) $role['business_id'] !== $businessId) {
                     $this->json(false, null, 'Selected role does not belong to this business', 422);
-                    return;
-                }
-
-                // Guard: reject if target user is a Tenant Owner in this tenant
-                $db = \App\Config\Database::getConnection();
-                $stmt = $db->prepare("
-                    SELECT COUNT(*) FROM user_roles ur
-                    JOIN roles r ON r.id = ur.role_id
-                    WHERE ur.user_id = :user_id AND ur.tenant_id = :tenant_id AND r.type = 'TENANT_OWNER'
-                ");
-                $stmt->execute(['user_id' => $id, 'tenant_id' => $ctx->tenant_id]);
-                if ((int) $stmt->fetchColumn() > 0) {
-                    $this->json(false, null, 'This user is a Tenant Owner and cannot be assigned a business-level role in this tenant', 403);
                     return;
                 }
             }
 
-            $this->service->updateForCurrentBusiness($id, $ctx->business_id, $ctx->user_id, $identity, $access);
+            $this->service->updateForCurrentBusiness($id, $businessId, $ctx->user_id, $identity, $access);
 			
             $this->json(true, ['selfModified' => $selfModified]);
         } catch (\Throwable $e) {
@@ -148,11 +174,20 @@ class UsersController extends BaseController {
     public function delete(int $id): void {
         try {
 			$ctx = $this->auth();
-			$selfDeleted = ($id === $ctx->user_id);
+            $businessId = $ctx->business_id;
+            if ($businessId === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
 			
-            $this->service->deleteFromCurrentBusiness($id, $ctx->business_id, $ctx->user_id);
+			if ($id === $ctx->user_id){
+				$this->json(false, null, "You cannot delete yourself", 403);
+				return;
+			}
 			
-            $this->json(true, ['selfDeleted' => $selfDeleted]);
+            $this->service->deleteFromCurrentBusiness($id, $businessId, $ctx->user_id);
+			
+            $this->json(true, ['selfDeleted' => false]);
         } catch (\Throwable $e) {
             $this->serverError('Failed to delete user');
         }
@@ -210,9 +245,7 @@ class UsersController extends BaseController {
                 return;
             }
 
-            $db = \App\Config\Database::getConnection();
-            $userRepo = new \App\Repository\UserRepository($db);
-            $userRepo->updateIdentity($ctx->user_id, $updates);
+            $this->service->updateProfileIdentity($ctx->user_id, $updates);
 
             $this->json(true, null, 'Profile updated successfully');
         } catch (\Throwable $e) {
@@ -235,27 +268,14 @@ class UsersController extends BaseController {
                 return;
             }
 
-            $db = \App\Config\Database::getConnection();
-            $userRepo = new \App\Repository\UserRepository($db);
-
-            // Fetch current user's password hash
-            $user = $userRepo->findIdentityById($ctx->user_id);
-            if (!$user) {
-                $this->json(false, null, 'User not found', 404);
-                return;
+            try {
+                $this->service->changeProfilePassword($ctx->user_id, $currentPassword, $newPassword);
+                $this->json(true, null, 'Password updated successfully');
+            } catch (\InvalidArgumentException $e) {
+                $this->json(false, null, $e->getMessage(), 403);
+            } catch (\RuntimeException $e) {
+                $this->json(false, null, $e->getMessage(), 404);
             }
-
-            // Verify current password
-            if (!password_verify($currentPassword, $user['password_hash'])) {
-                $this->json(false, null, 'Current password is incorrect', 403);
-                return;
-            }
-
-            // Hash and update new password
-            $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $userRepo->updateIdentity($ctx->user_id, ['password_hash' => $newHash]);
-
-            $this->json(true, null, 'Password updated successfully');
         } catch (\Throwable $e) {
             $this->serverError('Failed to change password');
         }

@@ -48,9 +48,14 @@ class ExpensesController extends BaseController {
             $id   = $this->service->create($data);
             $this->json(true, ['id' => $id], null, 201);
         } catch (\InvalidArgumentException $e) {
+            $this->logError('Expenses', 'store', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Expenses', 'store', $e);
             $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to create expense: ' . $e->getMessage());
+            $this->logError('Expenses', 'store', $e);
+            $this->serverError('Failed to create expense');
         }
     }
 
@@ -96,7 +101,13 @@ class ExpensesController extends BaseController {
                              'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
             $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
 
-            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            // Sanitize original filename before extension extraction
+            $originalName = $file['name'];
+            // Remove path traversal sequences and null bytes
+            $sanitized = str_replace(['../', '..\\', "\0"], '', $originalName);
+            // Keep only allowed characters for safe extension extraction
+            $sanitized = preg_replace('/[^a-zA-Z0-9_\-.]/', '', $sanitized);
+            $ext = strtolower(pathinfo($sanitized, PATHINFO_EXTENSION));
             if (!in_array($ext, $allowedExts)) {
                 $this->json(false, null, 'File type not allowed. Accepted: pdf, jpg, png, doc, docx', 422);
                 return;
@@ -105,6 +116,14 @@ class ExpensesController extends BaseController {
             // Max 10MB
             if ($file['size'] > 10 * 1024 * 1024) {
                 $this->json(false, null, 'File too large. Maximum size: 10MB', 422);
+                return;
+            }
+
+            // MIME type verification using finfo_file()
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $detectedMime = $finfo->file($file['tmp_name']);
+            if (!in_array($detectedMime, $allowedTypes, true)) {
+                $this->json(false, null, 'File content does not match expected type', 422);
                 return;
             }
 
@@ -123,8 +142,15 @@ class ExpensesController extends BaseController {
 
             $publicPath = '/uploads/expenses/' . $filename;
             $this->json(true, ['path' => $publicPath], null, 201);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Expenses', 'uploadAttachment', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Expenses', 'uploadAttachment', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
-            $this->serverError('Upload failed: ' . $e->getMessage());
+            $this->logError('Expenses', 'uploadAttachment', $e);
+            $this->serverError('Upload failed');
         }
     }
 
@@ -153,9 +179,14 @@ class ExpensesController extends BaseController {
             $id       = $this->service->createCategory($name, $isFixed);
             $this->json(true, ['id' => $id], null, 201);
         } catch (\InvalidArgumentException $e) {
+            $this->logError('Expenses', 'storeCategory', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Expenses', 'storeCategory', $e);
             $this->json(false, null, $e->getMessage(), 422);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to create expense category: ' . $e->getMessage());
+            $this->logError('Expenses', 'storeCategory', $e);
+            $this->serverError('Failed to create expense category');
         }
     }
 

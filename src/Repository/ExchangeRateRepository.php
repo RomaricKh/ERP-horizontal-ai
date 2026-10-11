@@ -42,6 +42,27 @@ class ExchangeRateRepository {
     }
 
     /**
+     * Return the most recent rate for the given currency on or before the specified date.
+     */
+    public function getLatestRateAsOf(string $currency, int $businessId, string $asOf): ?array {
+        $stmt = $this->db->prepare("
+            SELECT id, tenant_id, business_id, currency, rate_date, rate, source, created_at
+            FROM exchange_rates
+            WHERE currency = :currency
+              AND business_id = :business
+              AND rate_date <= :as_of
+            ORDER BY rate_date DESC
+            LIMIT 1
+        ");
+        $stmt->execute([
+            'currency' => $currency,
+            'business' => $businessId,
+            'as_of' => $asOf
+        ]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
      * Return a single rate by id, scoped to tenant.
      */
     public function findById(int $id, int $tenantId): ?array {
@@ -83,6 +104,11 @@ class ExchangeRateRepository {
      * Update rate_date, rate, source, and currency for an existing row.
      */
     public function update(int $id, int $tenantId, array $data): void {
+        $currency = $data['currency'] ?? null;
+        $rateDate = $data['rate_date'] ?? null;
+        $rate     = $data['rate'] ?? null;
+        $source   = $data['source'] ?? null;
+
         $stmt = $this->db->prepare("
             UPDATE exchange_rates
             SET currency  = :currency,
@@ -93,10 +119,10 @@ class ExchangeRateRepository {
               AND tenant_id = :tenant
         ");
         $stmt->execute([
-            'currency'  => $data['currency'],
-            'rate_date' => $data['rate_date'],
-            'rate'      => $data['rate'],
-            'source'    => $data['source'] ?? null,
+            'currency'  => $currency,
+            'rate_date' => $rateDate,
+            'rate'      => $rate,
+            'source'    => $source,
             'id'        => $id,
             'tenant'    => $tenantId,
         ]);

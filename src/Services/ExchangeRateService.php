@@ -28,6 +28,14 @@ class ExchangeRateService {
     }
 
     /**
+     * Return a single exchange rate by ID, scoped to the current tenant.
+     */
+    public function getById(int $id): ?array {
+        $ctx = AuthContext::get();
+        return $this->repo->findById($id, $ctx->tenant_id);
+    }
+
+    /**
      * Return the most recent rate for the given currency in the current business.
      */
     public function getLatest(string $currency): ?array {
@@ -50,11 +58,40 @@ class ExchangeRateService {
         $ctx = AuthContext::get();
         $business = $this->businessRepo->getBusinessByID($ctx->business_id);
 
-        if ($currency === $business['currency']) {
+        if (strtoupper($currency) === strtoupper($business['currency'])) {
             return ['rate' => 1, 'rate_date' => null, 'is_base' => true];
         }
 
         $row = $this->repo->getLatestRate($currency, $ctx->business_id);
+
+        if (!$row) {
+            return ['rate' => null, 'rate_date' => null, 'is_base' => false];
+        }
+
+        return ['rate' => (float)$row['rate'], 'rate_date' => $row['rate_date'], 'is_base' => false];
+    }
+
+    /**
+     * Look up the latest exchange rate for a currency as of a specific date, with base-currency short-circuit.
+     *
+     * @param string $currency The requested currency code.
+     * @param string $asOf The date boundary (YYYY-MM-DD).
+     * @return array Keys: rate (float|null), rate_date (string|null), is_base (bool)
+     * @throws \InvalidArgumentException if currency is empty.
+     */
+    public function getLatestForLookupAsOf(string $currency, string $asOf): array {
+        if (trim($currency) === '') {
+            throw new \InvalidArgumentException('Currency is required');
+        }
+
+        $ctx = AuthContext::get();
+        $business = $this->businessRepo->getBusinessByID($ctx->business_id);
+
+        if (strtoupper($currency) === strtoupper($business['currency'])) {
+            return ['rate' => 1, 'rate_date' => null, 'is_base' => true];
+        }
+
+        $row = $this->repo->getLatestRateAsOf($currency, $ctx->business_id, $asOf);
 
         if (!$row) {
             return ['rate' => null, 'rate_date' => null, 'is_base' => false];
@@ -149,6 +186,16 @@ class ExchangeRateService {
         $before = $this->repo->findById($id, $ctx->tenant_id);
         if (!$before) {
             throw new \RuntimeException('Exchange rate not found');
+        }
+
+        if (empty(trim($data['currency'] ?? ''))) {
+            throw new \InvalidArgumentException('Currency is required');
+        }
+        if (empty($data['rate_date'] ?? '')) {
+            throw new \InvalidArgumentException('Rate date is required');
+        }
+        if (!isset($data['rate']) || $data['rate'] === '') {
+            throw new \InvalidArgumentException('Rate is required');
         }
 
         $this->db->beginTransaction();

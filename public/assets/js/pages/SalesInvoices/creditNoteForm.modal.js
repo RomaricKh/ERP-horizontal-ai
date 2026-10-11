@@ -109,7 +109,7 @@ async function loadCreditNote(creditNoteId) {
 
         modalRoot.querySelector('#creditNoteModalTitle').textContent = `Credit Note: ${cn.credit_note_number}`;
         modalRoot.querySelector('#viewCNNumber').textContent = cn.credit_note_number;
-        modalRoot.querySelector('#viewCNStatus').innerHTML = `<span class="badge bg-${cn.status === 'ISSUED' ? 'success' : 'secondary'}">${cn.status}</span>`;
+        modalRoot.querySelector('#viewCNStatus').innerHTML = `<span class="badge bg-${cn.status === 'ISSUED' ? 'success' : 'secondary'}">${escHtml(cn.status)}</span>`;
         modalRoot.querySelector('#viewCNTotal').textContent = parseFloat(cn.total_amount_bc).toFixed(2);
 
         // Show issue button if DRAFT
@@ -140,6 +140,7 @@ function recalculateTotal() {
 }
 
 async function handleSave() {
+    const btn = modalRoot.querySelector('#btnSaveCreditNote');
     const invoiceId = modalRoot.querySelector('#inputCNInvoiceId').value;
     const date = modalRoot.querySelector('#inputCNDate').value;
     const notes = modalRoot.querySelector('#inputCNNotes').value;
@@ -172,6 +173,7 @@ async function handleSave() {
     }
 
     try {
+        if (btn) btn.disabled = true;
         const res = await apiFetch('/api/credit-notes', {
             method: 'POST',
             body: JSON.stringify({
@@ -193,6 +195,8 @@ async function handleSave() {
         modal?.hide();
     } catch (err) {
         console.error('Save credit note failed:', err);
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -202,6 +206,7 @@ async function handleIssue() {
     if (!creditNoteId) return;
 
     try {
+        if (btn) btn.disabled = true;
         const res = await apiFetch(`/api/credit-notes/${creditNoteId}/issue`, { method: 'POST' });
         const json = await res.json();
         if (!res.ok || !json.success) {
@@ -214,6 +219,8 @@ async function handleIssue() {
         modal?.hide();
     } catch (err) {
         console.error('Issue credit note failed:', err);
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 

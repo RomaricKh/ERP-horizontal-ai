@@ -24,7 +24,7 @@ class AssetRepository {
                    ac.name AS category_name
             FROM assets a
             LEFT JOIN asset_categories ac
-                ON ac.id = COALESCE(a.category_id, CAST(NULLIF(a.category, '') AS UNSIGNED))
+                ON ac.id = a.category_id
             WHERE a.business_id = :business
         ";
         $params = ['business' => $businessId];
@@ -59,7 +59,7 @@ class AssetRepository {
                    ac.name AS category_name
             FROM assets a
             LEFT JOIN asset_categories ac
-                ON ac.id = COALESCE(a.category_id, CAST(NULLIF(a.category, '') AS UNSIGNED))
+                ON ac.id = a.category_id
             WHERE a.id          = :id
               AND a.business_id = :business
             LIMIT 1
@@ -129,9 +129,11 @@ class AssetRepository {
             UPDATE assets
             SET name                = :name,
                 category            = :category,
+                category_id         = :category_id,
                 asset_type          = :asset_type,
                 depreciation_method = :depreciation_method,
                 useful_life         = :useful_life,
+                salvage_value       = :salvage_value,
                 notes               = :notes,
                 updated_at          = NOW()
             WHERE id          = :id
@@ -140,9 +142,11 @@ class AssetRepository {
         $stmt->execute([
             'name'                => $data['name'],
             'category'            => $data['category'],
+            'category_id'         => $data['category_id'] ?? null,
             'asset_type'          => $data['asset_type'],
             'depreciation_method' => $data['depreciation_method'],
             'useful_life'         => $data['useful_life'],
+            'salvage_value'       => $data['salvage_value'] ?? 0,
             'notes'               => $data['notes'] ?? null,
             'id'                  => $id,
             'business'            => $businessId,
@@ -195,5 +199,49 @@ class AssetRepository {
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Update an asset's depreciation values (accumulated_depreciation, current_value_bc).
+     * Used by AssetService::depreciate().
+     */
+    public function updateDepreciation(int $id, int $businessId, float $accumulatedDepreciation, float $currentValueBc): void {
+        $stmt = $this->db->prepare("
+            UPDATE assets
+            SET accumulated_depreciation = :accumulated,
+                current_value_bc         = :current_value,
+                updated_at               = NOW()
+            WHERE id          = :id
+              AND business_id = :business
+        ");
+        $stmt->execute([
+            'accumulated'   => $accumulatedDepreciation,
+            'current_value' => $currentValueBc,
+            'id'            => $id,
+            'business'      => $businessId,
+        ]);
+    }
+
+    /**
+     * Mark an asset as DISPOSED with disposal details.
+     * Used by AssetService::dispose().
+     */
+    public function markDisposed(int $id, int $businessId, string $disposalDate, float $disposalProceeds, float $disposalGainLoss): void {
+        $stmt = $this->db->prepare("
+            UPDATE assets
+            SET status              = 'DISPOSED',
+                disposal_date       = :disposal_date,
+                disposal_proceeds   = :disposal_proceeds,
+                disposal_gain_loss  = :disposal_gain_loss,
+                updated_at          = NOW()
+            WHERE id = :id AND business_id = :business
+        ");
+        $stmt->execute([
+            'disposal_date'      => $disposalDate,
+            'disposal_proceeds'  => $disposalProceeds,
+            'disposal_gain_loss' => $disposalGainLoss,
+            'id'                 => $id,
+            'business'           => $businessId,
+        ]);
     }
 }

@@ -62,6 +62,9 @@ class ItemService {
         try {
             $before = $this->itemTypeRepo->findById($id, $ctx->tenant_id);
             if (!$before) throw new \RuntimeException('Item type not found');
+            if ($before['business_id'] !== null && (int)$before['business_id'] !== (int)$ctx->business_id) {
+                throw new \RuntimeException('Item type not found');
+            }
 
             // REQ-031: ItemTypeRepository rejects edits on system types
             $this->itemTypeRepo->update($id, $ctx->tenant_id, trim($name));
@@ -88,6 +91,9 @@ class ItemService {
 
             $before = $this->itemTypeRepo->findById($id, $ctx->tenant_id);
             if (!$before) {
+                throw new \RuntimeException('Item type not found');
+            }
+            if ($before['business_id'] !== null && (int)$before['business_id'] !== (int)$ctx->business_id) {
                 throw new \RuntimeException('Item type not found');
             }
 
@@ -136,11 +142,16 @@ class ItemService {
         $ctx  = AuthContext::get();
         $item = $this->repo->getById($id, $ctx->tenant_id);
         if (!$item) throw new \RuntimeException('Item not found');
+        if ($item['business_id'] !== null && (int)$item['business_id'] !== (int)$ctx->business_id) {
+            throw new \RuntimeException('Item not found');
+        }
         return $item;
     }
 
     public function getInsights(int $id, ?string $startDate = null, ?string $endDate = null): array {
         $ctx = AuthContext::get();
+        // Enforce business boundary check
+        $this->getById($id);
         return $this->repo->getItemInsights($id, $ctx->business_id, $startDate, $endDate);
     }
 
@@ -210,6 +221,9 @@ class ItemService {
         $ctx    = AuthContext::get();
         $before = $this->repo->getById($id, $ctx->tenant_id);
         if (!$before) throw new \RuntimeException('Item not found');
+        if ($before['business_id'] !== null && (int)$before['business_id'] !== (int)$ctx->business_id) {
+            throw new \RuntimeException('Item not found');
+        }
 
         // Reject changing to Manufactured type when manufacturing module is inactive
         if (!empty($input['item_type_id'])) {
@@ -298,20 +312,8 @@ class ItemService {
                 $this->priceHistoryService->recordManualEdit($id, $ctx->tenant_id, 'SALE', $oldSalePrice, $newSalePrice);
             }
 
-            $this->db->commit();
-        } catch (\Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
-
-        // Trigger cascading recalculation if cost_price changed
-        if ($costPriceChanged) {
-            $manufacturingService = new ManufacturingService($this->db);
-            $manufacturingService->recalculateAffectedRecipes($id);
-
-            // Queue a Pending Price Update if markup is enabled instead of auto-updating
-            // (Only if we haven't already queued a manual sale price change above)
-            if (!$salePriceChanged) {
+            // Queue a Pending Price Update if markup is enabled (inside transaction for consistency)
+            if ($costPriceChanged && !$salePriceChanged) {
                 $updatedItem = $this->repo->getById($id, $ctx->tenant_id);
                 if ($updatedItem && (int)($updatedItem['markup_enabled'] ?? 0) === 1) {
                     $markupPct = (float)($updatedItem['markup_percent'] ?? 0);
@@ -338,6 +340,21 @@ class ItemService {
                     }
                 }
             }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        // Post-commit side effects (non-critical)
+        if ($costPriceChanged) {
+            try {
+                $manufacturingService = new ManufacturingService($this->db);
+                $manufacturingService->recalculateAffectedRecipes($id);
+            } catch (\Throwable $e) {
+                error_log("[ItemService::update] Recipe recalculation failed: " . $e->getMessage());
+            }
         }
     }
 
@@ -345,6 +362,9 @@ class ItemService {
         $ctx = AuthContext::get();
         $before = $this->repo->getById($id, $ctx->tenant_id);
         if (!$before) throw new \RuntimeException('Item not found');
+        if ($before['business_id'] !== null && (int)$before['business_id'] !== (int)$ctx->business_id) {
+            throw new \RuntimeException('Item not found');
+        }
 
         $this->db->beginTransaction();
         try {
@@ -363,6 +383,9 @@ class ItemService {
         $ctx = AuthContext::get();
         $item = $this->repo->getById($id, $ctx->tenant_id);
         if (!$item) throw new \RuntimeException('Item not found');
+        if ($item['business_id'] !== null && (int)$item['business_id'] !== (int)$ctx->business_id) {
+            throw new \RuntimeException('Item not found');
+        }
 
         $this->db->beginTransaction();
         try {
@@ -394,7 +417,7 @@ class ItemService {
         return $entry ? (float) $entry['quantity'] : 0.0;
     }
 
-    public function adjustStock(int $itemId, string $type, float $quantity, ?string $reference, ?string $notes): void {
+    public function adjustStock(int $itemId, string $type, float $quantity, ?string $reference, ?string $notes, ?string $expiryDate = null, ?string $batchNumber = null, ?string $manufacturingDate = null): void {
         $ctx = AuthContext::get();
 
         if (!in_array($type, ['IN', 'OUT', 'ADJ'], true)) {
@@ -406,6 +429,14 @@ class ItemService {
 
         $item = $this->repo->getById($itemId, $ctx->tenant_id);
         if (!$item) throw new \RuntimeException('Item not found');
+
+        // Validate ADJ not allowed on batch-tracked items BEFORE any stock modification
+        $hasExpiry = (int)($item['has_expiry'] ?? 0);
+        if ($hasExpiry === 1 && $type === 'ADJ') {
+            throw new \InvalidArgumentException('Cannot use absolute adjustment on batch-tracked items. Use IN or OUT instead.');
+        }
+
+        $this->validateFractionalQuantity($quantity, $item['unit']);
 
         // Validate sufficient stock before processing OUT adjustments
         if ($type === 'OUT') {
@@ -468,17 +499,21 @@ class ItemService {
             
             // Automatically create a batch for IN transactions if they are manual or credit notes
             if ($type === 'IN' && (int)($item['has_expiry'] ?? 0) === 1) {
-                if ($refType === 'MANUAL' || $refType === 'CREDIT_NOTE' || $refType === null) {
+                if ($refType === 'MANUAL' || $refType === 'CREDIT_NOTE' || $refType === 'SALES_INVOICE' || $refType === null) {
                     $batchService = new BatchService($this->db);
-                    $shelfLife = (int)($item['shelf_life_days'] ?? 365);
-                    if ($shelfLife <= 0) $shelfLife = 365;
-                    $expiryDate = date('Y-m-d', strtotime("+$shelfLife days"));
+                    // Use provided expiry_date, or fall back to shelf_life_days calculation
+                    $batchExpiry = $expiryDate;
+                    if ($batchExpiry === null) {
+                        $shelfLife = (int)($item['shelf_life_days'] ?? 365);
+                        if ($shelfLife <= 0) $shelfLife = 365;
+                        $batchExpiry = date('Y-m-d', strtotime("+$shelfLife days"));
+                    }
                     $batchService->createBatch(
                         $itemId, 
                         $quantity, 
-                        $expiryDate, 
-                        null, 
-                        null, 
+                        $batchExpiry, 
+                        $batchNumber, 
+                        $manufacturingDate, 
                         $refId // Passes reference_id if present
                     );
                 }
@@ -609,6 +644,23 @@ class ItemService {
             throw new \InvalidArgumentException(
                 'Cannot use "Manufactured" item type: manufacturing module is not active for this business.'
             );
+        }
+    }
+
+    /**
+     * Helper to validate that piece-based units are not assigned fractional quantities.
+     * Throws InvalidArgumentException if a fractional quantity is provided for a discrete unit.
+     */
+    public function validateFractionalQuantity(float $quantity, ?string $unit): void {
+        if ($unit === null || trim($unit) === '') {
+            return;
+        }
+
+        $discreteUnits = ['pcs', 'pc', 'piece', 'pieces', 'ea', 'each', 'box', 'boxes'];
+        if (in_array(strtolower(trim($unit)), $discreteUnits, true)) {
+            if (floor($quantity) != $quantity) {
+                throw new \InvalidArgumentException("Fractional quantities are not allowed for unit '{$unit}'");
+            }
         }
     }
 }

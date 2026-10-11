@@ -102,6 +102,7 @@ class ManufacturingProductionOrderTest extends TestCase
             'manufactured_item_id'   => $manufacturedItemId,
             'yield_quantity'         => $yieldQuantity,
             'manufactured_item_name' => 'Finished Product',
+            'unit'                   => 'kg',
         ]);
 
         // Recipe items
@@ -261,7 +262,7 @@ class ManufacturingProductionOrderTest extends TestCase
 
         // Track status update
         $mfgRepo->method('updateProductionOrderStatus')->willReturnCallback(
-            function (int $id, string $status) use (&$statusUpdated) {
+            function (int $id, string $status, int $tenantId, int $businessId) use (&$statusUpdated) {
                 $statusUpdated = ['id' => $id, 'status' => $status];
             }
         );
@@ -411,6 +412,7 @@ class ManufacturingProductionOrderTest extends TestCase
             'manufactured_item_id'   => $manufacturedItemId,
             'yield_quantity'         => $yieldQuantity,
             'manufactured_item_name' => 'Finished Product',
+            'unit'                   => 'kg',
         ]);
 
         // Recipe items
@@ -448,6 +450,16 @@ class ManufacturingProductionOrderTest extends TestCase
             public array $stockMap = [];
 
             public function __construct() {}
+
+            public function assertSufficientStock(int $itemId, int $businessId, float $quantity): void {
+                $available = $this->stockMap[$itemId]['stock'] ?? 0.0;
+                if ($available < $quantity) {
+                    $name = $this->stockMap[$itemId]['name'] ?? "Item #{$itemId}";
+                    throw new \RuntimeException(
+                        "Insufficient stock for '{$name}': available {$available}, requested {$quantity}"
+                    );
+                }
+            }
 
             public function assertAvailable(int $itemId, float $requestedQty, int $businessId): void {}
 
@@ -561,6 +573,7 @@ class ManufacturingProductionOrderTest extends TestCase
             'manufactured_item_id'   => 999,
             'yield_quantity'         => 2,
             'manufactured_item_name' => 'Finished Product',
+            'unit'                   => 'kg',
         ]);
 
         // These should NOT be called
@@ -634,6 +647,7 @@ class ManufacturingProductionOrderTest extends TestCase
         if ($stockValidator === null) {
             $stockValidator = new class extends \App\Services\StockValidator {
                 public function __construct() {}
+                public function assertSufficientStock(int $itemId, int $businessId, float $quantity): void {}
                 public function assertAvailable(int $itemId, float $requestedQty, int $businessId): void {}
                 public function checkBatch(array $requirements, int $businessId): array { return []; }
             };

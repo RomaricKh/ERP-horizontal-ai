@@ -89,8 +89,8 @@ function validateForm() {
         markInvalid(F.rateDate(), 'Rate date is required');
         valid = false;
     }
-    if (!F.rate().value) {
-        markInvalid(F.rate(), 'Rate is required');
+    if (!F.rate().value || parseFloat(F.rate().value) <= 0) {
+        markInvalid(F.rate(), 'Rate must be greater than 0');
         valid = false;
     }
     return valid;

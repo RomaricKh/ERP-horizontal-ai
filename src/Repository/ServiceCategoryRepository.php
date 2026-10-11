@@ -24,15 +24,17 @@ class ServiceCategoryRepository {
     }
 
     /**
-     * Find a single category by ID.
+     * Find a single category by ID, scoped by tenant and business.
+     * System categories (is_system = 1, business_id IS NULL) remain visible to all businesses.
      */
-    public function findById(int $id, int $tenantId): ?array {
+    public function findById(int $id, int $tenantId, int $businessId): ?array {
         $stmt = $this->db->prepare("
             SELECT * FROM service_categories
             WHERE id = :id AND tenant_id = :tenant
+              AND (business_id = :business OR (is_system = 1 AND business_id IS NULL))
             LIMIT 1
         ");
-        $stmt->execute(['id' => $id, 'tenant' => $tenantId]);
+        $stmt->execute(['id' => $id, 'tenant' => $tenantId, 'business' => $businessId]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
@@ -56,16 +58,16 @@ class ServiceCategoryRepository {
     /**
      * Update a service category. Rejects edits on system types.
      */
-    public function update(int $id, int $tenantId, string $name): void {
+    public function update(int $id, int $tenantId, int $businessId, string $name): void {
         if ($this->systemTypeRepo->isSystemType('service_categories', $id)) {
             throw new \RuntimeException('Cannot modify a system-defined service category');
         }
 
         $stmt = $this->db->prepare("
             UPDATE service_categories SET name = :name
-            WHERE id = :id AND tenant_id = :tenant
+            WHERE id = :id AND tenant_id = :tenant AND business_id = :business
         ");
-        $stmt->execute(['id' => $id, 'tenant' => $tenantId, 'name' => $name]);
+        $stmt->execute(['id' => $id, 'tenant' => $tenantId, 'business' => $businessId, 'name' => $name]);
         if ($stmt->rowCount() === 0) {
             throw new \RuntimeException('Service category not found or not allowed');
         }

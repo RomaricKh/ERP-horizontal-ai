@@ -286,8 +286,10 @@ function _cancelAutoReadTimer() {
 async function _handleMarkAllAsRead(e) {
     e.preventDefault();
     e.stopPropagation();
+    const btn = e.currentTarget;
 
     try {
+        if (btn) btn.disabled = true;
         const res = await apiFetch('/api/notifications/read-all', {
             method: 'PATCH'
         });
@@ -300,6 +302,8 @@ async function _handleMarkAllAsRead(e) {
         }
     } catch (err) {
         console.warn('[NotificationCenter] Mark all as read failed:', err.message || err);
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 

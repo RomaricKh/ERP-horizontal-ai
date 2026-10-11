@@ -83,9 +83,9 @@ class PartnerShareRepository
             $params['invested_capital'] = $data['invested_capital'];
         }
 
-        $sets[] = 'updated_at = NOW()';
-
         if (empty($sets)) return;
+
+        $sets[] = 'updated_at = NOW()';
 
         $sql = "UPDATE partner_shares SET " . implode(', ', $sets) . " WHERE id = :id AND business_id = :business_id";
         $stmt = $this->db->prepare($sql);

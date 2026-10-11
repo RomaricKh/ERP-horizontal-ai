@@ -17,7 +17,15 @@ class ItemsController extends BaseController {
     // GET /items/types
     public function indexTypes(): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $types = $this->service->listTypes();
             $this->json(true, ['item_types' => $types]);
         } catch (\Throwable $e) {
@@ -28,7 +36,15 @@ class ItemsController extends BaseController {
     // POST /items/types
     public function storeType(): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $data = $this->input(['name']);
             $id   = $this->service->createType($data['name']);
             $this->json(true, ['id' => $id], null, 201);
@@ -40,7 +56,15 @@ class ItemsController extends BaseController {
     // PUT /items/types/{id}
     public function updateType(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $data = $this->input(['name']);
             $this->service->updateType($id, $data['name']);
             $this->json(true, ['id' => $id]);
@@ -54,7 +78,15 @@ class ItemsController extends BaseController {
     // DELETE /items/types/{id}
     public function deleteType(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $this->service->deleteType($id);
             $this->json(true, ['id' => $id]);
         } catch (\RuntimeException $e) {
@@ -70,8 +102,15 @@ class ItemsController extends BaseController {
     // GET /items
     public function index(): void {
         try {
-            $this->auth();
-
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $queryParams = [];
             if (!empty($_SERVER['QUERY_STRING'])) {
                 parse_str($_SERVER['QUERY_STRING'], $queryParams);
@@ -90,13 +129,21 @@ class ItemsController extends BaseController {
     // GET /items/for-payee/{payeeId} — items visible to a specific customer (global + customer-specific)
     public function indexForPayee(int $payeeId): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $items = $this->service->listForCurrentBusiness(null, false);
 
-            // Resolve payee_id → people_id
+            // Resolve payee_id → people_id (scoped to business)
             $db = \App\Config\Database::getConnection();
-            $stmt = $db->prepare("SELECT people_id FROM payees WHERE id = :id LIMIT 1");
-            $stmt->execute(['id' => $payeeId]);
+            $stmt = $db->prepare("SELECT people_id FROM payees WHERE id = :id AND business_id = :business_id LIMIT 1");
+            $stmt->execute(['id' => $payeeId, 'business_id' => $ctx->business_id]);
             $peopleId = $stmt->fetchColumn();
 
             if ($peopleId) {
@@ -114,7 +161,15 @@ class ItemsController extends BaseController {
     // GET /items/{id}
     public function viewById(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $item = $this->service->getById($id);
             $this->json(true, ['item' => $item]);
         } catch (\Throwable $e) {
@@ -125,7 +180,15 @@ class ItemsController extends BaseController {
     // GET /items/{id}/insights
     public function getInsights(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $startDate = $_GET['start_date'] ?? null;
             $endDate = $_GET['end_date'] ?? null;
             $insights = $this->service->getInsights($id, $startDate, $endDate);
@@ -138,7 +201,15 @@ class ItemsController extends BaseController {
     // POST /items
     public function store(): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $data = $this->input(['name', 'item_type_id']);
             $id   = $this->service->create($data);
             $this->json(true, ['id' => $id], null, 201);
@@ -152,7 +223,15 @@ class ItemsController extends BaseController {
     // PUT /items/{id}
     public function update(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $data = $this->input(['name', 'item_type_id']);
             $this->service->update($id, $data);
             $this->json(true, ['id' => $id]);
@@ -166,7 +245,15 @@ class ItemsController extends BaseController {
     // DELETE /items/{id}
     public function delete(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $this->service->deactivate($id);
             $this->json(true, ['id' => $id]);
         } catch (\RuntimeException $e) {
@@ -179,7 +266,15 @@ class ItemsController extends BaseController {
     // POST /items/{id}/reactivate
     public function reactivate(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $this->service->reactivate($id);
             $this->json(true, ['id' => $id]);
         } catch (\RuntimeException $e) {
@@ -194,7 +289,15 @@ class ItemsController extends BaseController {
     // GET /items/stock
     public function stock(): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $stock = $this->service->getStock();
             $this->json(true, ['stock' => $stock]);
         } catch (\Throwable $e) {
@@ -206,51 +309,25 @@ class ItemsController extends BaseController {
     public function adjustStock(int $id): void {
         try {
             $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $data = $this->input(['type', 'quantity']);
             $type = strtoupper($data['type']);
             $quantity = (float) $data['quantity'];
 
+            // All validation and batch logic is handled INSIDE the service
             $this->service->adjustStock(
                 $id,
                 $type,
                 $quantity,
                 $data['reference'] ?? null,
-                $data['notes']     ?? null
+                $data['notes'] ?? null,
+                $data['expiry_date'] ?? null,
+                $data['batch_number'] ?? null,
+                $data['manufacturing_date'] ?? null
             );
-
-            $db = \App\Config\Database::getConnection();
-
-            // Check if item tracks expiry
-            $itemStmt = $db->prepare("SELECT has_expiry FROM items WHERE id = ? LIMIT 1");
-            $itemStmt->execute([$id]);
-            $hasExpiry = (int) $itemStmt->fetchColumn();
-
-            // ADJ is not allowed on batch-tracked items
-            if ($hasExpiry === 1 && $type === 'ADJ') {
-                $this->json(false, null, 'Cannot use absolute adjustment on batch-tracked items. Use IN or OUT instead.', 422);
-                return;
-            }
-
-            if ($hasExpiry === 1) {
-                if ($type === 'IN' && !empty($data['expiry_date'])) {
-                    // Create a new batch
-                    $batchNumber = $data['batch_number'] ?? ('BATCH-' . date('Ymd-His'));
-                    $stmt = $db->prepare("
-                        INSERT INTO item_batches (item_id, business_id, batch_number, quantity, manufacturing_date, expiry_date, status, created_at)
-                        VALUES (:item_id, :business_id, :batch_number, :quantity, :mfg_date, :expiry_date, 'active', NOW())
-                    ");
-                    $stmt->execute([
-                        'item_id'      => $id,
-                        'business_id'  => $ctx->business_id,
-                        'batch_number' => $batchNumber,
-                        'quantity'     => $quantity,
-                        'mfg_date'     => $data['manufacturing_date'] ?? null,
-                        'expiry_date'  => $data['expiry_date'],
-                    ]);
-                }
-                // OUT FEFO deduction is now handled automatically within ItemService::adjustStock
-                // ADJ: does not touch batches — only adjusts the stock total
-            }
 
             $this->json(true, ['item_id' => $id]);
         } catch (\InvalidArgumentException | \RuntimeException $e) {
@@ -263,7 +340,15 @@ class ItemsController extends BaseController {
     // GET /items/{id}/stock/history
     public function stockHistory(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $history = $this->service->getStockTransactions($id);
             $this->json(true, ['history' => $history]);
         } catch (\Throwable $e) {
@@ -275,6 +360,10 @@ class ItemsController extends BaseController {
     public function batchTransactions(int $id): void {
         try {
             $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $repo = new \App\Repository\BatchRepository(\App\Config\Database::getConnection());
             $history = $repo->getTransactionsByItem($id, $ctx->business_id);
             $this->json(true, ['history' => $history]);
@@ -287,6 +376,10 @@ class ItemsController extends BaseController {
     public function priceHistory(int $id): void {
         try {
             $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $service = new \App\Services\PriceHistoryService(Database::getConnection());
             $records = $service->getHistory($id, $ctx->tenant_id);
             $this->json(true, $records);
@@ -298,7 +391,15 @@ class ItemsController extends BaseController {
     // GET /items/{id}/stock-check?quantity=N
     public function stockCheck(int $id): void {
         try {
-            $this->auth();
+            $ctx = $this->auth();
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
+            if ($ctx->business_id === null) {
+                $this->json(false, null, 'Active business context required', 422);
+                return;
+            }
             $quantity = (float) ($_GET['quantity'] ?? 0);
             if ($quantity <= 0) {
                 $this->json(false, null, 'Quantity must be greater than zero', 422);

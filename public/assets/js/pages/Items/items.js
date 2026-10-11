@@ -107,6 +107,7 @@ export async function mount() {
             if (!confirmed) return;
 
             try {
+                el.disabled = true;
                 const res  = await apiFetch(`/api/items/${id}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
@@ -116,6 +117,8 @@ export async function mount() {
                 }
             } catch (err) {
                 console.error('Delete item failed:', err);
+            } finally {
+                el.disabled = false;
             }
         },
 
@@ -133,6 +136,7 @@ export async function mount() {
             if (!confirmed) return;
 
             try {
+                el.disabled = true;
                 const res  = await apiFetch(`/api/items/${id}/reactivate`, { method: 'POST' });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
@@ -142,6 +146,8 @@ export async function mount() {
                 }
             } catch (err) {
                 console.error('Reactivate item failed:', err);
+            } finally {
+                el.disabled = false;
             }
         },
 
@@ -285,9 +291,8 @@ export async function mount() {
             if (!id) return;
 
             // Strip out html tags from name just in case
-            const div = document.createElement('div');
-            div.innerHTML = name;
-            const plainName = div.textContent || div.innerText || '';
+            const doc = new DOMParser().parseFromString(name, 'text/html');
+            const plainName = doc.body.textContent || "";
 
             await openModal({
                 scope: MODAL_SCOPE.PAGE,

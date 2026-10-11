@@ -61,39 +61,42 @@ class PartnerShareService {
             'business_id'      => $ctx->business_id,
             'partner_id'       => (int) $data['partner_id'],
             'share_percent'    => $newPercent,
-            'invested_capital' => $investedCapital,
+            'invested_capital' => 0.00, // Initialize to 0. PartnerEquityService will update this in Base Currency.
         ];
+
+        $accountId = isset($data['account_id']) ? (int) $data['account_id'] : null;
 
         $this->db->beginTransaction();
         try {
             $id = $this->repo->insert($record);
 
-            // If invested_capital > 0 and account_id provided, create equity contribution
-            // (done outside the share transaction to avoid nested transaction issues)
-            $this->db->commit();
-        } catch (\Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
+            // PS1: Create equity contribution in the SAME transaction as the share
+            // so both succeed or both fail together
+            if ($investedCapital > 0 && $accountId) {
+                // PS2: Get business currency as default if none provided
+                $currency = $data['currency'] ?? null;
+                if (!$currency) {
+                    $businessRepo = new \App\Repository\BusinessRepository($this->db);
+                    $business = $businessRepo->getBusinessByID($ctx->business_id);
+                    $currency = $business['currency'] ?? 'USD';
+                }
 
-        // Create equity entry after share is committed (separate transaction)
-        $accountId = isset($data['account_id']) ? (int) $data['account_id'] : null;
-        if ($investedCapital > 0 && $accountId) {
-            try {
                 $equityService = new PartnerEquityService($this->db);
                 $equityService->create([
                     'partner_id'    => (int) $data['partner_id'],
                     'equity_type'   => 'CONTRIBUTION',
                     'amount'        => $investedCapital,
                     'account_id'    => $accountId,
-                    'currency'      => $data['currency'] ?? 'USD',
+                    'currency'      => $currency,
                     'exchange_rate' => $data['exchange_rate'] ?? 1.0000,
                     'notes'         => 'Initial investment on partner share creation',
                 ]);
-            } catch (\Throwable $e) {
-                // Share was created but equity failed — log but don't fail the whole operation
-                error_log('Partner equity creation failed after share creation: ' . $e->getMessage());
             }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
         }
 
         $this->audit->log(
@@ -174,23 +177,14 @@ class PartnerShareService {
         }
 
         // Guard: check for equity entries
-        $equityStmt = $this->db->prepare("
-            SELECT COUNT(*) FROM partner_equity
-            WHERE partner_id = :partner_id AND business_id = :business_id
-        ");
-        $equityStmt->execute(['partner_id' => $before['partner_id'], 'business_id' => $ctx->business_id]);
-        if ((int) $equityStmt->fetchColumn() > 0) {
+        $equityRepo = new \App\Repository\PartnerEquityRepository($this->db);
+        if ($equityRepo->countByPartner($before['partner_id'], $ctx->business_id) > 0) {
             throw new \RuntimeException('Cannot delete: partner has equity entries (contributions/withdrawals). Remove them first.');
         }
 
         // Guard: check for profit distributions
-        $distStmt = $this->db->prepare("
-            SELECT COUNT(*) FROM profit_distributions
-            WHERE partner_id = :partner_id
-              AND business_profit_id IN (SELECT id FROM business_profit WHERE business_id = :business_id)
-        ");
-        $distStmt->execute(['partner_id' => $before['partner_id'], 'business_id' => $ctx->business_id]);
-        if ((int) $distStmt->fetchColumn() > 0) {
+        $distRepo = new \App\Repository\ProfitDistributionRepository($this->db);
+        if ($distRepo->countByPartner($before['partner_id'], $ctx->business_id) > 0) {
             throw new \RuntimeException('Cannot delete: partner has profit distributions. This is a permanent record.');
         }
 

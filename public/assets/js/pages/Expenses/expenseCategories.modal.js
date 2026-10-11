@@ -7,22 +7,30 @@ import { confirm } from '../../components/modals.js';
 let modalRoot;
 let unregister;
 let categories = [];
+let inputListener = null;
 
 export async function mount({ modalRoot: root }) {
     modalRoot = root;
     await loadCategories();
 
+    // Clear validation state when user starts typing
+    const nameInput = document.getElementById('newExpenseCategoryName');
+    if (nameInput) {
+        inputListener = () => {
+            nameInput.classList.remove('is-invalid');
+            const fb = nameInput.parentElement?.querySelector('.invalid-feedback');
+            if (fb) fb.remove();
+        };
+        nameInput.addEventListener('input', inputListener);
+    }
+
     unregister = registerPageActions({
 
         'expense-categories.add': async () => {
-            const nameInput = document.getElementById('newExpenseCategoryName');
-            const name      = nameInput?.value.trim();
+            if (!validateForm()) return;
 
-            if (!name) {
-                nameInput?.classList.add('is-invalid');
-                return;
-            }
-            nameInput.classList.remove('is-invalid');
+            const nameInput = document.getElementById('newExpenseCategoryName');
+            const name = nameInput?.value.trim();
 
             try {
                 const res  = await apiFetch('/api/expenses/categories', {
@@ -32,6 +40,7 @@ export async function mount({ modalRoot: root }) {
                 const json = await res.json();
                 if (!res.ok || !json.success) throw new Error(json.message || 'Failed');
                 nameInput.value = '';
+                clearValidation();
                 await loadCategories();
                 document.dispatchEvent(new CustomEvent('expenses.updated'));
             } catch (err) {
@@ -58,7 +67,15 @@ export async function mount({ modalRoot: root }) {
 
             const save = async () => {
                 const newName = input.value.trim();
-                if (!newName || newName === cat.name) {
+                if (!newName) {
+                    input.classList.add('is-invalid');
+                    return;
+                }
+                if (newName.length > 100) {
+                    input.classList.add('is-invalid');
+                    return;
+                }
+                if (newName === cat.name) {
                     await loadCategories();
                     return;
                 }
@@ -109,9 +126,52 @@ export async function mount({ modalRoot: root }) {
 }
 
 export function unmount() {
+    // Remove input listener from name field
+    const nameInput = document.getElementById('newExpenseCategoryName');
+    if (nameInput && inputListener) {
+        nameInput.removeEventListener('input', inputListener);
+    }
+    inputListener = null;
+
     unregister?.();
     unregister = null;
     categories = [];
+    modalRoot = null;
+}
+
+function validateForm() {
+    clearValidation();
+    let valid = true;
+
+    const nameInput = document.getElementById('newExpenseCategoryName');
+    const name = nameInput?.value.trim();
+
+    if (!name) {
+        markInvalid(nameInput, 'Category name is required');
+        valid = false;
+    } else if (name.length > 100) {
+        markInvalid(nameInput, 'Category name must not exceed 100 characters');
+        valid = false;
+    }
+
+    return valid;
+}
+
+function clearValidation() {
+    modalRoot?.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    modalRoot?.querySelectorAll('.invalid-feedback').forEach(el => el.remove());
+}
+
+function markInvalid(input, message) {
+    if (!input) return;
+    input.classList.add('is-invalid');
+    let fb = input.parentElement?.querySelector('.invalid-feedback');
+    if (!fb) {
+        fb = document.createElement('div');
+        fb.className = 'invalid-feedback';
+        input.parentElement?.appendChild(fb);
+    }
+    fb.textContent = message;
 }
 
 async function loadCategories() {

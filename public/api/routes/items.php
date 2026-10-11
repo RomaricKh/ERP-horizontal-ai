@@ -82,9 +82,9 @@ $router->post('/items/{id}/reactivate',
 /* ========= STOCK PER ITEM ========= */
 
 // Price History & Batches
-$router->get('/items/{id}/price-history', fn($id) => (new ItemsController())->priceHistory((int)$id));
-$router->get('/items/{id}/batches', fn($id) => (new ItemsController())->batches((int)$id));
-$router->get('/items/{id}/batch-transactions', fn($id) => (new ItemsController())->batchTransactions((int)$id));
+$router->get('/items/{id}/price-history', fn($id) => (new ItemsController())->priceHistory((int)$id), ['items.view']);
+$router->get('/items/{id}/batches', fn($id) => (new ItemsController())->batches((int)$id), ['items.view']);
+$router->get('/items/{id}/batch-transactions', fn($id) => (new ItemsController())->batchTransactions((int)$id), ['items.view']);
 
 $router->get('/items/{id}/stock-check',
     fn($id) => (new ItemsController())->stockCheck((int)$id),

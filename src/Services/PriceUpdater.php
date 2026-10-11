@@ -61,6 +61,9 @@ class PriceUpdater {
         $poDiscount = (float) $stmtPo->fetchColumn();
         $poMultiplier = 1 - ($poDiscount / 100);
 
+        // Instantiate ManufacturingService once before the loop (avoid N+1 instantiation)
+        $manufacturingService = new ManufacturingService($this->db);
+
         foreach ($uniqueLines as $itemId => $line) {
             // Skip lines where unit_price_bc is NULL
             if (!isset($line['unit_price_bc']) || $line['unit_price_bc'] === null) {
@@ -83,10 +86,17 @@ class PriceUpdater {
 
             // Apply PO header discount
             $newPrice = round($effectiveLinePrice * $poMultiplier, 2);
+
+            // Guard against invalid calculated prices
+            if ($newPrice <= 0) {
+                error_log("[PriceUpdater] Skipping non-positive calculated price {$newPrice} for item {$itemId} from PO {$poId}");
+                continue;
+            }
+
             $oldPrice = $item['cost_price'] !== null ? (float) $item['cost_price'] : null;
 
-            // Only update if price differs or current is NULL
-            if ($oldPrice !== null && abs($oldPrice - $newPrice) < 0.001) {
+            // Only update if price differs or current is NULL (use bccomp for exact decimal comparison)
+            if ($oldPrice !== null && bccomp((string)$oldPrice, (string)$newPrice, 2) === 0) {
                 continue;
             }
 
@@ -156,7 +166,6 @@ class PriceUpdater {
             }
 
             // Trigger cascading recalculation for any recipes using this item as a component
-            $manufacturingService = new ManufacturingService($this->db);
             $manufacturingService->recalculateAffectedRecipes((int) $itemId);
         }
     }

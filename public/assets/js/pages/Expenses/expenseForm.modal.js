@@ -12,6 +12,7 @@ let unregister;
 let cleanupRateAutoFetch;
 let currentExpenseId = null;
 let currentAttachmentPath = null;
+let dateChangeHandler = null;
 
 const F = {
     title:        () => document.getElementById('expenseModalTitle'),
@@ -50,14 +51,15 @@ export async function mount({ modalRoot: root, data }) {
     F.exchangeRate().addEventListener('input', recalcBc);
 
     // Sync recurrence start_date with expense_date when user changes expense_date
-    F.date().addEventListener('change', () => {
+    dateChangeHandler = () => {
         const recStartDate = document.getElementById('inputExpRecurrenceStartDate');
         const recurrenceToggle = document.getElementById('inputExpenseRecurrenceToggle');
         // Only auto-sync if recurrence fields aren't already populated (not editing existing schedule)
         if (recStartDate && !recurrenceToggle?.checked) {
             recStartDate.value = F.date().value || new Date().toISOString().split('T')[0];
         }
-    });
+    };
+    F.date().addEventListener('change', dateChangeHandler);
 
     // Auto-fetch exchange rate when currency changes
     cleanupRateAutoFetch = attachRateAutoFetch(F.currency(), F.exchangeRate());
@@ -171,6 +173,16 @@ export async function mount({ modalRoot: root, data }) {
 }
 
 export function unmount() {
+    // Remove input event listeners on amount and exchange rate fields
+    F.amountFc()?.removeEventListener('input', recalcBc);
+    F.exchangeRate()?.removeEventListener('input', recalcBc);
+
+    // Remove change event listener on date field
+    if (dateChangeHandler) {
+        F.date()?.removeEventListener('change', dateChangeHandler);
+        dateChangeHandler = null;
+    }
+
     cleanupRateAutoFetch?.();
     cleanupRateAutoFetch = null;
     unregister?.();
@@ -315,20 +327,38 @@ function validateForm() {
     clearValidation();
     let valid = true;
 
-    if (!F.date().value) {
+    // Validate expense_date: required and must be a valid date
+    const dateValue = F.date().value;
+    if (!dateValue) {
         markInvalid(F.date(), 'Expense date is required');
         valid = false;
+    } else if (isNaN(new Date(dateValue).getTime())) {
+        markInvalid(F.date(), 'Expense date must be a valid date');
+        valid = false;
     }
+
     if (!F.currency().value) {
         markInvalid(F.currency(), 'Currency is required');
         valid = false;
     }
-    if (!F.exchangeRate().value) {
+
+    // Validate exchange_rate: must be a positive number
+    const rateValue = F.exchangeRate().value;
+    if (!rateValue) {
         markInvalid(F.exchangeRate(), 'Exchange rate is required');
         valid = false;
+    } else if (isNaN(parseFloat(rateValue)) || parseFloat(rateValue) <= 0) {
+        markInvalid(F.exchangeRate(), 'Exchange rate must be a positive number');
+        valid = false;
     }
-    if (!F.amountFc().value) {
+
+    // Validate amount_fc: must be a positive number
+    const amountValue = F.amountFc().value;
+    if (!amountValue) {
         markInvalid(F.amountFc(), 'Amount is required');
+        valid = false;
+    } else if (isNaN(parseFloat(amountValue)) || parseFloat(amountValue) <= 0) {
+        markInvalid(F.amountFc(), 'Amount must be a positive number');
         valid = false;
     }
 

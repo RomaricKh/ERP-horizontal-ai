@@ -43,31 +43,18 @@ class RecurrenceController extends BaseController
                 $filters['is_active'] = $_GET['is_active'];
             }
 
-            $schedules = $this->recurrenceService->listSchedules($filters);
-
-            // Enrich schedules with entity_name, payee_id, exchange_rate
-            $db = \App\Config\Database::getConnection();
-            foreach ($schedules as &$schedule) {
-                $schedule['entity_name'] = $this->resolveEntityNameFromSchedule($db, $schedule);
-                // Also resolve payee_id and exchange_rate for prefill
-                $entityId = (int) ($schedule['entity_id'] ?? 0);
-                if (($schedule['entity_type'] ?? '') === 'EXPENSE' && $entityId) {
-                    $stmt = $db->prepare("SELECT payee_id, exchange_rate FROM expenses WHERE id = :id LIMIT 1");
-                    $stmt->execute(['id' => $entityId]);
-                    $exp = $stmt->fetch(\PDO::FETCH_ASSOC);
-                    $schedule['payee_id'] = $exp ? ((int) $exp['payee_id'] ?: null) : null;
-                    $schedule['exchange_rate'] = $exp ? (float) ($exp['exchange_rate'] ?? 1.0) : 1.0;
-                } elseif (($schedule['entity_type'] ?? '') === 'SALARY') {
-                    $schedule['payee_id'] = $entityId;
-                    $schedule['exchange_rate'] = 1.0;
-                } else {
-                    $schedule['payee_id'] = null;
-                    $schedule['exchange_rate'] = 1.0;
-                }
-            }
+            $schedules = $this->recurrenceService->listSchedulesEnriched($filters);
 
             $this->json(true, ['schedules' => $schedules]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'listSchedules', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'listSchedules', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'listSchedules', $e);
             $this->serverError('Failed to fetch recurrence schedules');
         }
     }
@@ -85,12 +72,15 @@ class RecurrenceController extends BaseController
             $id = $this->recurrenceService->createSchedule('EXPENSE', $expenseId, $data);
             $this->json(true, ['id' => $id], null, 201);
         } catch (\InvalidArgumentException $e) {
-            $this->json(false, null, $e->getMessage(), 400);
+            $this->logError('Recurrence', 'createExpenseRecurrence', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $code = str_contains($e->getMessage(), 'not found') ? 404 : 409;
+            $this->logError('Recurrence', 'createExpenseRecurrence', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
             $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to create expense recurrence: ' . $e->getMessage());
+            $this->logError('Recurrence', 'createExpenseRecurrence', $e);
+            $this->serverError('Failed to create expense recurrence');
         }
     }
 
@@ -104,10 +94,15 @@ class RecurrenceController extends BaseController
             $this->auth();
             $this->recurrenceService->deactivateSchedule('EXPENSE', $expenseId);
             $this->json(true, null, 'Recurrence schedule deactivated');
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'deleteExpenseRecurrence', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $code = str_contains($e->getMessage(), 'not found') ? 404 : 409;
+            $this->logError('Recurrence', 'deleteExpenseRecurrence', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
             $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'deleteExpenseRecurrence', $e);
             $this->serverError('Failed to delete expense recurrence');
         }
     }
@@ -128,7 +123,15 @@ class RecurrenceController extends BaseController
             }
 
             $this->json(true, $schedule);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'getExpenseRecurrence', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'getExpenseRecurrence', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'getExpenseRecurrence', $e);
             $this->serverError('Failed to fetch expense recurrence');
         }
     }
@@ -146,11 +149,14 @@ class RecurrenceController extends BaseController
             $id = $this->recurrenceService->createSchedule('SALARY', $payeeId, $data);
             $this->json(true, ['id' => $id], null, 201);
         } catch (\InvalidArgumentException $e) {
-            $this->json(false, null, $e->getMessage(), 400);
+            $this->logError('Recurrence', 'createSalaryRecurrence', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $code = str_contains($e->getMessage(), 'not found') ? 404 : 409;
+            $this->logError('Recurrence', 'createSalaryRecurrence', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
             $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'createSalaryRecurrence', $e);
             $this->serverError('Failed to create salary recurrence');
         }
     }
@@ -171,7 +177,15 @@ class RecurrenceController extends BaseController
             }
 
             $this->json(true, ['schedule' => $schedule]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'getSalaryRecurrence', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'getSalaryRecurrence', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'getSalaryRecurrence', $e);
             $this->serverError('Failed to fetch salary recurrence');
         }
     }
@@ -186,10 +200,15 @@ class RecurrenceController extends BaseController
             $this->auth();
             $this->recurrenceService->deactivateSchedule('SALARY', $payeeId);
             $this->json(true, null, 'Recurrence schedule deactivated');
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'deleteSalaryRecurrence', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $code = str_contains($e->getMessage(), 'not found') ? 404 : 409;
+            $this->logError('Recurrence', 'deleteSalaryRecurrence', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
             $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'deleteSalaryRecurrence', $e);
             $this->serverError('Failed to delete salary recurrence');
         }
     }
@@ -225,32 +244,18 @@ class RecurrenceController extends BaseController
                 $filters['recurrence_schedule_id'] = (int) $_GET['recurrence_schedule_id'];
             }
 
-            $instances = $this->recurrenceService->listInstances($filters);
-
-            // Enrich instances with entity_name and days_overdue
-            $db = \App\Config\Database::getConnection();
-            $today = date('Y-m-d');
-
-            foreach ($instances as &$instance) {
-                // Calculate days_overdue for overdue instances (both already-overdue and pending past due)
-                if ($instance['status'] === 'overdue' && $instance['due_date'] < $today) {
-                    $instance['days_overdue'] = (int) ((strtotime($today) - strtotime($instance['due_date'])) / 86400);
-                } elseif ($instance['status'] === 'pending' && $instance['due_date'] < $today) {
-                    $instance['status'] = 'overdue';
-                    $instance['days_overdue'] = (int) ((strtotime($today) - strtotime($instance['due_date'])) / 86400);
-                } else {
-                    $instance['days_overdue'] = 0;
-                }
-
-                // Get entity_name and payee_id from the schedule's linked entity
-                $enrichment = $this->resolveEntityDetails($db, $instance);
-                $instance['entity_name'] = $enrichment['entity_name'];
-                $instance['payee_id'] = $enrichment['payee_id'];
-                $instance['exchange_rate'] = $enrichment['exchange_rate'];
-            }
+            $instances = $this->recurrenceService->listInstancesEnriched($filters);
 
             $this->json(true, ['instances' => $instances]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'listInstances', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'listInstances', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'listInstances', $e);
             $this->serverError('Failed to fetch recurring instances');
         }
     }
@@ -289,11 +294,14 @@ class RecurrenceController extends BaseController
             $this->recurrenceService->updateInstanceStatus($id, $status, $paymentData);
             $this->json(true, null, "Instance status updated to '{$status}'");
         } catch (\InvalidArgumentException $e) {
-            $this->json(false, null, $e->getMessage(), 400);
+            $this->logError('Recurrence', 'updateInstanceStatus', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $code = str_contains($e->getMessage(), 'not found') ? 404 : 409;
+            $this->logError('Recurrence', 'updateInstanceStatus', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
             $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'updateInstanceStatus', $e);
             $this->serverError('Failed to update instance status');
         }
     }
@@ -316,10 +324,15 @@ class RecurrenceController extends BaseController
             }
 
             $this->json(true, ['payment' => $schedule]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'getInstancePayment', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $code = str_contains($e->getMessage(), 'not found') ? 404 : 409;
+            $this->logError('Recurrence', 'getInstancePayment', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
             $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'getInstancePayment', $e);
             $this->serverError('Failed to fetch instance payment');
         }
     }
@@ -356,11 +369,14 @@ class RecurrenceController extends BaseController
             $result = $this->recurrenceService->bulkAdvancePayment($scheduleId, $periods, $paymentData);
             $this->json(true, $result, null, 201);
         } catch (\InvalidArgumentException $e) {
-            $this->json(false, null, $e->getMessage(), 400);
+            $this->logError('Recurrence', 'bulkAdvancePayment', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $code = str_contains($e->getMessage(), 'not found') ? 404 : 409;
+            $this->logError('Recurrence', 'bulkAdvancePayment', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
             $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'bulkAdvancePayment', $e);
             $this->serverError('Failed to create bulk advance payment');
         }
     }
@@ -392,7 +408,15 @@ class RecurrenceController extends BaseController
 
             $payments = $this->recurrenceService->listAdvancePayments($filters);
             $this->json(true, ['advance_payments' => $payments]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'listAdvancePayments', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'listAdvancePayments', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'listAdvancePayments', $e);
             $this->serverError('Failed to fetch advance payments');
         }
     }
@@ -420,7 +444,15 @@ class RecurrenceController extends BaseController
             $payment['instances'] = $linkedInstances;
 
             $this->json(true, ['advance_payment' => $payment]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'getAdvancePayment', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'getAdvancePayment', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'getAdvancePayment', $e);
             $this->serverError('Failed to fetch advance payment');
         }
     }
@@ -452,7 +484,15 @@ class RecurrenceController extends BaseController
 
             $assets = $this->accountingEntryService->listPrepaidAssets($filters);
             $this->json(true, ['prepaid_assets' => $assets]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'listPrepaidAssets', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'listPrepaidAssets', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'listPrepaidAssets', $e);
             $this->serverError('Failed to fetch prepaid assets');
         }
     }
@@ -467,9 +507,15 @@ class RecurrenceController extends BaseController
             $this->auth();
             $asset = $this->accountingEntryService->getPrepaidAsset($id);
             $this->json(true, ['prepaid_asset' => $asset]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'getPrepaidAsset', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $this->notFound($e->getMessage());
+            $this->logError('Recurrence', 'getPrepaidAsset', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'getPrepaidAsset', $e);
             $this->serverError('Failed to fetch prepaid asset');
         }
     }
@@ -504,7 +550,15 @@ class RecurrenceController extends BaseController
 
             $entries = $this->accountingEntryService->listAccountingEntries($filters);
             $this->json(true, ['accounting_entries' => $entries]);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'listAccountingEntries', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'listAccountingEntries', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'listAccountingEntries', $e);
             $this->serverError('Failed to fetch accounting entries');
         }
     }
@@ -552,7 +606,15 @@ class RecurrenceController extends BaseController
 
             $result = $this->auditService->getLog($filters);
             $this->json(true, $result);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'listAuditLog', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'listAuditLog', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
+            $this->logError('Recurrence', 'listAuditLog', $e);
             $this->serverError('Failed to fetch audit log');
         }
     }
@@ -573,89 +635,17 @@ class RecurrenceController extends BaseController
             $this->auth();
             $result = $this->recurrenceService->evaluateAll();
             $this->json(true, $result);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Recurrence', 'evaluate', $e);
+            $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Recurrence', 'evaluate', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to evaluate recurrences: ' . $e->getMessage());
+            $this->logError('Recurrence', 'evaluate', $e);
+            $this->serverError('Failed to evaluate recurrences');
         }
     }
 
-    /* =====================================================================
-     * PRIVATE HELPERS
-     * ===================================================================== */
-
-    /**
-     * Resolve entity details (name, payee_id, exchange_rate) from a recurrence instance.
-     */
-    private function resolveEntityDetails(\PDO $db, array $instance): array
-    {
-        $scheduleId = $instance['recurrence_schedule_id'] ?? null;
-        $default = ['entity_name' => '—', 'payee_id' => null, 'exchange_rate' => 1.0];
-        if (!$scheduleId) return $default;
-
-        $stmt = $db->prepare("SELECT entity_type, entity_id FROM recurrence_schedules WHERE id = :id LIMIT 1");
-        $stmt->execute(['id' => $scheduleId]);
-        $schedule = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if (!$schedule) return $default;
-
-        $result = $default;
-        $result['entity_name'] = $this->resolveEntityNameFromSchedule($db, $schedule);
-
-        $entityId = (int) $schedule['entity_id'];
-
-        if ($schedule['entity_type'] === 'EXPENSE') {
-            $stmt = $db->prepare("SELECT payee_id, exchange_rate FROM expenses WHERE id = :id LIMIT 1");
-            $stmt->execute(['id' => $entityId]);
-            $expense = $stmt->fetch(\PDO::FETCH_ASSOC);
-            if ($expense) {
-                $result['payee_id'] = $expense['payee_id'] ? (int) $expense['payee_id'] : null;
-                $result['exchange_rate'] = (float) ($expense['exchange_rate'] ?? 1.0);
-            }
-        } elseif ($schedule['entity_type'] === 'SALARY') {
-            $result['payee_id'] = $entityId;
-            $result['exchange_rate'] = 1.0;
-        }
-
-        return $result;
-    }
-
-    /**
-     * Resolve entity name directly from a schedule record.
-     */
-    private function resolveEntityNameFromSchedule(\PDO $db, array $schedule): string
-    {
-        $entityId = (int) ($schedule['entity_id'] ?? 0);
-        $entityType = $schedule['entity_type'] ?? '';
-
-        if ($entityType === 'EXPENSE') {
-            $stmt = $db->prepare("
-                SELECT e.id, COALESCE(p.name, '') as payee_name, COALESCE(ec.name, '') as category_name
-                FROM expenses e
-                LEFT JOIN payees py ON py.id = e.payee_id
-                LEFT JOIN people p ON p.id = py.people_id
-                LEFT JOIN expense_categories ec ON ec.id = e.expense_category_id
-                WHERE e.id = :id
-                LIMIT 1
-            ");
-            $stmt->execute(['id' => $entityId]);
-            $expense = $stmt->fetch(\PDO::FETCH_ASSOC);
-            if ($expense) {
-                $parts = array_filter([$expense['payee_name'], $expense['category_name']]);
-                return implode(' — ', $parts) ?: "Expense #$entityId";
-            }
-            return "Expense #$entityId";
-        }
-
-        if ($entityType === 'SALARY') {
-            $stmt = $db->prepare("
-                SELECT p.name FROM payees py
-                JOIN people p ON p.id = py.people_id
-                WHERE py.id = :id
-                LIMIT 1
-            ");
-            $stmt->execute(['id' => $entityId]);
-            $name = $stmt->fetchColumn();
-            return $name ?: "Employee #$entityId";
-        }
-
-        return '—';
-    }
 }

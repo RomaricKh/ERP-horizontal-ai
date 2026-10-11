@@ -34,9 +34,15 @@ class SalariesController extends BaseController {
             $id = $this->service->create($data);
             $this->json(true, ['id' => $id], null, 201);
         } catch (\InvalidArgumentException $e) {
+            $this->logError('Salaries', 'store', $e);
             $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Salaries', 'store', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to create salary record: ' . $e->getMessage());
+            $this->logError('Salaries', 'store', $e);
+            $this->serverError('Failed to create salary record');
         }
     }
 
@@ -90,9 +96,15 @@ class SalariesController extends BaseController {
             $summary = $this->service->generatePayroll($data);
             $this->json(true, $summary);
         } catch (\InvalidArgumentException $e) {
+            $this->logError('Salaries', 'generatePayroll', $e);
             $this->json(false, null, $e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $this->logError('Salaries', 'generatePayroll', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to generate payroll: ' . $e->getMessage());
+            $this->logError('Salaries', 'generatePayroll', $e);
+            $this->serverError('Failed to generate payroll');
         }
     }
 
@@ -100,35 +112,21 @@ class SalariesController extends BaseController {
     public function payslip(int $id): void {
         try {
             $this->auth();
-            $salary = $this->service->getById($id);
-
-            // Get business info
-            $db = Database::getConnection();
-            $ctx = \App\Support\AuthContext::get();
-            $bizStmt = $db->prepare("SELECT name, legal_name, address, phone, email FROM businesses WHERE id = :id");
-            $bizStmt->execute(['id' => $ctx->business_id]);
-            $business = $bizStmt->fetch(\PDO::FETCH_ASSOC) ?: [];
-
-            // Render the payslip HTML
-            $html = \App\Templates\PayslipPdf::render($salary, $business);
-
-            // Generate PDF using DOMPDF
-            $dompdf = new \Dompdf\Dompdf();
-            $dompdf->loadHtml($html);
-            $dompdf->setPaper('A4', 'portrait');
-            $dompdf->render();
-
-            $filename = 'payslip-' . ($salary['employee_name'] ?? 'unknown') . '-' . $salary['period_start'] . '.pdf';
-            $filename = preg_replace('/[^a-zA-Z0-9_\-.]/', '_', $filename);
-
+            $pdf = $this->service->generatePayslipPdf($id);
             header('Content-Type: application/pdf');
-            header('Content-Disposition: inline; filename="' . $filename . '"');
-            echo $dompdf->output();
+            header('Content-Disposition: inline; filename="' . $pdf['filename'] . '"');
+            echo $pdf['content'];
             exit;
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('Salaries', 'payslip', $e);
+            $this->json(false, null, $e->getMessage(), 422);
         } catch (\RuntimeException $e) {
-            $this->notFound();
+            $this->logError('Salaries', 'payslip', $e);
+            $code = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            $this->json(false, null, $e->getMessage(), $code);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to generate payslip: ' . $e->getMessage());
+            $this->logError('Salaries', 'payslip', $e);
+            $this->serverError('Failed to generate payslip');
         }
     }
 }

@@ -40,6 +40,13 @@ export async function mount() {
                 return;
             }
 
+            const btn = document.querySelector('[data-action="tenant-reports.generate"]');
+            const originalContent = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+            }
+
             try {
                 const res = await apiFetch('/api/tenant/reports', {
                     method: 'POST',
@@ -61,6 +68,11 @@ export async function mount() {
             } catch (err) {
                 console.error('Generate report error:', err);
                 await alert({ title: 'Error', alertText: 'An error occurred while generating the report.' });
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalContent;
+                }
             }
         }
     });

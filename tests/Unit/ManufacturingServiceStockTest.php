@@ -75,6 +75,7 @@ class ManufacturingServiceStockTest extends TestCase
             'manufactured_item_id'   => $manufacturedItemId,
             'yield_quantity'         => $yieldQuantity,
             'manufactured_item_name' => 'Widget',
+            'unit'                   => 'kg',
         ]);
 
         // Recipe items: Component X (qty 6), Component Y (qty 4)
@@ -145,6 +146,7 @@ class ManufacturingServiceStockTest extends TestCase
             'manufactured_item_id'   => $manufacturedItemId,
             'yield_quantity'         => $yieldQuantity,
             'manufactured_item_name' => 'Widget',
+            'unit'                   => 'kg',
         ]);
 
         // Recipe items
@@ -223,6 +225,7 @@ class ManufacturingServiceStockTest extends TestCase
             'manufactured_item_id'   => $manufacturedItemId,
             'yield_quantity'         => $yieldQuantity,
             'manufactured_item_name' => 'Widget',
+            'unit'                   => 'kg',
         ]);
 
         // Recipe items: 3 components
@@ -320,6 +323,7 @@ class ManufacturingServiceStockTest extends TestCase
             'manufactured_item_id'   => $manufacturedItemId,
             'yield_quantity'         => $yieldQuantity,
             'manufactured_item_name' => 'Widget',
+            'unit'                   => 'kg',
         ]);
 
         // Recipe items: single component

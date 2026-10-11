@@ -47,9 +47,9 @@ export async function mount({ modalRoot: root, data }) {
     await populatePayeeSelect(F.payee());
 
     // Listen for payee changes to load outstanding documents
-    F.payee().addEventListener('change', handlePayeeChange);
+    F.payee()?.addEventListener('change', handlePayeeChange);
 
-    F.btnAddLine().addEventListener('click', () => addLine());
+    F.btnAddLine()?.addEventListener('click', () => addLine());
 
     if (currentMode === 'view') {
         await fetchAndFill(currentPaymentId);
@@ -815,8 +815,8 @@ function validateForm() {
         if (allocations.length > 0) {
             const totalAlloc = allocations.reduce((sum, a) => sum + a.amount_bc, 0);
             const slipAmount = getSlipTotalBc();
-            if (Math.abs(totalAlloc - slipAmount) > 0.01) {
-                showFormError('Allocation total must equal the payment amount');
+            if (totalAlloc > slipAmount + 0.01) {
+                showFormError('Allocations cannot exceed the payment amount');
                 valid = false;
             }
         }

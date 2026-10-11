@@ -49,6 +49,12 @@ class ExpenseService {
         if ($name === '') {
             throw new \InvalidArgumentException('Category name is required');
         }
+        if (mb_strlen($name) > 100) {
+            throw new \InvalidArgumentException('Category name must not exceed 100 characters');
+        }
+        if (preg_match('/[\x00-\x1F\x7F]/', $name)) {
+            throw new \InvalidArgumentException('Category name contains invalid characters');
+        }
 
         $id = $this->repo->createCategory([
             'tenant_id'   => $ctx->tenant_id,
@@ -88,6 +94,12 @@ class ExpenseService {
         }
         if ($name === '') {
             throw new \InvalidArgumentException('Category name is required');
+        }
+        if (mb_strlen($name) > 100) {
+            throw new \InvalidArgumentException('Category name must not exceed 100 characters');
+        }
+        if (preg_match('/[\x00-\x1F\x7F]/', $name)) {
+            throw new \InvalidArgumentException('Category name contains invalid characters');
         }
 
         $this->repo->updateCategory($id, $ctx->tenant_id, [
@@ -197,6 +209,28 @@ class ExpenseService {
             throw new \InvalidArgumentException('Amount is required');
         }
 
+        // Numeric and positive checks
+        if (!is_numeric($data['amount_fc']) || (float) $data['amount_fc'] <= 0) {
+            throw new \InvalidArgumentException('Amount must be greater than zero');
+        }
+        if (isset($data['exchange_rate']) && $data['exchange_rate'] !== '' && $data['exchange_rate'] !== null) {
+            if ((float) $data['exchange_rate'] <= 0) {
+                throw new \InvalidArgumentException('Exchange rate must be positive');
+            }
+        }
+
+        // Date format validation
+        $this->validateDate($data['expense_date'], 'expense_date');
+        if (!empty($data['reference_date'] ?? '')) {
+            $this->validateDate($data['reference_date'], 'reference_date');
+        }
+
+        // Payee ownership verification
+        $payeeId = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
+        if ($payeeId) {
+            $this->peopleRepo->ensurePayeeBelongsToBusiness($payeeId, $ctx->business_id);
+        }
+
         // Resolve exchange rate: use provided value or fall back to latest from exchange_rates table
         $providedRate = (!isset($data['exchange_rate']) || $data['exchange_rate'] === '' || $data['exchange_rate'] === null)
             ? null
@@ -209,7 +243,6 @@ class ExpenseService {
 
         $this->db->beginTransaction();
         try {
-            $payeeId = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
 
             $id = $this->repo->create([
                 'business_id'          => $ctx->business_id,
@@ -272,6 +305,37 @@ class ExpenseService {
             throw new \RuntimeException('Expense not found');
         }
 
+        // Input validation (mirrors create() validations)
+        if (empty($data['expense_date'] ?? '')) {
+            throw new \InvalidArgumentException('Expense date is required');
+        }
+        if (empty(trim($data['currency'] ?? ''))) {
+            throw new \InvalidArgumentException('Currency is required');
+        }
+        if (!isset($data['amount_fc']) || $data['amount_fc'] === '') {
+            throw new \InvalidArgumentException('Amount is required');
+        }
+        if (!is_numeric($data['amount_fc']) || (float) $data['amount_fc'] <= 0) {
+            throw new \InvalidArgumentException('Amount must be greater than zero');
+        }
+        if (isset($data['exchange_rate']) && $data['exchange_rate'] !== '' && $data['exchange_rate'] !== null) {
+            if (!is_numeric($data['exchange_rate']) || (float) $data['exchange_rate'] <= 0) {
+                throw new \InvalidArgumentException('Exchange rate must be positive');
+            }
+        }
+
+        // Validate date formats
+        $this->validateDate($data['expense_date'], 'expense_date');
+        if (!empty($data['reference_date'] ?? '')) {
+            $this->validateDate($data['reference_date'], 'reference_date');
+        }
+
+        // Payee ownership verification
+        $newPayeeId = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
+        if ($newPayeeId) {
+            $this->peopleRepo->ensurePayeeBelongsToBusiness($newPayeeId, $ctx->business_id);
+        }
+
         // Resolve exchange rate: use provided value or fall back to latest from exchange_rates table
         $providedRate = (!isset($data['exchange_rate']) || $data['exchange_rate'] === '' || $data['exchange_rate'] === null)
             ? null
@@ -284,7 +348,6 @@ class ExpenseService {
 
         $this->db->beginTransaction();
         try {
-            $newPayeeId = isset($data['payee_id']) && $data['payee_id'] !== '' ? (int) $data['payee_id'] : null;
 
             $this->repo->update($id, $ctx->business_id, [
                 'payee_id'             => $newPayeeId,
@@ -409,6 +472,27 @@ class ExpenseService {
         ");
         $stmt->execute(['id' => $expenseId]);
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Validate that a date string matches YYYY-MM-DD format and represents a valid calendar date.
+     *
+     * @throws \InvalidArgumentException if the date is malformed or invalid
+     */
+    protected function validateDate(string $date, string $fieldName): void
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            throw new \InvalidArgumentException("Invalid date format for {$fieldName}. Expected YYYY-MM-DD");
+        }
+
+        $parts = explode('-', $date);
+        $year  = (int) $parts[0];
+        $month = (int) $parts[1];
+        $day   = (int) $parts[2];
+
+        if (!checkdate($month, $day, $year)) {
+            throw new \InvalidArgumentException("Invalid date format for {$fieldName}. Expected YYYY-MM-DD");
+        }
     }
 
     /**

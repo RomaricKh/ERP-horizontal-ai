@@ -220,6 +220,40 @@ class BusinessTypeRepository {
 	}
 
 	/**
+	 * Get system business types with their associated modules.
+	 * Extracted from TenantBusinessController::listSystemBusinessTypes().
+	 *
+	 * Returns system types (is_system = 1) with a 'modules' key containing
+	 * each type's associated module code and name.
+	 *
+	 * @return array Array of system business types with 'modules' sub-array
+	 */
+	public function getSystemTypesWithModules(): array {
+		$stmt = $this->db->prepare("
+			SELECT bt.id, bt.code, bt.name, bt.description
+			FROM business_types bt
+			WHERE bt.is_system = 1
+			ORDER BY bt.id ASC
+		");
+		$stmt->execute();
+		$types = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		foreach ($types as &$type) {
+			$modStmt = $this->db->prepare("
+				SELECT m.code, m.name
+				FROM business_type_modules btm
+				JOIN modules m ON m.id = btm.module_id
+				WHERE btm.business_type_id = :type_id
+				ORDER BY m.name ASC
+			");
+			$modStmt->execute(['type_id' => $type['id']]);
+			$type['modules'] = $modStmt->fetchAll(PDO::FETCH_ASSOC);
+		}
+
+		return $types;
+	}
+
+	/**
 	 * Find all system types (for use as copy templates).
 	 *
 	 * @return array Array of system business types with their module lists

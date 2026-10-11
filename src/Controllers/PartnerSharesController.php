@@ -41,7 +41,7 @@ class PartnerSharesController extends BaseController {
     public function update(int $id): void {
         try {
             $this->auth();
-            $data = $this->input(['share_percent', 'invested_capital']);
+            $data = $this->input(['share_percent']);
             $this->service->update($id, $data);
             $this->json(true, ['id' => $id]);
         } catch (\InvalidArgumentException $e) {

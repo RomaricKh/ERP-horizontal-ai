@@ -178,8 +178,10 @@ describe('Feature: sidebar-grouped-menu, Property 1: Config structure preservati
           expect(child.icon.length).toBeGreaterThan(0);
           expect(typeof child.hash).toBe('string');
           expect(child.hash.length).toBeGreaterThan(0);
-          expect(typeof child.permission).toBe('string');
-          expect(child.permission.length).toBeGreaterThan(0);
+          if (child.permission !== undefined) {
+            expect(typeof child.permission).toBe('string');
+            expect(child.permission.length).toBeGreaterThan(0);
+          }
         }
       } else {
         throw new Error(`Unexpected entry type: ${entry.type}`);

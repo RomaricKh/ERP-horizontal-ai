@@ -117,6 +117,31 @@ class TenantOwnerRepository
     }
 
     /**
+     * List all tenant owners for a given tenant with display-ready fields.
+     * Returns user_id, username, full_name, email, is_active, designated_at.
+     */
+    public function listOwnersForTenant(int $tenantId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                u.id AS user_id,
+                u.username,
+                CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+                u.email,
+                ur.is_active,
+                u.created_at AS designated_at
+            FROM user_roles ur
+            JOIN users u ON u.id = ur.user_id
+            JOIN roles r ON r.id = ur.role_id
+            WHERE ur.tenant_id = :tenant_id
+              AND r.type = 'TENANT_OWNER'
+            ORDER BY ur.id ASC
+        ");
+        $stmt->execute(['tenant_id' => $tenantId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Delete the user_roles record for a tenant owner.
      */
     public function delete(int $tenantId, int $userId): void

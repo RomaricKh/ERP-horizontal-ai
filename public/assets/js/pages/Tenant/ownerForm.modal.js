@@ -137,6 +137,12 @@ function validateForm() {
     if (!email.value.trim()) {
         markInvalid(email, 'Email is required');
         valid = false;
+    } else {
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(email.value.trim())) {
+            markInvalid(email, 'Please enter a valid email address');
+            valid = false;
+        }
     }
     if (!username.value.trim()) {
         markInvalid(username, 'Username is required');

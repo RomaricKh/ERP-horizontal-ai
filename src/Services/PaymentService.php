@@ -516,4 +516,200 @@ class PaymentService {
 
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
+
+    /**
+     * Get outstanding (unpaid/partially-paid) documents for a supplier payee.
+     */
+    public function getOutstandingDocumentsForPayee(int $payeeId, int $businessId): array {
+        $documents = [];
+
+        // RECEIVED Purchase Orders (accounting for debit notes)
+        $stmt = $this->db->prepare("
+            SELECT
+                po.id,
+                po.po_number AS doc_number,
+                po.po_date AS doc_date,
+                po.total_amount_bc,
+                po.total_amount_fc,
+                'PURCHASE_ORDER' AS reference_type,
+                COALESCE(
+                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'PURCHASE_ORDER' AND pa.reference_id = po.id),
+                    0
+                ) AS allocated_bc,
+                COALESCE(
+                    (SELECT SUM(pa.amount_fc) FROM payment_allocations pa WHERE pa.reference_type = 'PURCHASE_ORDER' AND pa.reference_id = po.id),
+                    0
+                ) AS allocated_fc,
+                COALESCE(
+                    (SELECT SUM(dn.total_amount_bc) FROM debit_notes dn WHERE dn.purchase_order_id = po.id AND dn.status = 'ISSUED'),
+                    0
+                ) AS debit_notes_bc,
+                COALESCE(
+                    (SELECT SUM(dn.total_amount_fc) FROM debit_notes dn WHERE dn.purchase_order_id = po.id AND dn.status = 'ISSUED'),
+                    0
+                ) AS debit_notes_fc
+            FROM purchase_orders po
+            WHERE po.supplier_id = :payee_id
+              AND po.business_id = :business_id
+              AND po.status = 'RECEIVED'
+            ORDER BY po.po_date ASC, po.id ASC
+        ");
+        $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+        $poRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($poRows as $row) {
+            $effectiveTotalBc = (float) $row['total_amount_bc'] - (float) $row['debit_notes_bc'];
+            $effectiveTotalFc = (float) $row['total_amount_fc'] - (float) $row['debit_notes_fc'];
+            $remaining = $effectiveTotalBc - (float) $row['allocated_bc'];
+            if ($remaining > 0.001) {
+                $documents[] = [
+                    'id'             => (int) $row['id'],
+                    'doc_number'     => $row['doc_number'],
+                    'doc_date'       => $row['doc_date'],
+                    'reference_type' => 'PURCHASE_ORDER',
+                    'total_bc'       => round($effectiveTotalBc, 2),
+                    'total_fc'       => round($effectiveTotalFc, 2),
+                    'allocated_bc'   => (float) $row['allocated_bc'],
+                    'allocated_fc'   => (float) $row['allocated_fc'],
+                    'remaining_bc'   => round($remaining, 2),
+                    'remaining_fc'   => round($effectiveTotalFc - (float) $row['allocated_fc'], 2),
+                ];
+            }
+        }
+
+        // Unpaid Expenses
+        $stmt = $this->db->prepare("
+            SELECT
+                e.id,
+                COALESCE(e.reference_number, CONCAT('EXP-', e.id)) AS doc_number,
+                e.expense_date AS doc_date,
+                e.amount_bc AS total_amount_bc,
+                e.amount_fc AS total_amount_fc,
+                'EXPENSE' AS reference_type,
+                COALESCE(
+                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'EXPENSE' AND pa.reference_id = e.id),
+                    0
+                ) AS allocated_bc,
+                COALESCE(
+                    (SELECT SUM(pa.amount_fc) FROM payment_allocations pa WHERE pa.reference_type = 'EXPENSE' AND pa.reference_id = e.id),
+                    0
+                ) AS allocated_fc
+            FROM expenses e
+            WHERE e.payee_id = :payee_id
+              AND e.business_id = :business_id
+            ORDER BY e.expense_date ASC, e.id ASC
+        ");
+        $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+        $expenseRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($expenseRows as $row) {
+            $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
+            if ($remaining > 0.001) {
+                $documents[] = [
+                    'id'             => (int) $row['id'],
+                    'doc_number'     => $row['doc_number'],
+                    'doc_date'       => $row['doc_date'],
+                    'reference_type' => 'EXPENSE',
+                    'total_bc'       => (float) $row['total_amount_bc'],
+                    'total_fc'       => (float) ($row['total_amount_fc'] ?? $row['total_amount_bc']),
+                    'allocated_bc'   => (float) $row['allocated_bc'],
+                    'allocated_fc'   => (float) $row['allocated_fc'],
+                    'remaining_bc'   => round($remaining, 2),
+                    'remaining_fc'   => round((float) ($row['total_amount_fc'] ?? $row['total_amount_bc']) - (float) $row['allocated_fc'], 2),
+                ];
+            }
+        }
+
+        // Unpaid Salaries
+        $stmt = $this->db->prepare("
+            SELECT
+                s.id,
+                CONCAT('SAL-', s.id) AS doc_number,
+                s.period_start AS doc_date,
+                s.net_amount_bc AS total_amount_bc,
+                s.net_amount_fc AS total_amount_fc,
+                'SALARY' AS reference_type,
+                COALESCE(
+                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'SALARY' AND pa.reference_id = s.id),
+                    0
+                ) AS allocated_bc,
+                COALESCE(
+                    (SELECT SUM(pa.amount_fc) FROM payment_allocations pa WHERE pa.reference_type = 'SALARY' AND pa.reference_id = s.id),
+                    0
+                ) AS allocated_fc
+            FROM salaries s
+            WHERE s.payee_id = :payee_id
+              AND s.business_id = :business_id
+            ORDER BY s.period_start ASC, s.id ASC
+        ");
+        $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+        $salaryRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($salaryRows as $row) {
+            $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
+            if ($remaining > 0.001) {
+                $documents[] = [
+                    'id'             => (int) $row['id'],
+                    'doc_number'     => $row['doc_number'],
+                    'doc_date'       => $row['doc_date'],
+                    'reference_type' => 'SALARY',
+                    'total_bc'       => (float) $row['total_amount_bc'],
+                    'total_fc'       => (float) ($row['total_amount_fc'] ?? $row['total_amount_bc']),
+                    'allocated_bc'   => (float) $row['allocated_bc'],
+                    'allocated_fc'   => (float) $row['allocated_fc'],
+                    'remaining_bc'   => round($remaining, 2),
+                    'remaining_fc'   => round((float) ($row['total_amount_fc'] ?? $row['total_amount_bc']) - (float) $row['allocated_fc'], 2),
+                ];
+            }
+        }
+
+        // Sort by date ASC
+        usort($documents, function ($a, $b) {
+            $cmp = strcmp($a['doc_date'], $b['doc_date']);
+            return $cmp === 0 ? $a['id'] - $b['id'] : $cmp;
+        });
+
+        // Unpaid Profit Distributions
+        $stmt = $this->db->prepare("
+            SELECT
+                pd.id,
+                pd.business_profit_id,
+                CONCAT('PROFIT-', pd.business_profit_id) AS doc_number,
+                bp.period_end AS doc_date,
+                pd.amount_bc AS total_amount_bc,
+                'PARTNER_PROFIT' AS reference_type,
+                COALESCE(
+                    (SELECT SUM(pa.amount_bc) FROM payment_allocations pa WHERE pa.reference_type = 'PARTNER_PROFIT' AND pa.reference_id = pd.business_profit_id),
+                    0
+                ) AS allocated_bc
+            FROM profit_distributions pd
+            JOIN business_profit bp ON bp.id = pd.business_profit_id
+            WHERE pd.partner_id = :payee_id
+              AND bp.business_id = :business_id
+              AND bp.status IN ('FINALIZED', 'DISTRIBUTED')
+        ");
+        $stmt->execute(['payee_id' => $payeeId, 'business_id' => $businessId]);
+        $profitRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($profitRows as $row) {
+            $remaining = (float) $row['total_amount_bc'] - (float) $row['allocated_bc'];
+            if ($remaining > 0) {
+                $documents[] = [
+                    'reference_type' => 'PARTNER_PROFIT',
+                    'id'             => (int) $row['business_profit_id'],
+                    'doc_number'     => $row['doc_number'],
+                    'doc_date'       => $row['doc_date'],
+                    'total_amount_bc'=> (float) $row['total_amount_bc'],
+                    'total_bc'       => (float) $row['total_amount_bc'],
+                    'total_fc'       => (float) $row['total_amount_bc'],
+                    'allocated_bc'   => (float) $row['allocated_bc'],
+                    'allocated_fc'   => (float) $row['allocated_bc'],
+                    'remaining_bc'   => round($remaining, 2),
+                    'remaining_fc'   => round($remaining, 2),
+                ];
+            }
+        }
+
+        return $documents;
+    }
 }

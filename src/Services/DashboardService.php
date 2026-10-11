@@ -53,7 +53,7 @@ class DashboardService {
             'net_profit'          => $netProfit,
             'account_balances'    => $this->repo->getAccountBalances($businessId),
             'recent_transactions' => $this->repo->getRecentTransactions($businessId, 10),
-            'low_stock_items'     => $this->repo->getLowStockItems($businessId, 0),
+            'low_stock_items'     => $this->repo->getLowStockItems($businessId),
             'earnings_overview'   => $this->repo->getAnnualEarningsOverview($businessId, $year),
             'expense_breakdown'   => $this->repo->getExpenseBreakdown($businessId, $year, $month),
             'month'               => $month,

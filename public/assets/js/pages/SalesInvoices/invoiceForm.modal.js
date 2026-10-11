@@ -79,6 +79,28 @@ export async function mount({ modalRoot: root, data }) {
     F.customer().addEventListener('change', customerChangeHandler);
     F.customer().addEventListener('input', customerChangeHandler);
 
+    function calculateNextFriday(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d)) return '';
+        const dayOfWeek = d.getDay();
+        let daysToAdd = 0;
+        if (dayOfWeek === 5) {
+            daysToAdd = 7; 
+        } else if (dayOfWeek === 6) {
+            daysToAdd = 6; 
+        } else if (dayOfWeek === 0) {
+            daysToAdd = 5; 
+        } else {
+            daysToAdd = 5 - dayOfWeek;
+        }
+        d.setDate(d.getDate() + daysToAdd);
+        return d.toISOString().slice(0, 10);
+    }
+
+    F.dueDate().readOnly = true;
+    F.dueDate().classList.add('bg-light');
+
     if (currentInvoiceId) {
         await fetchAndFill(currentInvoiceId);
         // Re-load items filtered by the invoice's customer
@@ -87,6 +109,7 @@ export async function mount({ modalRoot: root, data }) {
             await loadItems(editCustomerId);
             refreshLineItemDropdowns();
         }
+
         // Check if invoice is in DRAFT status. Only DRAFT invoices can be edited.
         const isDraft = modalRoot.dataset.invoiceStatus === 'DRAFT';
         if (!isDraft) {
@@ -110,19 +133,15 @@ export async function mount({ modalRoot: root, data }) {
         // Set today's date
         const today = new Date().toISOString().slice(0, 10);
         F.invoiceDate().value = today;
-        // Default due date: invoice_date + 30 days
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 30);
-        F.dueDate().value = dueDate.toISOString().slice(0, 10);
+        // Default due date: next Friday
+        F.dueDate().value = calculateNextFriday(today);
     }
 
-    // Update due date when invoice date changes (keep +30 days offset)
+    // Update due date when invoice date changes
     F.invoiceDate().addEventListener('change', () => {
         const invDate = F.invoiceDate().value;
-        if (invDate && !currentInvoiceId) {
-            const d = new Date(invDate);
-            d.setDate(d.getDate() + 30);
-            F.dueDate().value = d.toISOString().slice(0, 10);
+        if (invDate) {
+            F.dueDate().value = calculateNextFriday(invDate);
         }
     });
 
@@ -190,7 +209,7 @@ export async function mount({ modalRoot: root, data }) {
             }
         },
 
-        'invoice.save': async () => {
+        'invoice.save': async ({ el }) => {
             if (!validateForm()) return;
 
             const lines   = collectLines();
@@ -213,6 +232,7 @@ export async function mount({ modalRoot: root, data }) {
             };
 
             try {
+                el.disabled = true;
                 let res, json;
                 if (currentInvoiceId) {
                     // For existing invoices (DRAFT only), we PUT
@@ -233,6 +253,8 @@ export async function mount({ modalRoot: root, data }) {
             } catch (err) {
                 console.error(err);
                 showFormError(err.message || 'Unable to save sales invoice');
+            } finally {
+                el.disabled = false;
             }
         }
     });

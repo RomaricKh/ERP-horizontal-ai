@@ -163,7 +163,7 @@ function addComponentRow(prefill = null) {
         optionsHtml += `<option value="${item.id}" 
             data-unit="${item.unit || ''}" 
             data-cost="${item.cost_price ?? 0}"
-            ${selected}>${item.name}${item.sku ? ' (' + item.sku + ')' : ''}</option>`;
+            ${selected}>${escHtml(item.name)}${item.sku ? ' (' + escHtml(item.sku) + ')' : ''}</option>`;
     });
 
     row.innerHTML = `
@@ -435,4 +435,10 @@ function showFormError(message) {
         footer?.prepend(el);
     }
     el.textContent = message;
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s ?? '';
+    return d.innerHTML;
 }

@@ -543,6 +543,7 @@ class ManufacturingCostFlagTest extends TestCase
 
         $stockValidator = new class extends \App\Services\StockValidator {
             public function __construct() {}
+            public function assertSufficientStock(int $itemId, int $businessId, float $quantity): void {}
             public function assertAvailable(int $itemId, float $requestedQty, int $businessId): void {}
             public function checkBatch(array $requirements, int $businessId): array { return []; }
         };

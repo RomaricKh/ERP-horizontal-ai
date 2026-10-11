@@ -88,14 +88,16 @@ export async function mount({ modalRoot: root }) {
             if (!confirmed) return;
 
             try {
+                el.disabled = true;
                 const res  = await apiFetch(`/api/services/categories/${id}`, { method: 'DELETE' });
-                const json = await res.json();
-                if (!res.ok || !json.success) throw new Error(json.message || 'Failed');
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.message);
                 await loadCategories();
-                document.dispatchEvent(new CustomEvent('services.updated'));
+                document.dispatchEvent(new CustomEvent('module.updated'));
             } catch (err) {
-                console.error(err);
                 await alert({ title: 'Error', alertText: err.message || 'Failed to delete category' });
+            } finally {
+                el.disabled = false;
             }
         }
     });

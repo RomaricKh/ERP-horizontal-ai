@@ -58,9 +58,11 @@ class BusinessProfitService {
      *
      * Revenue = sum of PAID invoices total_amount_bc in period
      * COGS = sum of (si_details.quantity * items.cost_price) for PAID invoices in period
+     *        Note: This is an approximation. True perpetual inventory COGS is handled via stock ledgers.
      * Gross Profit = Revenue - COGS
-     * Expenses = sum of expenses.amount_bc + sum of salaries.net_amount_bc in period
-     * Net Profit = Gross Profit - Expenses
+     * Expenses = sum of expenses.amount_bc in period
+     * Salaries = sum of salaries.net_amount_bc in period (This attributes net salary payout as an expense)
+     * Net Profit = Gross Profit - Expenses - Salaries
      * Apply safety_net_percent to get distributable_profit.
      *
      * @return int The new profit record ID
@@ -123,21 +125,27 @@ class BusinessProfitService {
             'status'             => 'DRAFT',
         ];
 
-        $id = $this->profitRepo->insert($record);
+        $this->db->beginTransaction();
+        try {
+            $id = $this->profitRepo->insert($record);
 
-        $this->audit->log(
-            'CREATE',
-            'business_profit',
-            $id,
-            'CREATE',
-            null,
-            $record,
-            $ctx->user_id,
-            $ctx->tenant_id,
-            $ctx->business_id
-        );
-
-        return $id;
+            $this->audit->log(
+                'CREATE',
+                'business_profit',
+                $id,
+                'CREATE',
+                null,
+                $record,
+                $ctx->user_id,
+                $ctx->tenant_id,
+                $ctx->business_id
+            );
+            $this->db->commit();
+            return $id;
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -347,8 +355,25 @@ class BusinessProfitService {
             throw new \RuntimeException('Profit record not found');
         }
 
-        if ($before['status'] !== 'FINALIZED') {
-            throw new \InvalidArgumentException('Only FINALIZED profit records can be distributed');
+        if ($before['status'] !== 'FINALIZED' && $before['status'] !== 'DISTRIBUTED') {
+            throw new \InvalidArgumentException('Only FINALIZED or DISTRIBUTED profit records can be distributed');
+        }
+
+        // BP1: Guard against re-distribution when payment slips are already linked
+        if ($before['status'] === 'DISTRIBUTED') {
+            $existingDists = $this->distRepo->findByProfitId($id);
+            $hasLinkedPayments = false;
+            foreach ($existingDists as $dist) {
+                if (!empty($dist['payment_slip_id'])) {
+                    $hasLinkedPayments = true;
+                    break;
+                }
+            }
+            if ($hasLinkedPayments) {
+                throw new \InvalidArgumentException(
+                    'This profit record has already been distributed with linked payment slips. Cannot re-distribute.'
+                );
+            }
         }
 
         // Verify account exists
@@ -393,8 +418,8 @@ class BusinessProfitService {
             // Store distributions in profit_distributions table
             $this->distRepo->createBatch($id, $distributions);
 
-            // We NO LONGER update the profit record status to DISTRIBUTED here.
-            // The status will be updated to DISTRIBUTED only when the payment slip is saved.
+            // BP2: Mark the profit record as DISTRIBUTED
+            $this->profitRepo->update($id, $businessId, ['status' => 'DISTRIBUTED']);
 
             $this->db->commit();
         } catch (\Throwable $e) {
@@ -487,10 +512,5 @@ class BusinessProfitService {
         return (float) $stmt->fetchColumn();
     }
 
-    /**
-     * Generate a unique payment number for a profit distribution payment slip.
-     */
-    private function generatePaymentNumber(int $businessId, int $partnerId, int $profitId): string {
-        return 'PP-' . $businessId . '-' . $profitId . '-' . $partnerId . '-' . time();
-    }
+
 }

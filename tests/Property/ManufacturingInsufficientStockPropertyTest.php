@@ -253,6 +253,7 @@ class ManufacturingInsufficientStockPropertyTest extends TestCase
             'is_active'              => 1,
             'created_by'             => $this->userId,
             'manufactured_item_name' => 'Manufactured_Item',
+            'unit'                   => 'kg',
         ];
 
         // Mock ManufacturingRepository

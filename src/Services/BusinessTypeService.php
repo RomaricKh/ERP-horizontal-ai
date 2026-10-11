@@ -33,8 +33,8 @@ class BusinessTypeService
         'manufacturing'   => ['manufacturing_recipes', 'manufacturing_orders'],
         'accounts'        => ['accounts'],
         'expenses'        => ['expenses'],
-        'payments'        => ['payments'],
-        'collections'     => ['collections'],
+        'payments'        => ['payment_slips'],
+        'collections'     => ['collection_slips'],
         'salaries'        => ['salaries'],
         'exchange_rates'  => ['exchange_rates'],
     ];
@@ -46,6 +46,17 @@ class BusinessTypeService
         $this->overrideRepo = new BusinessModuleOverrideRepository($db);
         $this->moduleRepo = new ModuleRepository($db);
         $this->audit = new AuditService($db);
+    }
+
+    /**
+     * Get system business types with their associated modules.
+     * Delegates to BusinessTypeRepository::getSystemTypesWithModules().
+     *
+     * @return array Array of system business types with 'modules' sub-array
+     */
+    public function getSystemTypesWithModules(): array
+    {
+        return $this->businessTypeRepo->getSystemTypesWithModules();
     }
 
     /**

@@ -6,6 +6,8 @@ import { apiFetch } from '../../Auth/apiFetch.js';
 let modalRoot;
 let unregister;
 let currentPersonId = null;
+let searchInputHandler = null;
+let documentClickHandler = null;
 
 const F = {
     title:    () => document.getElementById('personModalTitle'),
@@ -36,7 +38,7 @@ export async function mount({ modalRoot: root, data }) {
     if (currentPersonId) {
         searchSection.style.display = 'none';
     } else {
-        searchInput.addEventListener('input', () => {
+        searchInputHandler = () => {
             clearTimeout(searchTimeout);
             const q = searchInput.value.trim();
             if (q.length < 2) {
@@ -65,13 +67,15 @@ export async function mount({ modalRoot: root, data }) {
                     console.error('Search failed', e);
                 }
             }, 300);
-        });
+        };
+        searchInput.addEventListener('input', searchInputHandler);
 
-        document.addEventListener('click', (e) => {
+        documentClickHandler = (e) => {
             if (!searchResults.contains(e.target) && e.target !== searchInput) {
                 searchResults.style.display = 'none';
             }
-        });
+        };
+        document.addEventListener('click', documentClickHandler);
 
         searchClear.addEventListener('click', () => {
             searchInput.value = '';
@@ -162,6 +166,17 @@ export function unmount() {
     unregister?.();
     unregister = null;
     currentPersonId = null;
+
+    // Remove stored event listeners
+    if (searchInputHandler) {
+        const searchInput = document.getElementById('inputTenantSearch');
+        searchInput?.removeEventListener('input', searchInputHandler);
+        searchInputHandler = null;
+    }
+    if (documentClickHandler) {
+        document.removeEventListener('click', documentClickHandler);
+        documentClickHandler = null;
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -220,12 +235,31 @@ function renderTypeCheckboxes(types, selectedIds) {
 function validateForm() {
     clearValidation();
     let valid = true;
+
+    // Name: required
     const name = F.name();
     if (!name.value.trim()) {
         markInvalid(name, 'Full name is required');
         valid = false;
     }
 
+    // Email: optional, but must be valid format if provided
+    const email = F.email();
+    const emailValue = email.value.trim();
+    if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+        markInvalid(email, 'Please enter a valid email address');
+        valid = false;
+    }
+
+    // Phone: optional, allowed characters only (digits, spaces, dashes, plus, parens)
+    const phone = F.phone();
+    const phoneValue = phone.value.trim();
+    if (phoneValue && !/^[\d\s\-\+\(\)]+$/.test(phoneValue)) {
+        markInvalid(phone, 'Phone may only contain digits, spaces, dashes, plus signs, and parentheses');
+        valid = false;
+    }
+
+    // At least one payee type selected
     const checkedIds = modalRoot.querySelectorAll('.payee-type-cb:checked');
     if (checkedIds.length === 0) {
         const typesBox = F.typesBox();

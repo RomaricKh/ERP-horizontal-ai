@@ -5,7 +5,8 @@ use PDO;
 
 /**
  * Repository for payee_types with module-gated queries.
- * Also manages the people_types junction table.
+ * Provides read-only access to the people_types junction table.
+ * Write operations to people_types are owned by PeopleRepository::setPayeeTypes().
  */
 class PayeeTypeRepository {
     private PDO $db;
@@ -112,7 +113,7 @@ class PayeeTypeRepository {
         return (int) $stmt->fetchColumn();
     }
 
-    // ── People Types Junction ────────────────────────────────────────────────
+    // ── People Types Junction (Read-Only) ──────────────────────────────────
 
     /**
      * Get all type IDs assigned to a person.
@@ -126,31 +127,6 @@ class PayeeTypeRepository {
         );
         $stmt->execute(['people_id' => $peopleId]);
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
-    }
-
-    /**
-     * Replace all type assignments for a person.
-     *
-     * @param int $peopleId The people.id
-     * @param int[] $typeIds Array of payee_type_id values to assign
-     */
-    public function setTypesForPerson(int $peopleId, array $typeIds): void {
-        // Delete existing assignments
-        $stmt = $this->db->prepare("DELETE FROM people_types WHERE people_id = :people_id");
-        $stmt->execute(['people_id' => $peopleId]);
-
-        // Insert new assignments
-        if (!empty($typeIds)) {
-            $insertStmt = $this->db->prepare(
-                "INSERT IGNORE INTO people_types (people_id, payee_type_id, created_at) VALUES (:people_id, :type_id, NOW())"
-            );
-            foreach ($typeIds as $typeId) {
-                $insertStmt->execute([
-                    'people_id' => $peopleId,
-                    'type_id'   => (int) $typeId,
-                ]);
-            }
-        }
     }
 
     /**

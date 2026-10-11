@@ -29,14 +29,21 @@ function bindEvents() {
     const form = document.getElementById('bsFilterForm');
     form?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        await fetchReport();
+        const btn = e.submitter || form.querySelector('button[type="submit"]');
+        await fetchReport(btn);
     });
 }
 
-async function fetchReport() {
+async function fetchReport(btn = null) {
     const asOf = document.getElementById('bsAsOfDate').value;
 
     if (!asOf) return;
+
+    const originalContent = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
+    }
 
     try {
         const res = await apiFetch(`/api/reports/balance-sheet?as_of=${asOf}`);
@@ -48,6 +55,11 @@ async function fetchReport() {
         renderReport(json.data?.report);
     } catch (err) {
         console.error('Failed to fetch Balance Sheet report:', err);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+        }
     }
 }
 

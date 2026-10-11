@@ -33,13 +33,18 @@ export async function mount({ modalRoot: root, data }) {
     }
 
     // Attach event listeners
-    F.recipeSelect().addEventListener('change', onRecipeChange);
-    F.productionQty().addEventListener('input', onQuantityChange);
+    F.recipeSelect()?.addEventListener('change', onRecipeChange);
+    F.productionQty()?.addEventListener('input', onQuantityChange);
+    document.getElementById('btnAddWasteRow')?.addEventListener('click', () => addWasteRow());
 
     unregister = registerPageActions({
         'production-order.execute': async () => {
             if (!validateForm()) return;
             await executeOrder();
+        },
+        'production-order.remove-waste': (e) => {
+            const btn = e.target.closest('button');
+            if (btn) removeWasteRow(btn.closest('tr'));
         }
     });
 }
@@ -264,6 +269,10 @@ function renderMaterialRequirements() {
         tbody.appendChild(row);
     });
 
+    // Calculate waste cost
+    const wasteCost = calculateWasteCost();
+    totalCost += wasteCost;
+
     // Update cost display
     const unitCost = productionQty > 0 ? totalCost / productionQty : 0;
     F.totalCost().textContent = getFormatter().formatNumber(totalCost, 2);
@@ -331,12 +340,102 @@ function validateForm() {
     return valid;
 }
 
+// ─── Waste handling ─────────────────────────────────────────────────────────
+
+function addWasteRow() {
+    const tbody = document.getElementById('wasteBody');
+    const placeholder = document.getElementById('wastePlaceholder');
+    if (placeholder) placeholder.style.display = 'none';
+
+    const index = tbody.querySelectorAll('tr:not(#wastePlaceholder)').length;
+    const row = document.createElement('tr');
+    
+    // Build options from recipe items
+    let optionsHtml = '<option value="">Select component...</option>';
+    if (selectedRecipeDetails && selectedRecipeDetails.items) {
+        selectedRecipeDetails.items.forEach(item => {
+            optionsHtml += `<option value="${item.component_item_id}" data-cost="${item.cost_price || 0}">
+                ${escapeHtml(item.component_item_name)}
+            </option>`;
+        });
+    }
+
+    row.innerHTML = `
+        <td>
+            <select class="form-select form-select-sm waste-item-select" required>
+                ${optionsHtml}
+            </select>
+        </td>
+        <td>
+            <input class="form-control form-control-sm waste-qty-input" type="number" step="0.0001" min="0.0001" placeholder="Quantity" required>
+        </td>
+        <td class="text-center align-middle">
+            <button class="btn btn-outline-danger btn-sm border-0" type="button" data-action="production-order.remove-waste">
+                <i class="fas fa-times"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(row);
+
+    const select = row.querySelector('.waste-item-select');
+    const input = row.querySelector('.waste-qty-input');
+    
+    select.addEventListener('change', () => renderMaterialRequirements());
+    input.addEventListener('input', () => renderMaterialRequirements());
+}
+
+function removeWasteRow(row) {
+    row.remove();
+    const tbody = document.getElementById('wasteBody');
+    const remaining = tbody.querySelectorAll('tr:not(#wastePlaceholder)');
+    if (remaining.length === 0) {
+        const placeholder = document.getElementById('wastePlaceholder');
+        if (placeholder) placeholder.style.display = '';
+    }
+    renderMaterialRequirements(); // recalculates cost
+}
+
+function calculateWasteCost() {
+    const tbody = document.getElementById('wasteBody');
+    if (!tbody) return 0;
+    let cost = 0;
+    const rows = tbody.querySelectorAll('tr:not(#wastePlaceholder)');
+    rows.forEach(row => {
+        const select = row.querySelector('.waste-item-select');
+        const qtyInput = row.querySelector('.waste-qty-input');
+        if (!select || !qtyInput) return;
+        
+        const option = select.options[select.selectedIndex];
+        if (option && option.value) {
+            const unitCost = parseFloat(option.dataset.cost) || 0;
+            const qty = parseFloat(qtyInput.value) || 0;
+            cost += (unitCost * qty);
+        }
+    });
+    return cost;
+}
+
 // ─── Execute production order ───────────────────────────────────────────────
 
 async function executeOrder() {
+    const wasteComponents = [];
+    const wasteRows = document.querySelectorAll('#wasteBody tr:not(#wastePlaceholder)');
+    wasteRows.forEach(row => {
+        const select = row.querySelector('.waste-item-select');
+        const qtyInput = row.querySelector('.waste-qty-input');
+        if (select?.value && qtyInput?.value) {
+            wasteComponents.push({
+                item_id: parseInt(select.value, 10),
+                quantity: parseFloat(qtyInput.value)
+            });
+        }
+    });
+
     const payload = {
         recipe_id: parseInt(F.recipeSelect().value, 10),
-        production_quantity: parseFloat(F.productionQty().value)
+        production_quantity: parseFloat(F.productionQty().value),
+        waste_components: wasteComponents
     };
 
     // Include batch/expiry data if manufactured item tracks expiry

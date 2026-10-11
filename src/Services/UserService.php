@@ -175,21 +175,16 @@ class UserService {
 			// Access update
 			$oldAccess = $this->repo->getUserBusinessAccessInfo($user_id, $business_id);
 			
-			if (!empty($oldAccess)){
-				$this->repo->updateRole(
-					$user_id,
-					$business_id,
-					$access['role_id'],
-					$access['is_active']
-				);
-			} else{
-				$this->repo->assignRole(
-					$user_id,
-					$business_id,
-					$access['role_id'],
-					$access['is_active']
-				);
-			}				
+			if (empty($oldAccess)){
+				throw new \RuntimeException('User is not assigned to this business context');
+			}
+			
+			$this->repo->updateRole(
+				$user_id,
+				$business_id,
+				$access['role_id'],
+				$access['is_active']
+			);
 
 			$this->audit->log(
 				'UPDATE',
@@ -392,6 +387,16 @@ class UserService {
             if (empty($data[$field])) {
                 throw new InvalidArgumentException("Field '{$field}' is required");
             }
+        }
+
+        // Validate email format
+        if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            throw new InvalidArgumentException('Invalid email format');
+        }
+
+        // Validate password length (minimum 8 characters)
+        if (strlen($data['password']) < 8) {
+            throw new InvalidArgumentException('Password must be at least 8 characters');
         }
 
         $assignments = $data['assignments'] ?? [];
@@ -983,6 +988,54 @@ class UserService {
             $this->db->commit();
             return $newState;
 
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Update the global profile attributes (first_name, last_name, email).
+     */
+    public function updateProfileIdentity(int $userId, array $updates): void {
+        $this->db->beginTransaction();
+        try {
+            $this->repo->updateIdentity($userId, $updates);
+            // Optionally log this global action in audit logs (if tenant context exists)
+            $ctx = AuthContext::get();
+            if ($ctx && $ctx->tenant_id) {
+                $this->audit->log('UPDATE', 'users', $userId, 'UPDATE_PROFILE', null, $updates, $userId, $ctx->tenant_id, $ctx->business_id);
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Verify current password and update to new password.
+     */
+    public function changeProfilePassword(int $userId, string $currentPassword, string $newPassword): void {
+        $this->db->beginTransaction();
+        try {
+            $user = $this->repo->findIdentityById($userId);
+            if (!$user) {
+                throw new \RuntimeException('User not found');
+            }
+
+            if (!password_verify($currentPassword, $user['password_hash'])) {
+                throw new \InvalidArgumentException('Current password is incorrect');
+            }
+
+            $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+            $this->repo->updateIdentity($userId, ['password_hash' => $newHash]);
+
+            $ctx = AuthContext::get();
+            if ($ctx && $ctx->tenant_id) {
+                $this->audit->log('UPDATE', 'users', $userId, 'CHANGE_PASSWORD', null, null, $userId, $ctx->tenant_id, $ctx->business_id);
+            }
+            $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();
             throw $e;

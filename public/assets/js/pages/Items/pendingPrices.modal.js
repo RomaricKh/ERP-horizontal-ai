@@ -11,8 +11,10 @@ export async function mount({ modalRoot: root }) {
     await loadPendingPrices();
     
     if (!dt) {
-        setupEvents();
+        setupTable();
     }
+    // Always setup events, they use event delegation so it's safe to run once.
+    setupEvents();
     
     // Reset selections
     $(modalRoot).find('#selectAllPendingPrices').prop('checked', false);
@@ -110,6 +112,12 @@ async function loadPendingPrices() {
 
 function setupEvents() {
     const $root = $(modalRoot);
+    
+    // Prevent double binding by unbinding first
+    $root.find('#selectAllPendingPrices').off('change');
+    $root.find('#pendingPricesTable').off('change', '.pending-price-cb');
+    $root.find('#btnApplyPendingPrices').off('click');
+    $root.find('#btnCancelPendingPrices').off('click');
     
     $root.find('#selectAllPendingPrices').on('change', function() {
         const isChecked = $(this).prop('checked');

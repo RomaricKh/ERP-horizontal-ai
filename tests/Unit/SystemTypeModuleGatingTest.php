@@ -5,6 +5,7 @@ use PHPUnit\Framework\TestCase;
 use App\Repository\SystemTypeRepository;
 use App\Repository\ItemTypeRepository;
 use App\Repository\PayeeTypeRepository;
+use App\Repository\PeopleRepository;
 use App\Services\ModuleActivationService;
 use PDO;
 
@@ -22,6 +23,7 @@ class SystemTypeModuleGatingTest extends TestCase {
     private SystemTypeRepository $systemTypeRepo;
     private ItemTypeRepository $itemTypeRepo;
     private PayeeTypeRepository $payeeTypeRepo;
+    private PeopleRepository $peopleRepo;
 
     protected function setUp(): void {
         $this->db = new PDO(
@@ -37,6 +39,7 @@ class SystemTypeModuleGatingTest extends TestCase {
         $this->systemTypeRepo = new SystemTypeRepository($this->db);
         $this->itemTypeRepo = new ItemTypeRepository($this->db);
         $this->payeeTypeRepo = new PayeeTypeRepository($this->db);
+        $this->peopleRepo = new PeopleRepository($this->db);
     }
 
     // ── Task 31.12: Module gating for item types ─────────────────────────────
@@ -193,7 +196,7 @@ class SystemTypeModuleGatingTest extends TestCase {
         $this->assertNotNull($customerType, 'CUSTOMER type should exist');
 
         // Assign ONLY SUPPLIER type to this person
-        $this->payeeTypeRepo->setTypesForPerson($personId, [(int) $supplierType['id']]);
+        $this->peopleRepo->setPayeeTypes($payeeId, [(int) $supplierType['id']]);
 
         // Verify person has SUPPLIER type
         $this->assertTrue(
@@ -220,7 +223,7 @@ class SystemTypeModuleGatingTest extends TestCase {
             'Person with SUPPLIER type should appear in supplier list');
 
         // Now ADD CUSTOMER type to this person
-        $this->payeeTypeRepo->setTypesForPerson($personId, [
+        $this->peopleRepo->setPayeeTypes($payeeId, [
             (int) $supplierType['id'],
             (int) $customerType['id'],
         ]);
@@ -253,12 +256,18 @@ class SystemTypeModuleGatingTest extends TestCase {
         )->execute();
         $personId = (int) $this->db->lastInsertId();
 
+        // Create a payee record for this person in business 1
+        $this->db->prepare(
+            "INSERT INTO payees (people_id, business_id, balance, created_at) VALUES (?, 1, 0, NOW())"
+        )->execute([$personId]);
+        $payeeId = (int) $this->db->lastInsertId();
+
         // Get all type IDs
         $types = $this->payeeTypeRepo->findForBusiness(1, 1);
         $typeIds = array_column($types, 'id');
 
         // Assign multiple types
-        $this->payeeTypeRepo->setTypesForPerson($personId, $typeIds);
+        $this->peopleRepo->setPayeeTypes($payeeId, $typeIds);
 
         // Verify all types are assigned
         $assignedTypes = $this->payeeTypeRepo->getTypesForPerson($personId);
@@ -267,6 +276,7 @@ class SystemTypeModuleGatingTest extends TestCase {
 
         // Cleanup
         $this->db->prepare("DELETE FROM people_types WHERE people_id = ?")->execute([$personId]);
+        $this->db->prepare("DELETE FROM payees WHERE id = ?")->execute([$payeeId]);
         $this->db->prepare("DELETE FROM people WHERE id = ?")->execute([$personId]);
     }
 }

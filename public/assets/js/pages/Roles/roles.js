@@ -31,7 +31,17 @@ export async function mount() {
                 scope: MODAL_SCOPE.PAGE,
                 template: 'html/Roles/roleForm.html',
                 controller: '../pages/Roles/roleForm.modal.js',
-                data: {},
+                data: { isTemplate: false },
+                options: { backdrop: false, keyboard: true, focus: true }
+            });
+        },
+
+        'roles.createTemplate': async () => {
+            await openModal({
+                scope: MODAL_SCOPE.PAGE,
+                template: 'html/Roles/roleForm.html',
+                controller: '../pages/Roles/roleForm.modal.js',
+                data: { isTemplate: true },
                 options: { backdrop: false, keyboard: true, focus: true }
             });
         },

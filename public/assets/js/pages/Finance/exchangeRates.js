@@ -135,7 +135,7 @@ function renderTable(rates) {
                             <i class="fas fa-trash text-danger"></i></button>`;
         }
 
-        const rateValue = rate.rate != null ? parseFloat(rate.rate) : '—';
+        const rateValue = rate.rate != null ? parseFloat(rate.rate) : 0;
 
         exchangeRatesDataTable.row.add([
             rate.id,

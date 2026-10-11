@@ -67,6 +67,7 @@ export async function mount() {
             if (!confirmed) return;
 
             try {
+                el.disabled = true;
                 const res  = await apiFetch(`/api/services/${id}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
@@ -76,6 +77,8 @@ export async function mount() {
                 }
             } catch (err) {
                 console.error('Deactivate service failed:', err);
+            } finally {
+                el.disabled = false;
             }
         },
 

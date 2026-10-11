@@ -270,10 +270,14 @@ export async function render(container) {
 // ─── Data Fetching ───────────────────────────────────────────────────────────
 
 async function fetchProfitRecords() {
-    const res = await apiFetch('/api/business-profit');
-    const data = await res.json();
-    if (!data.success) return;
-    renderTable(data.data.profits ?? data.data ?? []);
+    try {
+        const res = await apiFetch('/api/business-profit');
+        const data = await res.json();
+        if (!data.success) return;
+        renderTable(data.data.profits ?? data.data ?? []);
+    } catch (err) {
+        console.error('Fetch profit records failed:', err);
+    }
 }
 
 // ─── Table Rendering ─────────────────────────────────────────────────────────

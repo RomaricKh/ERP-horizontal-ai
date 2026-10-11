@@ -27,10 +27,29 @@ class BatchService {
     ): int {
         $ctx = AuthContext::get();
 
+        // Validate quantity
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('Batch quantity must be greater than zero');
+        }
+
+        // Validate expiry_date format
+        $parsedExpiry = \DateTime::createFromFormat('Y-m-d', $expiryDate);
+        if (!$parsedExpiry || $parsedExpiry->format('Y-m-d') !== $expiryDate) {
+            throw new \InvalidArgumentException('Invalid expiry date format. Expected Y-m-d.');
+        }
+
         // Generate batch number if not provided
         if (empty($batchNumber)) {
             $seq = $this->repo->getNextSequence($itemId, $ctx->business_id, date('Ymd'));
             $batchNumber = 'B-' . date('Ymd') . '-' . str_pad($seq, 3, '0', STR_PAD_LEFT);
+        }
+
+        // Check batch_number uniqueness for better error message
+        $existing = $this->repo->findByItemId($itemId, $ctx->business_id);
+        foreach ($existing as $b) {
+            if ($b['batch_number'] === $batchNumber) {
+                throw new \InvalidArgumentException("Batch number '{$batchNumber}' already exists for this item");
+            }
         }
 
         $batchId = $this->repo->insert([
@@ -40,7 +59,7 @@ class BatchService {
             'quantity'           => $quantity,
             'expiry_date'        => $expiryDate,
             'manufacturing_date' => $manufacturingDate,
-            'status'             => 'ACTIVE',
+            'status'             => 'active',
             'created_by'         => $ctx->user_id,
         ]);
 
@@ -66,47 +85,72 @@ class BatchService {
 
     /**
      * Consume batch quantities using FEFO logic.
+     * Wraps in a transaction (if not already in one) and uses SELECT ... FOR UPDATE
+     * to prevent concurrent deductions from causing race conditions.
      */
     public function consumeFEFO(int $itemId, int $businessId, float $quantity, ?string $reference = null, ?string $notes = null): void {
-        $ctx = AuthContext::get();
-        
-        $remaining = $quantity;
-        $batchesStmt = $this->db->prepare("
-            SELECT id, quantity FROM item_batches
-            WHERE item_id = :item_id AND business_id = :business_id AND status = 'active' AND quantity > 0
-            ORDER BY expiry_date ASC
-        ");
-        $batchesStmt->execute(['item_id' => $itemId, 'business_id' => $businessId]);
-        $batches = $batchesStmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        foreach ($batches as $batch) {
-            if ($remaining <= 0) break;
-            $batchQty = (float) $batch['quantity'];
-            $deduct = min($remaining, $batchQty);
-
-            // Update batch quantity
-            $newBatchQty = $batchQty - $deduct;
-            $updateStmt = $this->db->prepare("UPDATE item_batches SET quantity = :qty, updated_at = NOW() WHERE id = :id");
-            $updateStmt->execute(['qty' => $newBatchQty, 'id' => $batch['id']]);
-
-            // Record batch transaction
-            $btStmt = $this->db->prepare("
-                INSERT INTO batch_transactions (batch_id, transaction_type, quantity, reference, notes, created_at, created_by)
-                VALUES (:batch_id, 'OUT', :quantity, :reference, :notes, NOW(), :user_id)
-            ");
-            $btStmt->execute([
-                'batch_id'  => $batch['id'],
-                'quantity'  => $deduct,
-                'reference' => $reference,
-                'notes'     => $notes,
-                'user_id'   => $ctx->user_id,
-            ]);
-
-            $remaining -= $deduct;
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('Consumption quantity must be greater than zero');
         }
 
-        if ($remaining > 0) {
-            throw new \RuntimeException("Insufficient batch quantity available. Missing {$remaining} units in active batches.");
+        $ctx = AuthContext::get();
+
+        $ownTransaction = !$this->db->inTransaction();
+        if ($ownTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $remaining = $quantity;
+
+            // Use FOR UPDATE to lock batch rows against concurrent deductions
+            $batchesStmt = $this->db->prepare("
+                SELECT id, quantity FROM item_batches
+                WHERE item_id = :item_id AND business_id = :business_id AND status = 'active' AND quantity > 0
+                ORDER BY expiry_date ASC
+                FOR UPDATE
+            ");
+            $batchesStmt->execute(['item_id' => $itemId, 'business_id' => $businessId]);
+            $batches = $batchesStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            foreach ($batches as $batch) {
+                if ($remaining <= 0) break;
+                $batchQty = (float) $batch['quantity'];
+                $deduct = min($remaining, $batchQty);
+
+                // Update batch quantity
+                $newBatchQty = $batchQty - $deduct;
+                $updateStmt = $this->db->prepare("UPDATE item_batches SET quantity = :qty, updated_at = NOW() WHERE id = :id");
+                $updateStmt->execute(['qty' => $newBatchQty, 'id' => $batch['id']]);
+
+                // Record batch transaction
+                $btStmt = $this->db->prepare("
+                    INSERT INTO batch_transactions (batch_id, transaction_type, quantity, reference, notes, created_at, created_by)
+                    VALUES (:batch_id, 'OUT', :quantity, :reference, :notes, NOW(), :user_id)
+                ");
+                $btStmt->execute([
+                    'batch_id'  => $batch['id'],
+                    'quantity'  => $deduct,
+                    'reference' => $reference,
+                    'notes'     => $notes,
+                    'user_id'   => $ctx->user_id,
+                ]);
+
+                $remaining -= $deduct;
+            }
+
+            if ($remaining > 0) {
+                throw new \RuntimeException("Insufficient batch quantity available for Item ID {$itemId}. Missing {$remaining} units in active batches.");
+            }
+
+            if ($ownTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
         }
     }
 }

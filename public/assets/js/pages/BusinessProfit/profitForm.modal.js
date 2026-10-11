@@ -34,10 +34,24 @@ export async function mount({ modalRoot: root, data }) {
     unregister = registerPageActions({
         'profit.save': async () => {
             const form = modalRoot.querySelector('#profitForm');
-            if (!form.checkValidity()) {
-                form.classList.add('was-validated');
-                return;
+            
+            clearValidation();
+            let valid = true;
+            
+            const startInput = document.getElementById('inputPeriodStart');
+            const endInput = document.getElementById('inputPeriodEnd');
+            
+            if (!startInput.value) {
+                markInvalid(startInput, 'Period start is required');
+                valid = false;
             }
+            if (!endInput.value) {
+                markInvalid(endInput, 'Period end is required');
+                valid = false;
+            }
+            
+            if (!valid) return;
+
 
             const recordId = document.getElementById('inputProfitId').value;
             const payload = {
@@ -90,4 +104,22 @@ function showError(msg) {
         footer?.prepend(el);
     }
     el.textContent = msg;
+}
+
+function clearValidation() {
+    modalRoot.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    modalRoot.querySelectorAll('.invalid-feedback').forEach(el => el.remove());
+    modalRoot.querySelector('.modal-footer .form-error')?.remove();
+}
+
+function markInvalid(input, message) {
+    if (!input) return;
+    input.classList.add('is-invalid');
+    let fb = input.parentElement.querySelector('.invalid-feedback');
+    if (!fb) {
+        fb = document.createElement('div');
+        fb.className = 'invalid-feedback';
+        input.parentElement.appendChild(fb);
+    }
+    fb.textContent = message;
 }

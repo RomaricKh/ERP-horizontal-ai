@@ -42,6 +42,8 @@ class PeopleService {
     public function create(int $tenantId, int $businessId, int $editorId, array $data): int {
         $this->db->beginTransaction();
         try {
+            $this->validatePersonInput($data, true);
+
             if (empty($data['payee_type_ids']) || !is_array($data['payee_type_ids'])) {
                 throw new \InvalidArgumentException('At least one payee type must be selected.');
             }
@@ -60,10 +62,8 @@ class PeopleService {
             // Always create a payee record for this business
             $payeeId = $this->peopleRepo->createPayee($personId, $businessId, $data['payee_notes'] ?? null);
 
-            // Assign payee types if provided
-            if (!empty($data['payee_type_ids']) && is_array($data['payee_type_ids'])) {
-                $this->peopleRepo->setPayeeTypes($payeeId, $data['payee_type_ids']);
-            }
+            $this->validatePayeeTypeOwnership($data['payee_type_ids'], $tenantId);
+            $this->peopleRepo->setPayeeTypes($payeeId, $data['payee_type_ids']);
 
             $this->audit->log('PEOPLE', 'people', $personId, 'CREATE', null,
                 ['name' => $data['name'], 'business_id' => $businessId],
@@ -82,6 +82,8 @@ class PeopleService {
     public function update(int $id, int $tenantId, int $businessId, int $editorId, array $data): void {
         $this->db->beginTransaction();
         try {
+            $this->validatePersonInput($data, false);
+
             if (empty($data['payee_type_ids']) || !is_array($data['payee_type_ids'])) {
                 throw new \InvalidArgumentException('At least one payee type must be selected.');
             }
@@ -117,7 +119,11 @@ class PeopleService {
                 }
                 
                 if (array_key_exists('payee_type_ids', $data)) {
-                    $this->peopleRepo->setPayeeTypes($payeeId, $data['payee_type_ids'] ?? []);
+                    $typeIds = $data['payee_type_ids'] ?? [];
+                    if (!empty($typeIds)) {
+                        $this->validatePayeeTypeOwnership($typeIds, $tenantId);
+                    }
+                    $this->peopleRepo->setPayeeTypes($payeeId, $typeIds);
                 }
             }
 
@@ -139,10 +145,11 @@ class PeopleService {
             // Check if payee has transactions (inside transaction to prevent TOCTOU)
             $payee = $this->peopleRepo->findPayee($id, $businessId);
             if ($payee) {
-                $txCount = $this->peopleRepo->countTransactionsForPayee($payee['id']);
-                if ($txCount > 0) {
+                $transactions = $this->peopleRepo->countTransactionsForPayee($payee['id']);
+                if (!empty($transactions)) {
+                    $blocking = implode(', ', array_keys($transactions));
                     throw new \RuntimeException(
-                        'Cannot delete: this person has transactions in this business'
+                        "Cannot delete: this person has transactions in this business (linked to: {$blocking})"
                     );
                 }
                 
@@ -163,6 +170,40 @@ class PeopleService {
         } catch (\Throwable $e) {
             $this->db->rollBack();
             throw $e;
+        }
+    }
+
+    // ── PAYEE TYPE OWNERSHIP VERIFICATION ─────────────────────────────────────
+
+    /**
+     * Verify that each payee type ID exists and belongs to the current tenant
+     * (either is_system=1 or tenant_id matches).
+     *
+     * @param array $typeIds  Array of payee_type IDs to validate
+     * @param int   $tenantId The authenticated tenant ID
+     * @throws \InvalidArgumentException if any ID is invalid or belongs to another tenant
+     */
+    private function validatePayeeTypeOwnership(array $typeIds, int $tenantId): void
+    {
+        if (empty($typeIds)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($typeIds), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT id FROM payee_types
+             WHERE id IN ({$placeholders})
+               AND (is_system = 1 OR tenant_id = ?)"
+        );
+        $params = array_merge(array_map('intval', $typeIds), [$tenantId]);
+        $stmt->execute($params);
+        $validIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+        $invalid = array_diff(array_map('intval', $typeIds), $validIds);
+        if (!empty($invalid)) {
+            throw new \InvalidArgumentException(
+                'Invalid payee type IDs: ' . implode(', ', $invalid)
+            );
         }
     }
 
@@ -209,5 +250,43 @@ class PeopleService {
             'payee'        => $payee,
             'payee_type_ids' => array_map('intval', $typeIds),
         ];
+    }
+
+    // ── INPUT VALIDATION ──────────────────────────────────────────────────────
+
+    private function validatePersonInput(array $data, bool $isCreate = true): void
+    {
+        // Name: required on create, non-empty after trim, max 255
+        $name = trim($data['name'] ?? '');
+        if ($name === '' && $isCreate) {
+            throw new \InvalidArgumentException('Name is required.');
+        }
+        if ($name !== '' && mb_strlen($name) > 255) {
+            throw new \InvalidArgumentException('Name must not exceed 255 characters.');
+        }
+
+        // Email: optional, but must be valid format if provided
+        if (!empty($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('Invalid email format.');
+        }
+
+        // Phone: optional, allowed chars only, max 50
+        if (!empty($data['phone'])) {
+            if (!preg_match('/^[\d\s\-\+\(\)]+$/', $data['phone'])) {
+                throw new \InvalidArgumentException('Phone contains invalid characters.');
+            }
+            if (mb_strlen($data['phone']) > 50) {
+                throw new \InvalidArgumentException('Phone must not exceed 50 characters.');
+            }
+        }
+
+        // Payee type IDs: each must be positive integer
+        if (isset($data['payee_type_ids']) && is_array($data['payee_type_ids'])) {
+            foreach ($data['payee_type_ids'] as $typeId) {
+                if (!is_int($typeId) && !ctype_digit((string)$typeId) || (int)$typeId <= 0) {
+                    throw new \InvalidArgumentException("Invalid payee type ID: {$typeId}");
+                }
+            }
+        }
     }
 }

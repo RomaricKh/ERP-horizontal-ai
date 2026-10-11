@@ -1,9 +1,9 @@
 <?php return array(
     'root' => array(
         'name' => 'libancorps/erp',
-        'pretty_version' => 'dev-main',
-        'version' => 'dev-main',
-        'reference' => '0b1745f8794d182d2139e15045789c82070b2576',
+        'pretty_version' => 'dev-develop',
+        'version' => 'dev-develop',
+        'reference' => '9e4fe961e694b544f446147369dc9d99eacda5cb',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -38,9 +38,9 @@
             'dev_requirement' => false,
         ),
         'libancorps/erp' => array(
-            'pretty_version' => 'dev-main',
-            'version' => 'dev-main',
-            'reference' => '0b1745f8794d182d2139e15045789c82070b2576',
+            'pretty_version' => 'dev-develop',
+            'version' => 'dev-develop',
+            'reference' => '9e4fe961e694b544f446147369dc9d99eacda5cb',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -164,9 +164,9 @@
             'dev_requirement' => true,
         ),
         'phpunit/phpunit' => array(
-            'pretty_version' => '9.6.22',
-            'version' => '9.6.22.0',
-            'reference' => 'f80235cb4d3caa59ae09be3adf1ded27521d1a9c',
+            'pretty_version' => '9.6.35',
+            'version' => '9.6.35.0',
+            'reference' => '0edba2f3a0c48df3553cb9b640810b30df60302b',
             'type' => 'library',
             'install_path' => __DIR__ . '/../phpunit/phpunit',
             'aliases' => array(),

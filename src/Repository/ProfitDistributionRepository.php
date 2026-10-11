@@ -48,7 +48,7 @@ class ProfitDistributionRepository {
                 pd.share_percent,
                 pd.amount_bc,
                 pd.payment_slip_id,
-                ps.payment_number AS payment_slip_number,
+                MAX(ps.payment_number) AS payment_slip_number,
                 pd.created_at
             FROM profit_distributions pd
             LEFT JOIN payees py
@@ -60,9 +60,31 @@ class ProfitDistributionRepository {
             LEFT JOIN payment_slips ps
                 ON (ps.id = pd.payment_slip_id) OR (ps.id = pa.payment_slip_id AND ps.payee_id = pd.partner_id)
             WHERE pd.business_profit_id = :profit_id
+            GROUP BY 
+                pd.id, 
+                pd.business_profit_id, 
+                pd.partner_id, 
+                p.name, 
+                pd.share_percent, 
+                pd.amount_bc, 
+                pd.payment_slip_id, 
+                pd.created_at
             ORDER BY pd.id ASC
         ");
         $stmt->execute(['profit_id' => $profitId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Count how many profit distributions exist for a partner in a business.
+     */
+    public function countByPartner(int $partnerId, int $businessId): int {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) FROM profit_distributions pd
+            JOIN business_profit bp ON bp.id = pd.business_profit_id
+            WHERE pd.partner_id = :partner_id AND bp.business_id = :business_id
+        ");
+        $stmt->execute(['partner_id' => $partnerId, 'business_id' => $businessId]);
+        return (int) $stmt->fetchColumn();
     }
 }

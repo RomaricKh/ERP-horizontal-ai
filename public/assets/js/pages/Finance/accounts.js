@@ -96,7 +96,9 @@ export function unmount() {
     unregister = null;
     accountsDataTable?.destroy();
     accountsDataTable = null;
-    closeModalsInContainer(accounts_container);
+    if (accounts_container) {
+        closeModalsInContainer(accounts_container);
+    }
 }
 
 export async function render(container) {

@@ -306,11 +306,13 @@ async function renderBusinessSelector(user) {
     // For tenant owners with no business roles in JWT: fetch businesses from API
     if (businesses.size === 0 && isTenantOwner()) {
         try {
-            const res = await apiFetch('/api/tenant/businesses');
+            const res = await apiFetch('/api/tenant/businesses?per_page=100');
             const data = await res.json();
-            if (data.success && Array.isArray(data.data?.businesses)) {
-                for (const biz of data.data.businesses) {
-                    if (biz.id && biz.name) {
+            // The endpoint returns a paginated envelope: { data: [...], total, ... }
+            const list = data.data?.data;
+            if (data.success && Array.isArray(list)) {
+                for (const biz of list) {
+                    if (biz.id && biz.name && biz.is_active != 0) {
                         businesses.set(biz.id, biz.name);
                     }
                 }

@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Repository\TenantOwnerRepository;
+use App\Repository\UserRepository;
+use App\Repository\RoleRepository;
 use App\Services\AuditService;
+use App\Support\AuthContext;
 use InvalidArgumentException;
 use RuntimeException;
 use PDO;
@@ -19,6 +22,181 @@ class TenantOwnerService
         $this->db = $db;
         $this->repo = new TenantOwnerRepository($db);
         $this->audit = new AuditService($db);
+    }
+
+    /**
+     * Validate that a password meets the minimum length requirement.
+     *
+     * @throws InvalidArgumentException if password is less than 8 characters
+     */
+    private static function validatePassword(string $password): void
+    {
+        if (strlen($password) < 8) {
+            throw new InvalidArgumentException('Password must be at least 8 characters');
+        }
+    }
+
+    /**
+     * Full designation flow called from the controller.
+     * Handles: user lookup/creation, duplicate check, max-owner enforcement,
+     * business-role removal + audit, role assignment.
+     *
+     * @param int   $tenantId
+     * @param array $data {email, username, first_name, last_name, password}
+     * @return int The designated user's ID
+     *
+     * @throws InvalidArgumentException on validation failure
+     * @throws RuntimeException on business rule violation
+     */
+    public function designateFromController(int $tenantId, array $data): int
+    {
+        $email = trim($data['email'] ?? '');
+        $username = trim($data['username'] ?? '');
+        $firstName = trim($data['first_name'] ?? '');
+        $lastName = trim($data['last_name'] ?? '');
+        $password = $data['password'] ?? null;
+
+        // 1. Validate email format
+        if (!$email) {
+            throw new InvalidArgumentException('Email is required');
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new InvalidArgumentException('Invalid email format');
+        }
+
+        // 2. Validate username is provided
+        if (!$username) {
+            throw new InvalidArgumentException('Username is required');
+        }
+
+        // 3. Validate password length if provided
+        if ($password !== null && $password !== '') {
+            self::validatePassword($password);
+        }
+
+        // 4. Look up existing user by email, then by username
+        $userRepo = new UserRepository($this->db);
+        $existing = $userRepo->findIdentityByEmail($email);
+        if (!$existing) {
+            $existing = $userRepo->findIdentityByUsername($username);
+        }
+
+        $this->db->beginTransaction();
+        try {
+            if ($existing) {
+                $userId = (int) $existing['user_id'];
+
+                // Check not already a tenant owner
+                if ($this->repo->exists($tenantId, $userId)) {
+                    throw new InvalidArgumentException('User is already a Tenant Owner for this tenant');
+                }
+
+                // Remove business-level roles + audit
+                $removedRoles = $this->getBusinessRolesForUser($userId, $tenantId);
+
+                $stmt = $this->db->prepare("
+                    DELETE FROM user_roles
+                    WHERE user_id = :user_id
+                      AND tenant_id = :tenant_id
+                      AND business_id IS NOT NULL
+                ");
+                $stmt->execute(['user_id' => $userId, 'tenant_id' => $tenantId]);
+
+                // Audit log the business-role deletion within the same transaction
+                if (!empty($removedRoles)) {
+                    $actingUserId = AuthContext::userId();
+                    $this->audit->log(
+                        'TENANT_OWNER_CHANGE',
+                        'user_roles',
+                        $userId,
+                        'DELETE_BUSINESS_ROLES',
+                        ['removed_roles' => $removedRoles],
+                        null,
+                        $actingUserId,
+                        $tenantId,
+                        null
+                    );
+                }
+
+            } else {
+                // New user: require first_name, last_name, password
+                if (!$firstName || !$lastName) {
+                    throw new InvalidArgumentException('First name and last name are required for new users');
+                }
+                if (!$password) {
+                    throw new InvalidArgumentException('Password is required for new users');
+                }
+                self::validatePassword($password);
+
+                $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+                $userId = $userRepo->createIdentity([
+                    'username' => $username,
+                    'email' => $email,
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'password_hash' => $passwordHash,
+                ]);
+            }
+
+            // 6. Enforce max 10 owners
+            $currentCount = $this->repo->countByTenantId($tenantId);
+            if ($currentCount >= 10) {
+                throw new RuntimeException('Maximum of 10 Tenant Owners per tenant reached');
+            }
+
+            // 7. Insert tenant owner role assignment
+            $roleRepo = new RoleRepository($this->db);
+            $roleId = $roleRepo->createTenantOwnerRole($tenantId);
+
+            $stmt = $this->db->prepare("
+                INSERT INTO user_roles (user_id, role_id, business_id, tenant_id, is_active)
+                VALUES (:user_id, :role_id, NULL, :tenant_id, 1)
+            ");
+            $stmt->execute([
+                'user_id' => $userId,
+                'role_id' => $roleId,
+                'tenant_id' => $tenantId,
+            ]);
+
+            // 8. Audit log the designation
+            $actingUserId = AuthContext::userId();
+            $this->audit->log(
+                'TENANT_OWNER_CHANGE',
+                'user_roles',
+                $userId,
+                'DESIGNATE_OWNER',
+                null,
+                ['tenant_id' => $tenantId, 'user_id' => $userId, 'role_id' => $roleId],
+                $actingUserId,
+                $tenantId,
+                null
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        // 9. Return user ID
+        return $userId;
+    }
+
+    /**
+     * Get all business-level role data for a user within a tenant (for audit logging).
+     */
+    private function getBusinessRolesForUser(int $userId, int $tenantId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT ur.id, ur.role_id, ur.business_id, r.name AS role_name
+            FROM user_roles ur
+            INNER JOIN roles r ON r.id = ur.role_id
+            WHERE ur.user_id = :user_id
+              AND ur.tenant_id = :tenant_id
+              AND ur.business_id IS NOT NULL
+        ");
+        $stmt->execute(['user_id' => $userId, 'tenant_id' => $tenantId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -123,7 +301,7 @@ class TenantOwnerService
      * @param int $tenantId The tenant to list businesses for
      * @param int $page     Current page number (1-based)
      * @param int $perPage  Number of items per page
-     * @return array Paginated result with businesses, total, page, per_page
+     * @return array Pagination envelope: {data, total, current_page, last_page, per_page}
      */
     public function getBusinessSummaries(int $tenantId, int $page = 1, int $perPage = 20): array
     {
@@ -151,10 +329,11 @@ class TenantOwnerService
         $businesses = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         return [
-            'businesses' => $businesses,
-            'total'      => $total,
-            'page'       => $page,
-            'per_page'   => $perPage,
+            'data'         => $businesses,
+            'total'        => $total,
+            'current_page' => $page,
+            'last_page'    => max(1, (int) ceil($total / $perPage)),
+            'per_page'     => $perPage,
         ];
     }
 
@@ -357,9 +536,13 @@ class TenantOwnerService
     }
 
     /**
-     * Get the conversion rate from business currency to tenant base currency.
+     * Get the conversion rate from business base currency to tenant base currency.
      * Returns 1.0 if currencies are the same.
-     * Uses the latest exchange rate from the exchange_rates table (Req 7.1).
+     *
+     * The _bc values from business queries are already in the business's base currency.
+     * To aggregate across businesses at the tenant level, we need to convert each
+     * business's base currency to the tenant's base currency using tenant-scoped
+     * exchange rates (Req 7.1).
      */
     private function getConversionRate(string $fromCurrency, string $toCurrency, int $businessId): float
     {
@@ -367,12 +550,13 @@ class TenantOwnerService
             return 1.0;
         }
 
-        // Look for a direct rate: fromCurrency in exchange_rates for this business
-        // The exchange_rates table stores rates as "1 unit of currency = X units of base currency"
+        // Look up the conversion rate for the business's base currency at the tenant level.
+        // We query by tenant_id (not business_id) because we need a cross-business rate
+        // that converts from the business's base currency to the tenant's base currency.
         $stmt = $this->db->prepare("
             SELECT rate FROM exchange_rates
             WHERE currency = :currency
-              AND business_id = :business_id
+              AND tenant_id = (SELECT tenant_id FROM businesses WHERE id = :business_id)
             ORDER BY rate_date DESC
             LIMIT 1
         ");
@@ -383,9 +567,9 @@ class TenantOwnerService
             return (float) $rate;
         }
 
-        // If no rate found, return 1.0 as fallback (amounts are already in _bc = business base currency)
+        // If no rate found, return 1.0 as fallback (log a warning in production)
         // The _bc columns already represent amounts in the business's base currency,
-        // so if business currency matches tenant currency, rate is 1.0
+        // so if no conversion rate exists, we treat them as 1:1 to avoid report failures.
         return 1.0;
     }
 

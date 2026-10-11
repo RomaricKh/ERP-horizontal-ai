@@ -301,6 +301,9 @@ async function handleDeleteNotification(e) {
     if (!id) return;
 
     try {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
         const res = await apiFetch(`/api/notifications/${id}`, { method: 'DELETE' });
         const json = await res.json();
 
@@ -308,9 +311,13 @@ async function handleDeleteNotification(e) {
             await fetchNotifications();
         } else {
             await alert({ title: 'Error', alertText: json.message || 'Failed to delete notification' });
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i>';
         }
     } catch (err) {
         console.error('[Notifications] Delete failed:', err);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash"></i>';
     }
 }
 
@@ -320,6 +327,9 @@ async function handleClearAllRead() {
         message: 'This will remove all read notifications. This action cannot be undone.'
     });
     if (!confirmed) return;
+
+    const btn = _container?.querySelector('#clearAllReadBtn');
+    if (btn) btn.disabled = true;
 
     try {
         const res = await apiFetch('/api/notifications/read', { method: 'DELETE' });
@@ -333,6 +343,8 @@ async function handleClearAllRead() {
         }
     } catch (err) {
         console.error('[Notifications] Clear all read failed:', err);
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 

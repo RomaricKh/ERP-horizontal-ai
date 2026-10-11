@@ -112,27 +112,27 @@ class BatchRepository {
     }
 
     /**
-     * Update the quantity of a batch.
+     * Update the quantity of a batch, scoped by business_id for defense-in-depth.
      */
-    public function updateQuantity(int $batchId, float $newQuantity): void {
+    public function updateQuantity(int $batchId, int $businessId, float $newQuantity): void {
         $stmt = $this->db->prepare("
             UPDATE item_batches
             SET quantity = :quantity, updated_at = NOW()
-            WHERE id = :id
+            WHERE id = :id AND business_id = :business_id
         ");
-        $stmt->execute(['quantity' => $newQuantity, 'id' => $batchId]);
+        $stmt->execute(['quantity' => $newQuantity, 'id' => $batchId, 'business_id' => $businessId]);
     }
 
     /**
-     * Update the status of a batch.
+     * Update the status of a batch, scoped by business_id for defense-in-depth.
      */
-    public function updateStatus(int $batchId, string $status): void {
+    public function updateStatus(int $batchId, int $businessId, string $status): void {
         $stmt = $this->db->prepare("
             UPDATE item_batches
             SET status = :status, updated_at = NOW()
-            WHERE id = :id
+            WHERE id = :id AND business_id = :business_id
         ");
-        $stmt->execute(['status' => $status, 'id' => $batchId]);
+        $stmt->execute(['status' => $status, 'id' => $batchId, 'business_id' => $businessId]);
     }
 
     /**

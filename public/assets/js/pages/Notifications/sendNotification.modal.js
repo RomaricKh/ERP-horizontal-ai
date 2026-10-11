@@ -31,8 +31,9 @@ async function loadRecipients() {
 
         users.forEach(user => {
             const opt = document.createElement('option');
-            opt.value = user.id;
-            opt.textContent = user.name || user.email || `User #${user.id}`;
+            const userId = user.user_id || user.id;
+            opt.value = userId;
+            opt.textContent = user.name || user.email || `User #${userId}`;
             select.appendChild(opt);
         });
     } catch (err) {

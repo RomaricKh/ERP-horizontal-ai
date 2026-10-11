@@ -131,6 +131,7 @@ class ManufacturingProductionFlowTest extends TestCase
             'manufactured_item_id'   => $insertedItemId,
             'yield_quantity'         => $yieldQuantity,
             'manufactured_item_name' => 'Finished Product',
+            'unit'                   => 'kg',
         ]);
 
         // Recipe items
@@ -186,7 +187,7 @@ class ManufacturingProductionFlowTest extends TestCase
 
         // Track status update
         $mfgRepo->method('updateProductionOrderStatus')->willReturnCallback(
-            function (int $id, string $status) use (&$orderStatus) {
+            function (int $id, string $status, int $tenantId, int $businessId) use (&$orderStatus) {
                 $orderStatus = $status;
             }
         );
@@ -339,6 +340,7 @@ class ManufacturingProductionFlowTest extends TestCase
             'manufactured_item_id'   => 999,
             'yield_quantity'         => 2,
             'manufactured_item_name' => 'Finished Product',
+            'unit'                   => 'kg',
         ]);
 
         // Recipe items
@@ -536,7 +538,7 @@ class ManufacturingProductionFlowTest extends TestCase
         ]);
 
         $mfgRepo->method('updateProductionOrderStatus')->willReturnCallback(
-            function (int $id, string $status) use (&$orderStatus) {
+            function (int $id, string $status, int $tenantId, int $businessId) use (&$orderStatus) {
                 $orderStatus = $status;
             }
         );
@@ -638,6 +640,7 @@ class ManufacturingProductionFlowTest extends TestCase
 
         $stockValidator = new class extends \App\Services\StockValidator {
             public function __construct() {}
+            public function assertSufficientStock(int $itemId, int $businessId, float $quantity): void {}
             public function assertAvailable(int $itemId, float $requestedQty, int $businessId): void {}
             public function checkBatch(array $requirements, int $businessId): array { return []; }
         };

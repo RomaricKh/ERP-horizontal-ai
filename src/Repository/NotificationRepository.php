@@ -19,16 +19,25 @@ class NotificationRepository {
     public function create(array $data): int {
         $stmt = $this->db->prepare("
             INSERT INTO notifications
-              (notification_type_id, type, title, body, sender_id, recipient_id, business_id,
+              (notification_type, type, title, message, body, sender_id, recipient_id, business_id,
                entity_type, entity_id, is_read, created_at)
             VALUES
-              (:notification_type_id, :type, :title, :body, :sender_id, :recipient_id, :business_id,
+              (:notification_type, :type, :title, :message, :body, :sender_id, :recipient_id, :business_id,
                :entity_type, :entity_id, 0, NOW())
         ");
+        
+        $typeMap = [
+            'STOCK_LOW' => 1,
+            'INVOICE_DUE' => 4,
+            // Fallback everything else to 5 (system)
+        ];
+        $mappedType = $typeMap[$data['type'] ?? 'INFO'] ?? 5;
+
         $stmt->execute([
-            'notification_type_id' => $data['notification_type_id'] ?? null,
+            'notification_type'    => $mappedType,
             'type'                 => $data['type'] ?? 'INFO',
             'title'                => $data['title'],
+            'message'              => $data['body'],
             'body'                 => $data['body'],
             'sender_id'            => $data['sender_id'] ?? null,
             'recipient_id'         => $data['recipient_id'],

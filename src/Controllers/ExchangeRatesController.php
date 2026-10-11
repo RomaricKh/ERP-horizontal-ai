@@ -51,9 +51,7 @@ class ExchangeRatesController extends BaseController {
     public function show(int $id): void {
         try {
             $this->auth();
-            $ctx = \App\Support\AuthContext::get();
-            $rate = (new \App\Repository\ExchangeRateRepository(\App\Config\Database::getConnection()))
-                ->findById($id, $ctx->tenant_id);
+            $rate = $this->service->getById($id);
             if (!$rate) {
                 $this->json(false, null, 'Exchange rate not found', 404);
                 return;

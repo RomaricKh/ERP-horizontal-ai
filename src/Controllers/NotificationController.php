@@ -169,7 +169,7 @@ class NotificationController extends BaseController {
         } catch (\InvalidArgumentException $e) {
             $this->json(false, null, $e->getMessage(), 400);
         } catch (\Throwable $e) {
-            $this->serverError('Failed to send notification');
+            $this->serverError('Failed to send notification: ' . $e->getMessage());
         }
     }
 

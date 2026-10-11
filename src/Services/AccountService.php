@@ -42,11 +42,20 @@ class AccountService {
 
     /**
      * Dynamically calculates the Base Currency (BC) balance for accounts using the latest exchange rates.
+     * A1: Rates are cached per-currency to avoid N+1 queries.
      */
     private function applyDynamicExchangeRates(array $accounts): array {
         $exchangeRateService = new ExchangeRateService($this->db);
+        $rateCache = []; // Cache: currency => lookup result
+
         foreach ($accounts as &$account) {
-            $lookup = $exchangeRateService->getLatestForLookup($account['currency']);
+            $currency = $account['currency'];
+
+            if (!isset($rateCache[$currency])) {
+                $rateCache[$currency] = $exchangeRateService->getLatestForLookup($currency);
+            }
+
+            $lookup = $rateCache[$currency];
             $rate = $lookup['rate'] !== null ? (float) $lookup['rate'] : 1.0;
 
             if (!$lookup['is_base'] && $rate > 0) {
@@ -197,7 +206,7 @@ class AccountService {
                 throw new \RuntimeException('Account not found');
             }
 
-            if ((float) $account['balance'] != 0) {
+            if (abs((float) $account['balance']) > 0.001) {
                 throw new \RuntimeException('Cannot delete: account has a non-zero balance');
             }
 

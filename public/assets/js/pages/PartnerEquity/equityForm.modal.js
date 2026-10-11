@@ -61,7 +61,7 @@ export async function mount({ modalRoot: root, data }) {
         const currentAccount = F.account().value;
         await loadAccountDropdown(selectedCurrency || null);
         if (currentAccount) {
-            const stillExists = F.account().querySelector(`option[value="${currentAccount}"]`);
+            const stillExists = Array.from(F.account().options).some(opt => opt.value === currentAccount);
             if (stillExists) {
                 F.account().value = currentAccount;
             } else {

@@ -315,6 +315,11 @@ class ExpenseBalanceTest extends TestCase
             {
                 $this->deltas[] = ['payeeId' => $payeeId, 'delta' => $delta];
             }
+
+            public function ensurePayeeBelongsToBusiness(int $payeeId, int $businessId): void
+            {
+                // no-op for tests — assume payee belongs to business
+            }
         };
     }
 
@@ -329,6 +334,12 @@ class ExpenseBalanceTest extends TestCase
         $pdo->method('beginTransaction')->willReturn(true);
         $pdo->method('commit')->willReturn(true);
         $pdo->method('inTransaction')->willReturn(true);
+
+        // Mock prepare() to support countPaymentAllocationsForExpense and other inline SQL
+        $stmtMock = $this->createMock(\PDOStatement::class);
+        $stmtMock->method('execute')->willReturn(true);
+        $stmtMock->method('fetchColumn')->willReturn(0); // No allocations
+        $pdo->method('prepare')->willReturn($stmtMock);
 
         $audit = new class extends AuditService {
             public function __construct() {}

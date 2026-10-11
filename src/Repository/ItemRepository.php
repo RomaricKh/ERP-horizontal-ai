@@ -78,7 +78,7 @@ class ItemRepository {
     // ── ITEMS ─────────────────────────────────────────────────────────────────
 
     public function getAllForBusiness(int $tenantId, int $businessId, array $excludeTypes = [], bool $includeInactive = false): array {
-        $params = ['tenant' => $tenantId, 'business1' => $businessId, 'business2' => $businessId];
+        $params = ['tenant' => $tenantId, 'business1' => $businessId, 'business2' => $businessId, 'business3' => $businessId];
         $excludeClause = '';
 
         if (!empty($excludeTypes)) {
@@ -116,15 +116,61 @@ class ItemRepository {
                    it.name AS type_name,
                    p.name AS customer_name,
                    COALESCE(s.quantity, 0) AS stock_qty,
-                   (SELECT COALESCE(SUM(sid.quantity), 0) FROM si_details sid JOIN sales_invoices si ON si.id = sid.sales_invoice_id WHERE sid.item_id = i.id AND si.status IN ('DELIVERED', 'PAID')) AS total_sold
+                   COALESCE(sold.total_sold, 0) AS total_sold
             FROM items i
             JOIN item_types it ON it.id = i.item_type_id
             LEFT JOIN stock s ON s.item_id = i.id AND s.business_id = :business1
             LEFT JOIN people p ON p.id = i.customer_id
+            LEFT JOIN (
+                SELECT sid.item_id, COALESCE(SUM(sid.quantity), 0) AS total_sold
+                FROM si_details sid
+                JOIN sales_invoices si ON si.id = sid.sales_invoice_id
+                WHERE si.status IN ('DELIVERED', 'PAID') AND si.business_id = :business3
+                GROUP BY sid.item_id
+            ) sold ON sold.item_id = i.id
             {$costFlagJoin}
             WHERE i.tenant_id = :tenant
               AND (i.business_id = :business2 OR i.business_id IS NULL)
               {$activeClause}
+              {$excludeClause}
+            ORDER BY i.name
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Lightweight item query for dropdown/selector use cases.
+     * Only fetches: id, name, sku, unit, cost_price, sale_price, type_name, stock_qty.
+     * No total_sold, no cost flag, no customer_name JOINs.
+     */
+    public function getItemsForSelector(int $tenantId, int $businessId, array $excludeTypes = []): array {
+        $params = ['tenant' => $tenantId, 'business1' => $businessId, 'business2' => $businessId];
+        $excludeClause = '';
+
+        if (!empty($excludeTypes)) {
+            $placeholders = [];
+            foreach ($excludeTypes as $i => $type) {
+                $key = "excl_{$i}";
+                $placeholders[] = ":{$key}";
+                $params[$key] = strtolower(trim($type));
+            }
+            $excludeClause = "AND LOWER(TRIM(it.name)) NOT IN (" . implode(',', $placeholders) . ")";
+        }
+
+        $sql = "
+            SELECT i.id, i.name, i.sku, i.unit,
+                   i.cost_price, i.sale_price, i.has_expiry,
+                   it.name AS type_name,
+                   COALESCE(s.quantity, 0) AS stock_qty
+            FROM items i
+            JOIN item_types it ON it.id = i.item_type_id
+            LEFT JOIN stock s ON s.item_id = i.id AND s.business_id = :business1
+            WHERE i.tenant_id = :tenant
+              AND (i.business_id = :business2 OR i.business_id IS NULL)
+              AND i.is_active = 1
               {$excludeClause}
             ORDER BY i.name
         ";

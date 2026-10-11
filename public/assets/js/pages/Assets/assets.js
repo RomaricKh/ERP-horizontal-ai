@@ -129,6 +129,7 @@ export async function mount() {
             if (!confirmed) return;
 
             // Use a simple prompt for proceeds (or default to 0)
+            // TODO: Replace prompt with a proper modal component (AS9)
             const proceedsStr = prompt('Sale proceeds (0 for write-off):', '0');
             if (proceedsStr === null) return;
             const proceeds = parseFloat(proceedsStr) || 0;

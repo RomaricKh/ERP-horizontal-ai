@@ -41,6 +41,9 @@ class ManufacturingService {
 
         // ── Validation ──
         $this->validateRecipeInput($data, $ctx->tenant_id, $ctx->business_id);
+        if (isset($data['unit'])) {
+            $this->itemService->validateFractionalQuantity((float) $data['yield_quantity'], $data['unit']);
+        }
 
         // Calculate unit cost from components
         $componentDetails = $this->resolveComponentDetails($data['components'], $ctx->tenant_id);
@@ -134,6 +137,11 @@ class ManufacturingService {
 
         // Validate inputs (pass manufactured_item_id for self-reference check)
         $this->validateRecipeInput($data, $ctx->tenant_id, $ctx->business_id, $recipe['manufactured_item_id']);
+
+        $manufacturedItem = $this->itemRepo->getById($recipe['manufactured_item_id'], $ctx->tenant_id);
+        if ($manufacturedItem) {
+            $this->itemService->validateFractionalQuantity((float) $data['yield_quantity'], $manufacturedItem['unit']);
+        }
 
         // Get old recipe items for audit
         $oldRecipeItems = $this->repo->getRecipeItems($id);
@@ -442,9 +450,34 @@ class ManufacturingService {
             throw new \InvalidArgumentException('Production quantity must be greater than zero');
         }
 
+        $this->itemService->validateFractionalQuantity($productionQuantity, $recipe['unit']);
+
+        // Parse and validate waste components
+        $wasteItems = is_array($data['waste_components'] ?? null) ? $data['waste_components'] : [];
+        $validatedWaste = [];
+        foreach ($wasteItems as $waste) {
+            $wasteQty = (float) ($waste['quantity'] ?? 0);
+            if ($wasteQty <= 0) continue;
+
+            $wItem = $this->itemRepo->getById((int) $waste['item_id'], $ctx->tenant_id);
+            if (!$wItem) {
+                throw new \InvalidArgumentException("Waste item not found");
+            }
+            if ($wItem['business_id'] !== null && (int) $wItem['business_id'] !== $ctx->business_id) {
+                throw new \InvalidArgumentException("Waste item not found");
+            }
+            $this->itemService->validateFractionalQuantity($wasteQty, $wItem['unit']);
+
+            $validatedWaste[] = [
+                'item_id' => (int) $waste['item_id'],
+                'quantity' => $wasteQty,
+                'unit_cost' => (float) $wItem['cost_price']
+            ];
+        }
+
         // Get recipe items (components)
         $recipeItems = $this->repo->getRecipeItems($recipe['id']);
-        $yieldQuantity = (int) $recipe['yield_quantity'];
+        $yieldQuantity = (float) $recipe['yield_quantity'];
 
         // Calculate required quantities for each component
         $componentRequirements = [];
@@ -467,10 +500,31 @@ class ManufacturingService {
             ];
         }
 
-        // Calculate manufacturing cost
+        // Add waste to stockCheckRequirements to ensure sufficient stock
+        foreach ($validatedWaste as $waste) {
+            $stockCheckRequirements[] = [
+                'item_id'  => $waste['item_id'],
+                'required' => $waste['quantity'],
+            ];
+        }
+
+        // Group required quantities by item_id for stock validation
+        $groupedStockCheck = [];
+        foreach ($stockCheckRequirements as $req) {
+            $iid = $req['item_id'];
+            if (!isset($groupedStockCheck[$iid])) {
+                $groupedStockCheck[$iid] = 0.0;
+            }
+            $groupedStockCheck[$iid] += $req['required_qty'] ?? $req['required'];
+        }
+
+        // Calculate manufacturing cost including waste
         $manufacturingCost = 0.0;
         foreach ($componentRequirements as $req) {
             $manufacturingCost += $req['unit_cost'] * $req['required_qty'];
+        }
+        foreach ($validatedWaste as $waste) {
+            $manufacturingCost += $waste['unit_cost'] * $waste['quantity'];
         }
         $unitManufacturingCost = $manufacturingCost / $productionQuantity;
 
@@ -478,13 +532,14 @@ class ManufacturingService {
         $this->db->beginTransaction();
         try {
             // Stock sufficiency check within transaction to prevent race conditions
-            foreach ($componentRequirements as $req) {
+            foreach ($groupedStockCheck as $itemId => $totalRequired) {
                 $this->stockValidator->assertSufficientStock(
-                    $req['component_item_id'],
+                    $itemId,
                     $ctx->business_id,
-                    $req['required_qty']
+                    $totalRequired
                 );
             }
+
             // Deduct each component from stock
             foreach ($componentRequirements as $req) {
                 $this->itemService->adjustStock(
@@ -492,6 +547,17 @@ class ManufacturingService {
                     'OUT',
                     $req['required_qty'],
                     'PRODUCTION_ORDER',
+                    null
+                );
+            }
+
+            // Deduct waste from stock
+            foreach ($validatedWaste as $waste) {
+                $this->itemService->adjustStock(
+                    $waste['item_id'],
+                    'OUT',
+                    $waste['quantity'],
+                    'PRODUCTION_WASTE',
                     null
                 );
             }
@@ -551,6 +617,11 @@ class ManufacturingService {
                 ];
             }
             $this->repo->insertProductionOrderItems($orderId, $orderItems);
+
+            // Insert production order waste
+            if (!empty($validatedWaste)) {
+                $this->repo->insertProductionOrderWaste($orderId, $validatedWaste);
+            }
 
             // Audit log
             $this->audit->log(
@@ -638,6 +709,36 @@ class ManufacturingService {
                 );
             }
 
+            // Add back waste items to stock
+            $wasteItems = $this->repo->getProductionOrderWaste($id);
+            foreach ($wasteItems as $waste) {
+                $this->itemService->adjustStock(
+                    (int) $waste['item_id'],
+                    'IN',
+                    (float) $waste['quantity'],
+                    'PRODUCTION_WASTE_REVERSAL',
+                    null
+                );
+            }
+
+            // Deactivate batch record created during production (if any)
+            $batchStmt = $this->db->prepare("
+                UPDATE item_batches
+                SET status = 'reversed', quantity = 0
+                WHERE item_id = :item_id
+                  AND business_id = :business_id
+                  AND batch_number LIKE 'PROD-%'
+                  AND quantity = :production_quantity
+                  AND status = 'active'
+                ORDER BY created_at DESC
+                LIMIT 1
+            ");
+            $batchStmt->execute([
+                'item_id'             => (int) $order['manufactured_item_id'],
+                'business_id'         => $ctx->business_id,
+                'production_quantity' => (float) $order['production_quantity'],
+            ]);
+
             // Deduct manufactured item from stock
             $this->itemService->adjustStock(
                 (int) $order['manufactured_item_id'],
@@ -648,7 +749,7 @@ class ManufacturingService {
             );
 
             // Update status to REVERSED
-            $this->repo->updateProductionOrderStatus($id, 'REVERSED');
+            $this->repo->updateProductionOrderStatus($id, 'REVERSED', $ctx->tenant_id, $ctx->business_id);
 
             // Audit log
             $this->audit->log(
@@ -680,6 +781,7 @@ class ManufacturingService {
         }
 
         $order['items'] = $this->repo->getProductionOrderItems($id);
+        $order['waste_items'] = $this->repo->getProductionOrderWaste($id);
         return $order;
     }
 
@@ -789,6 +891,11 @@ class ManufacturingService {
      * @param int $itemId The manufactured item ID
      */
     public function dismissCostChangeFlag(int $itemId): void {
+        $ctx = AuthContext::get();
+        $item = $this->itemRepo->getById($itemId, $ctx->tenant_id);
+        if (!$item || ((int) ($item['business_id'] ?? 0) !== $ctx->business_id && $item['business_id'] !== null)) {
+            throw new \RuntimeException('Item not found');
+        }
         $this->repo->dismissCostChangeFlag($itemId);
     }
 
@@ -799,6 +906,11 @@ class ManufacturingService {
      * @param float $markupPercent The markup percentage to apply
      */
     public function setAutoMarkupConfig(int $itemId, float $markupPercent): void {
+        $ctx = AuthContext::get();
+        $item = $this->itemRepo->getById($itemId, $ctx->tenant_id);
+        if (!$item || ((int) ($item['business_id'] ?? 0) !== $ctx->business_id && $item['business_id'] !== null)) {
+            throw new \RuntimeException('Item not found');
+        }
         $this->repo->setAutoMarkupConfig($itemId, $markupPercent);
     }
 
@@ -824,7 +936,7 @@ class ManufacturingService {
         }
 
         // Yield validation
-        if (!isset($data['yield_quantity']) || (int) $data['yield_quantity'] <= 0) {
+        if (!isset($data['yield_quantity']) || (float) $data['yield_quantity'] <= 0) {
             throw new \InvalidArgumentException('Yield quantity must be greater than zero');
         }
 
@@ -854,6 +966,9 @@ class ManufacturingService {
                     "Component item '{$item['name']}' not found or not accessible"
                 );
             }
+
+            // Validate fractional quantities based on unit
+            $this->itemService->validateFractionalQuantity((float) $component['quantity'], $item['unit']);
 
             // Self-reference check
             if ($manufacturedItemId !== null && (int) $component['item_id'] === $manufacturedItemId) {
@@ -885,11 +1000,11 @@ class ManufacturingService {
             return;
         }
 
-        $allowedComponentCodes = ['RAW_MATERIAL', 'CONSUMABLE'];
+        $allowedComponentCodes = ['RAW_MATERIAL', 'TRADING', 'CONSUMABLE'];
         if (!in_array($type['code'], $allowedComponentCodes, true)) {
             throw new \InvalidArgumentException(
                 "Item '{$item['name']}' (type: {$type['name']}) cannot be used as a recipe component. " .
-                "Only Raw Material and Consumable items are allowed."
+                "Only Raw Material, Trading, and Consumable items are allowed."
             );
         }
     }

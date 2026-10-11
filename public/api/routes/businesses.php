@@ -2,7 +2,6 @@
 
 use App\Controllers\BusinessesController;
 use App\Controllers\BusinessTypesController;
-use App\Support\AuthContext;
 
 /* =====================================================================
  * BUSINESS ROUTES
@@ -15,18 +14,7 @@ use App\Support\AuthContext;
  * Requirements: 4.1, 12.2
  * ===================================================================== */
 
-$businessTenantGuard = function (): bool {
-    if (!AuthContext::isTenantOwner()) {
-        http_response_code(403);
-        echo json_encode([
-            'success' => false,
-            'data'    => null,
-            'message' => 'Access denied: Tenant Owner privileges required'
-        ]);
-        return false;
-    }
-    return true;
-};
+$businessTenantGuard = require __DIR__ . '/_guards.php';
 
 /* ========= BUSINESSES ========= */
 

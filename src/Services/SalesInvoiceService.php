@@ -92,23 +92,37 @@ class SalesInvoiceService {
             $invoiceNumber = $this->repo->generateInvoiceNumber($ctx->business_id);
         }
 
+        $discountPercent = isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0;
+        $discountAmount  = isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0;
+        if ($discountPercent > 0 && $discountAmount > 0) {
+            throw new \InvalidArgumentException('Cannot apply both percentage and amount discounts simultaneously');
+        }
+
         $this->db->beginTransaction();
         try {
+            $calcDueDate = new \DateTime($data['invoice_date']);
+            $calcDueDate->modify('next friday');
+            $calculatedDueDate = $calcDueDate->format('Y-m-d');
+
             $invoiceId = $this->repo->create([
                 'business_id'      => $ctx->business_id,
                 'customer_id'      => isset($data['customer_id']) && $data['customer_id'] !== '' ? (int) $data['customer_id'] : null,
                 'invoice_number'   => $invoiceNumber,
                 'invoice_date'     => $data['invoice_date'],
-                'due_date'         => $data['due_date'] ?? null,
+                'due_date'         => $calculatedDueDate,
                 'currency'         => trim($data['currency']),
                 'exchange_rate'    => $resolvedRate,
-                'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
-                'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0,
+                'discount_percent' => $discountPercent,
+                'discount_amount'  => $discountAmount,
                 'notes'            => $data['notes'] ?? null,
                 'created_by'       => $ctx->user_id,
             ]);
 
             foreach ($lines as $line) {
+                if (!empty($line['item_id'])) {
+                    $item = $this->itemService->getById((int) $line['item_id']);
+                    $this->itemService->validateFractionalQuantity((float) $line['quantity'], $item['unit']);
+                }
                 $this->repo->addLine($invoiceId, $line);
             }
 
@@ -137,7 +151,7 @@ class SalesInvoiceService {
             // Check if the invoice due date is within 3 days and send notification
             $this->checkDueDateNotification(
                 $invoiceId,
-                $data['due_date'] ?? $data['invoice_date'],
+                $calculatedDueDate,
                 $invoiceNumber,
                 $ctx->user_id
             );
@@ -188,6 +202,11 @@ class SalesInvoiceService {
             if (empty($service['is_active'])) {
                 throw new \InvalidArgumentException('Service is inactive and cannot be invoiced');
             }
+        }
+        
+        if ($hasItemId) {
+            $item = $this->itemService->getById((int) $data['item_id']);
+            $this->itemService->validateFractionalQuantity((float) $data['quantity'], $item['unit']);
         }
         // Stock validation is deferred until status update to DELIVERED
 
@@ -262,6 +281,11 @@ class SalesInvoiceService {
             if (empty($service['is_active'])) {
                 throw new \InvalidArgumentException('Service is inactive and cannot be invoiced');
             }
+        }
+
+        if ($hasItemId) {
+            $item = $this->itemService->getById((int) $data['item_id']);
+            $this->itemService->validateFractionalQuantity((float) $data['quantity'], $item['unit']);
         }
         // Stock validation is deferred until status update to DELIVERED
 
@@ -363,22 +387,36 @@ class SalesInvoiceService {
             : (float) $data['exchange_rate'];
         $resolvedRate = $this->exchangeRateService->resolveRate(trim($data['currency']), $providedRate);
 
+        $discountPercent = isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0;
+        $discountAmount  = isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0;
+        if ($discountPercent > 0 && $discountAmount > 0) {
+            throw new \InvalidArgumentException('Cannot apply both percentage and amount discounts simultaneously');
+        }
+
         $this->db->beginTransaction();
         try {
+            $calcDueDate = new \DateTime($data['invoice_date']);
+            $calcDueDate->modify('next friday');
+            $calculatedDueDate = $calcDueDate->format('Y-m-d');
+
             $this->repo->updateHeader($id, $ctx->business_id, [
                 'customer_id'      => isset($data['customer_id']) && $data['customer_id'] !== '' ? (int) $data['customer_id'] : null,
                 'invoice_date'     => $data['invoice_date'],
-                'due_date'         => $data['due_date'] ?? null,
+                'due_date'         => $calculatedDueDate,
                 'currency'         => trim($data['currency']),
                 'exchange_rate'    => $resolvedRate,
-                'discount_percent' => isset($data['discount_percent']) ? (float) $data['discount_percent'] : 0,
-                'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : 0,
+                'discount_percent' => $discountPercent,
+                'discount_amount'  => $discountAmount,
                 'notes'            => $data['notes'] ?? null,
             ]);
 
             if ($lines !== null) {
                 $this->repo->deleteLines($id);
                 foreach ($lines as $line) {
+                    if (!empty($line['item_id'])) {
+                        $item = $this->itemService->getById((int) $line['item_id']);
+                        $this->itemService->validateFractionalQuantity((float) $line['quantity'], $item['unit']);
+                    }
                     $this->repo->addLine($id, $line);
                 }
                 $this->repo->recalculateTotals($id, $this->db);
@@ -524,7 +562,7 @@ class SalesInvoiceService {
 
         $allowed = [
             'DRAFT'     => ['DELIVERED', 'CANCELLED'],
-            'DELIVERED' => ['CANCELLED'],
+            'DELIVERED' => ['CANCELLED', 'DRAFT'],
         ];
 
         if (!isset($allowed[$current]) || !in_array($newStatus, $allowed[$current], true)) {
@@ -541,6 +579,15 @@ class SalesInvoiceService {
                 if ($paymentStatus === 'PARTIALLY_PAID' || $paymentStatus === 'PAID') {
                     throw new \RuntimeException('Cannot cancel: invoice has associated collections. Reverse collections first.');
                 }
+            }
+
+            // Revert delivery auto-allocation removal
+            if ($newStatus === 'DRAFT' && $current === 'DELIVERED') {
+                $stmtDelAlloc = $this->db->prepare("
+                    DELETE FROM collection_allocations
+                    WHERE reference_type = 'SALES_INVOICE' AND reference_id = :id
+                ");
+                $stmtDelAlloc->execute(['id' => $id]);
             }
 
             $this->repo->updateStatus($id, $ctx->business_id, $newStatus);
@@ -596,8 +643,8 @@ class SalesInvoiceService {
                 }
             }
 
-            // CANCEL from DELIVERED (UNPAID): reverse stock OUT and customer balance
-            if ($newStatus === 'CANCELLED' && $current === 'DELIVERED') {
+            // CANCEL or REVERT from DELIVERED (UNPAID): reverse stock OUT and customer balance
+            if (($newStatus === 'CANCELLED' || $newStatus === 'DRAFT') && $current === 'DELIVERED') {
                 // Reverse stock OUT for each item line (increase stock) — skip service lines
                 $lines = $this->repo->getLines($id);
                 foreach ($lines as $line) {
@@ -957,7 +1004,7 @@ class SalesInvoiceService {
         $newData = [
             'customer_id'      => $source['customer_id'] ?? null,
             'invoice_date'     => date('Y-m-d'),
-            'due_date'         => null,
+            'due_date'         => (new \DateTime(date('Y-m-d')))->modify('next friday')->format('Y-m-d'),
             'currency'         => $source['currency'],
             'exchange_rate'    => $source['exchange_rate'],
             'discount_percent' => $source['discount_percent'] ?? 0,

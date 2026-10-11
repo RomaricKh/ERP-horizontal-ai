@@ -47,6 +47,7 @@ class NotificationService {
      * @param string|null $entityType   Related entity type (nullable)
      * @param int|null    $entityId     Related entity ID (nullable)
      * @param int|null    $senderId     Sender user ID (nullable)
+     * @param int|null    $businessId   Business context (falls back to AuthContext)
      */
     public function notify(
         string $type,
@@ -55,7 +56,8 @@ class NotificationService {
         $recipientIds,
         ?string $entityType = null,
         ?int $entityId = null,
-        ?int $senderId = null
+        ?int $senderId = null,
+        ?int $businessId = null
     ): void {
         try {
             // Normalize to array
@@ -63,14 +65,21 @@ class NotificationService {
                 $recipientIds = [$recipientIds];
             }
 
+            if ($businessId === null) {
+                $ctx = \App\Support\AuthContext::get();
+                if ($ctx) {
+                    $businessId = $ctx->business_id;
+                }
+            }
+
             foreach ($recipientIds as $recipientId) {
+                // Check if recipient is actually in the target business
+                if ($businessId === null || !$this->isUserInBusiness($recipientId, $businessId)) {
+                    continue; // Skip if no business context or user not in business
+                }
+
                 // Check preferences (USER_MESSAGE always bypasses)
                 if ($type !== 'USER_MESSAGE') {
-                    // We need the business_id for preference check — look it up from user_roles
-                    $businessId = $this->getRecipientBusinessId($recipientId);
-                    if ($businessId === null) {
-                        continue; // Skip if recipient has no business association
-                    }
 
                     if (!$this->preferenceRepo->isTypeEnabled($recipientId, $businessId, $type)) {
                         continue; // Skip — user has disabled this type
@@ -87,11 +96,8 @@ class NotificationService {
                         'entity_id'    => $entityId,
                     ]);
                 } else {
-                    // USER_MESSAGE — always deliver, business_id from user_roles
-                    $businessId = $this->getRecipientBusinessId($recipientId);
-                    if ($businessId === null) {
-                        continue;
-                    }
+                    // USER_MESSAGE — always deliver
+
 
                     $this->notificationRepo->create([
                         'type'         => $type,
@@ -186,18 +192,8 @@ class NotificationService {
      * @throws \InvalidArgumentException if recipient is not in the same business
      */
     public function sendUserMessage(int $senderId, int $recipientId, string $title, string $body, int $businessId): void {
-        // Validate recipient belongs to the same business
-        $stmt = $this->db->prepare("
-            SELECT 1 FROM user_roles
-            WHERE user_id = :user_id AND business_id = :business_id
-            LIMIT 1
-        ");
-        $stmt->execute([
-            'user_id'     => $recipientId,
-            'business_id' => $businessId,
-        ]);
-
-        if (!$stmt->fetch()) {
+        // Validate recipient belongs to the same business or has a valid global role
+        if (!$this->isUserInBusiness($recipientId, $businessId)) {
             throw new \InvalidArgumentException('Recipient not found in your business');
         }
 
@@ -293,18 +289,23 @@ class NotificationService {
     }
 
     /**
-     * Get the primary business_id for a recipient from user_roles.
-     * Returns null if the user has no business association.
+     * Check if a user belongs to a specific business.
      */
-    private function getRecipientBusinessId(int $userId): ?int {
+    private function isUserInBusiness(int $userId, int $businessId): bool {
         $stmt = $this->db->prepare("
-            SELECT business_id FROM user_roles
-            WHERE user_id = :user_id
+            SELECT 1 FROM user_roles ur
+            LEFT JOIN roles r ON ur.role_id = r.id
+            LEFT JOIN businesses b ON b.id = :business_id
+            WHERE ur.user_id = :user_id 
+              AND ur.is_active = 1
+              AND (
+                  ur.business_id = :business_id 
+                  OR (r.type = 'TENANT_OWNER' AND ur.tenant_id = b.tenant_id)
+                  OR r.type = 'SYSTEM_OWNER'
+              )
             LIMIT 1
         ");
-        $stmt->execute(['user_id' => $userId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        return $row ? (int) $row['business_id'] : null;
+        $stmt->execute(['user_id' => $userId, 'business_id' => $businessId]);
+        return (bool) $stmt->fetch();
     }
 }

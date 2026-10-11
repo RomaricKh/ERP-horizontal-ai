@@ -169,12 +169,25 @@ export async function render(container) {
 }
 
 async function fetchBusinesses() {
-	const res = await apiFetch('/api/tenant/businesses');
+	try {
+		const res = await apiFetch('/api/tenant/businesses');
+		const data = await res.json();
+		if (!res.ok || !data.success) {
+			showError('Failed to load businesses');
+			return;
+		}
+		renderBusinessTable(data.data?.data || []);
+	} catch (err) {
+		console.error('Fetch businesses failed:', err);
+		showError('Network error loading businesses');
+	}
+}
 
-	const data = await res.json();
-	if (!data.success) return;
-
-	renderBusinessTable(data.data?.data || data.data?.businesses || []);
+function showError(message) {
+	const container = document.querySelector('#businessesErrorContainer');
+	if (container) {
+		container.innerHTML = `<div class="alert alert-danger">${message}</div>`;
+	}
 }
 
 function renderBusinessTable(businesses) {

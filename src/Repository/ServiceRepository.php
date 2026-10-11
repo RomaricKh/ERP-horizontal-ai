@@ -83,12 +83,12 @@ class ServiceRepository {
     }
 
     /**
-     * Update only the provided fields for a service.
+     * Update only the provided fields for a service, scoped by business and tenant.
      */
-    public function update(int $id, array $data): void {
+    public function update(int $id, array $data, int $businessId, int $tenantId): void {
         $allowed = ['name', 'description', 'unit', 'rate', 'category_id', 'is_active'];
         $fields  = [];
-        $params  = ['id' => $id];
+        $params  = ['id' => $id, 'business' => $businessId, 'tenant' => $tenantId];
 
         foreach ($data as $key => $value) {
             if (in_array($key, $allowed, true)) {
@@ -103,7 +103,8 @@ class ServiceRepository {
 
         $fields[] = "`updated_at` = NOW()";
 
-        $sql = "UPDATE services SET " . implode(', ', $fields) . " WHERE id = :id";
+        $sql = "UPDATE services SET " . implode(', ', $fields)
+             . " WHERE id = :id AND business_id = :business AND tenant_id = :tenant";
         $this->db->prepare($sql)->execute($params);
     }
 
@@ -136,91 +137,5 @@ class ServiceRepository {
             'tenant'      => $tenantId,
         ]);
         return (int) $stmt->fetchColumn();
-    }
-
-    // ── SERVICE CATEGORIES ────────────────────────────────────────────────────
-
-    /**
-     * Get all service categories for a business.
-     */
-    public function findAllCategories(int $businessId, int $tenantId): array {
-        $stmt = $this->db->prepare("
-            SELECT id, tenant_id, business_id, name, created_by, created_at
-            FROM service_categories
-            WHERE tenant_id = :tenant
-              AND business_id = :business
-            ORDER BY name
-        ");
-        $stmt->execute(['tenant' => $tenantId, 'business' => $businessId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    /**
-     * Find a single category by ID, scoped by business and tenant.
-     */
-    public function findCategoryById(int $id, int $businessId, int $tenantId): ?array {
-        $stmt = $this->db->prepare("
-            SELECT id, tenant_id, business_id, name, created_by, created_at
-            FROM service_categories
-            WHERE id = :id
-              AND tenant_id = :tenant
-              AND business_id = :business
-            LIMIT 1
-        ");
-        $stmt->execute(['id' => $id, 'tenant' => $tenantId, 'business' => $businessId]);
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    }
-
-    /**
-     * Insert a new service category and return the new ID.
-     */
-    public function createCategory(array $data): int {
-        $stmt = $this->db->prepare("
-            INSERT INTO service_categories (tenant_id, business_id, name, created_by, created_at)
-            VALUES (:tenant_id, :business_id, :name, :created_by, NOW())
-        ");
-        $stmt->execute([
-            'tenant_id'   => $data['tenant_id'],
-            'business_id' => $data['business_id'],
-            'name'        => $data['name'],
-            'created_by'  => $data['created_by'],
-        ]);
-        return (int) $this->db->lastInsertId();
-    }
-
-    /**
-     * Update a service category's name.
-     */
-    public function updateCategory(int $id, array $data): void {
-        $allowed = ['name'];
-        $fields  = [];
-        $params  = ['id' => $id];
-
-        foreach ($data as $key => $value) {
-            if (in_array($key, $allowed, true)) {
-                $fields[]    = "`$key` = :$key";
-                $params[$key] = $value;
-            }
-        }
-
-        if (empty($fields)) {
-            return;
-        }
-
-        $sql = "UPDATE service_categories SET " . implode(', ', $fields) . " WHERE id = :id";
-        $this->db->prepare($sql)->execute($params);
-    }
-
-    /**
-     * Delete a service category by ID, scoped by business and tenant.
-     */
-    public function deleteCategory(int $id, int $businessId, int $tenantId): void {
-        $stmt = $this->db->prepare("
-            DELETE FROM service_categories
-            WHERE id = :id
-              AND business_id = :business
-              AND tenant_id = :tenant
-        ");
-        $stmt->execute(['id' => $id, 'business' => $businessId, 'tenant' => $tenantId]);
     }
 }
